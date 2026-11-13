@@ -1,0 +1,14 @@
+<Window x:Class="SnipTrace.App.Presentation.Recording.CountdownWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        Background="#E60B0F14" AllowsTransparency="False" WindowStartupLocation="Manual">
+    <Grid>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
+            <TextBlock x:Name="NumberText" Text="3" FontSize="110" FontWeight="Bold" HorizontalAlignment="Center"
+                       Foreground="{StaticResource AccentBrush}" />
+            <TextBlock x:Name="HintText" Text="3 秒后开始录制 · Esc 取消" Style="{StaticResource CaptionText}"
+                       HorizontalAlignment="Center" Margin="0,10,0,0" />
+        </StackPanel>
+    </Grid>
+</Window>

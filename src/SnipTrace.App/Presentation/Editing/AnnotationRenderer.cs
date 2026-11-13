@@ -1,0 +1,234 @@
+using System;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using SnipTrace.Domain;
+
+namespace SnipTrace.App.Presentation.Editing;
+
+/// <summary>标注绘制：画布与导出共用同一套几何，保证所见即所得。</summary>
+public static class AnnotationRenderer
+{
+    public static void Draw(DrawingContext dc, Annotation annotation)
+    {
+        if (annotation is TextAnnotation { Text.Length: 0 }) return;
+
+        var color = ToColor(annotation.Style.Argb, annotation.Style.Opacity);
+        var brush = Freeze(new SolidColorBrush(color));
+        var pen = new Pen(brush, annotation.Style.Width)
+        {
+            StartLineCap = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
+            LineJoin = PenLineJoin.Round
+        };
+        pen.Freeze();
+
+        switch (annotation)
+        {
+            case ShapeAnnotation shape:
+                DrawShape(dc, shape, pen, brush);
+                break;
+            case TextAnnotation text:
+                DrawText(dc, text, brush);
+                break;
+            case NumberBadgeAnnotation badge:
+                DrawBadge(dc, badge, brush);
+                break;
+        }
+    }
+
+    public static void DrawDocument(DrawingContext dc, BitmapSource? image, AnnotationDocument document)
+    {
+        if (image is not null)
+        {
+            dc.DrawImage(image, new Rect(0, 0, document.ImageWidth, document.ImageHeight));
+        }
+
+        foreach (var annotation in document.InRenderOrder) Draw(dc, annotation);
+    }
+
+    public static BitmapSource Render(BitmapSource image, AnnotationDocument document)
+    {
+        double width = Math.Max(1, document.ImageWidth);
+        double height = Math.Max(1, document.ImageHeight);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawImage(image, new Rect(0, 0, width, height));
+            foreach (var annotation in document.InRenderOrder) Draw(dc, annotation);
+        }
+
+        var target = new RenderTargetBitmap((int)width, (int)height, 96, 96, PixelFormats.Pbgra32);
+        target.Render(visual);
+        target.Freeze();
+        return target;
+    }
+
+    private static void DrawShape(DrawingContext dc, ShapeAnnotation shape, Pen pen, Brush brush)
+    {
+        var points = shape.Points;
+        if (points.Count == 0) return;
+
+        switch (shape.Kind)
+        {
+            case AnnotationKind.Rectangle:
+            {
+                var rect = RectFromPoints(points[0], points[^1]);
+                if (rect.Width > 0 && rect.Height > 0) dc.DrawRectangle(null, pen, rect);
+                break;
+            }
+            case AnnotationKind.Ellipse:
+            {
+                var rect = RectFromPoints(points[0], points[^1]);
+                if (rect.Width > 0 && rect.Height > 0)
+                {
+                    dc.DrawEllipse(null, pen, new Point(rect.X + rect.Width / 2, rect.Y + rect.Height / 2), rect.Width / 2, rect.Height / 2);
+                }
+
+                break;
+            }
+            case AnnotationKind.Arrow:
+            {
+                var start = new Point(points[0].X, points[0].Y);
+                var end = new Point(points[^1].X, points[^1].Y);
+                DrawArrow(dc, start, end, pen, brush);
+                break;
+            }
+            default:
+            {
+                if (points.Count == 1)
+                {
+                    double radius = Math.Max(1.5, shape.Style.Width / 2);
+                    dc.DrawEllipse(brush, null, new Point(points[0].X, points[0].Y), radius, radius);
+                    break;
+                }
+
+                var geometry = new StreamGeometry();
+                using (var ctx = geometry.Open())
+                {
+                    ctx.BeginFigure(new Point(points[0].X, points[0].Y), false, false);
+                    for (int i = 1; i < points.Count; i++) ctx.LineTo(new Point(points[i].X, points[i].Y), true, true);
+                }
+
+                geometry.Freeze();
+                dc.DrawGeometry(null, pen, geometry);
+                break;
+            }
+        }
+    }
+
+    private static void DrawArrow(DrawingContext dc, Point start, Point end, Pen pen, Brush brush)
+    {
+        double dx = end.X - start.X;
+        double dy = end.Y - start.Y;
+        double length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 0.5) return;
+
+        double headLength = Math.Max(9, pen.Thickness * 3.6);
+        double headWidth = headLength * 0.55;
+        double ux = dx / length;
+        double uy = dy / length;
+
+        var shaftEnd = new Point(end.X - ux * headLength * 0.85, end.Y - uy * headLength * 0.85);
+        dc.DrawLine(pen, start, shaftEnd);
+
+        var normalX = -uy;
+        var normalY = ux;
+        var basePoint = new Point(end.X - ux * headLength, end.Y - uy * headLength);
+        var head = new StreamGeometry();
+        using (var ctx = head.Open())
+        {
+            ctx.BeginFigure(end, true, true);
+            ctx.LineTo(new Point(basePoint.X + normalX * headWidth, basePoint.Y + normalY * headWidth), true, true);
+            ctx.LineTo(new Point(basePoint.X - normalX * headWidth, basePoint.Y - normalY * headWidth), true, true);
+        }
+
+        head.Freeze();
+        dc.DrawGeometry(brush, null, head);
+    }
+
+    private static void DrawText(DrawingContext dc, TextAnnotation text, Brush brush)
+    {
+        var typeface = new Typeface(new FontFamily(text.FontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var formatted = new FormattedText(
+            text.Text,
+            CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            text.FontSize,
+            brush,
+            1.0);
+
+        dc.DrawText(formatted, new Point(text.Origin.X, text.Origin.Y));
+    }
+
+    private static void DrawBadge(DrawingContext dc, NumberBadgeAnnotation badge, Brush brush)
+    {
+        double radius = badge.Diameter / 2;
+        var center = new Point(badge.Center.X, badge.Center.Y);
+        var typeface = new Typeface(new FontFamily("Segoe UI Variable, Microsoft YaHei UI, Segoe UI"),
+            FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        var label = new FormattedText(
+            badge.Number.ToString(CultureInfo.InvariantCulture),
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            badge.FontSize,
+            Brushes.White,
+            1.0);
+
+        var radiusRect = new Rect(badge.Bounds.X, badge.Bounds.Y, badge.Bounds.Width, badge.Bounds.Height);
+
+        switch (badge.BadgeStyle)
+        {
+            case BadgeStyle.OutlineCircle:
+            {
+                var pen = new Pen(brush, Math.Max(1.5, badge.FontSize * 0.12));
+                pen.Freeze();
+                dc.DrawEllipse(null, pen, center, radius, radius);
+                var outlineText = new FormattedText(
+                    badge.Number.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                    typeface, badge.FontSize, brush, 1.0);
+                dc.DrawText(outlineText, new Point(center.X - outlineText.Width / 2, center.Y - outlineText.Height / 2));
+                break;
+            }
+            case BadgeStyle.RoundedRect:
+            {
+                double width = Math.Max(badge.Diameter, label.Width + badge.Diameter * 0.7);
+                double height = badge.Diameter;
+                var rect = new Rect(center.X - width / 2, center.Y - height / 2, width, height);
+                dc.DrawRoundedRectangle(brush, null, rect, height * 0.28, height * 0.28);
+                dc.DrawText(label, new Point(center.X - label.Width / 2, center.Y - label.Height / 2));
+                break;
+            }
+            default:
+                dc.DrawEllipse(brush, null, center, radius, radius);
+                dc.DrawText(label, new Point(center.X - label.Width / 2, center.Y - label.Height / 2 + 1));
+                break;
+        }
+    }
+
+    private static Rect RectFromPoints(PointD a, PointD b)
+    {
+        double x = Math.Min(a.X, b.X);
+        double y = Math.Min(a.Y, b.Y);
+        return new Rect(x, y, Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
+    }
+
+    public static Color ToColor(uint argb, double opacity)
+    {
+        byte a = (byte)(argb >> 24);
+        byte r = (byte)(argb >> 16);
+        byte g = (byte)(argb >> 8);
+        byte b = (byte)argb;
+        byte alpha = (byte)Math.Clamp(a * Math.Clamp(opacity, 0, 1), 0, 255);
+        return Color.FromArgb(alpha, r, g, b);
+    }
+
+    private static T Freeze<T>(T freezable) where T : Freezable
+    {
+        if (freezable.CanFreeze) freezable.Freeze();
+        return freezable;
+    }
+}

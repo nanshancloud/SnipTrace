@@ -1,0 +1,23 @@
+# ---------- 构建产物 ----------
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+.vs/
+TestResults/
+
+# ---------- 本地调试与运行制品 ----------
+artifacts/
+*.log
+
+# ---------- 本地工具缓存 ----------
+.dotnet-home/
+.nuget/
+.probe
+*.cache
+
+# ---------- 系统文件 ----------
+Thumbs.db
+desktop.ini
+.DS_Store

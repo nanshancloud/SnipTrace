@@ -1,0 +1,174 @@
+using System;
+using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
+using SnipTrace.App.Infrastructure.Capture;
+using SnipTrace.App.Infrastructure.Platform;
+using SnipTrace.App.Presentation.Selection;
+using SnipTrace.App.Presentation.Views;
+using SnipTrace.Domain;
+
+namespace SnipTrace.App.Presentation.Services;
+
+public enum CaptureIntent
+{
+    Screenshot,
+    Gif,
+    Video
+}
+
+/// <summary>截图编排：冻结桌面、跨屏选区、按动作分发到编辑器/剪贴板/文件/钉图/录制。</summary>
+public sealed class CaptureWorkflow
+{
+    private readonly AppServices _services;
+    private bool _busy;
+
+    public CaptureWorkflow(AppServices services)
+    {
+        _services = services;
+    }
+
+    public async Task CaptureAsync(CaptureIntent intent = CaptureIntent.Screenshot)
+    {
+        if (_busy || _services.Recording.IsRecording)
+        {
+            _services.Toasts.Warn("正在处理其他捕获任务", "请先完成当前截图或录制。");
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _services.Shell?.HideForCapture();
+            await Task.Delay(140);
+
+            using var snapshot = DesktopSnapshot.Capture(_services.Settings.IncludeCursorInCapture);
+            if (snapshot.FailedMonitors > 0)
+            {
+                _services.Toasts.Warn("部分显示器捕获失败", "失败区域已填充黑色，可尝试重新截图。");
+            }
+
+            using var overlay = new SelectionOverlay(snapshot);
+            var result = await overlay.ShowAsync();
+            if (result is null) return;
+
+            await HandleSelectionAsync(snapshot, result);
+        }
+        catch (Exception ex)
+        {
+            _services.Toasts.Warn("截图失败", ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>全屏截图：当前显示器或所有显示器并集。</summary>
+    public async Task CaptureFullScreenAsync(bool allMonitors)
+    {
+        if (_busy || _services.Recording.IsRecording)
+        {
+            _services.Toasts.Warn("正在处理其他捕获任务", "请先完成当前截图或录制。");
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _services.Shell?.HideForCapture();
+            await Task.Delay(120);
+
+            using var snapshot = DesktopSnapshot.Capture(_services.Settings.IncludeCursorInCapture);
+            PixelRect area = allMonitors
+                ? snapshot.Bounds
+                : MonitorService.FromPoint(MonitorService.GetCursorPosition())?.Bounds ?? snapshot.Bounds;
+            area = PixelRect.Intersect(area, snapshot.Bounds);
+            if (area.IsEmpty) return;
+
+            using var cropped = snapshot.Crop(area);
+            var image = ImageUtil.ToBitmapSource(cropped);
+            if (_services.Settings.CopyAfterCapture) ClipboardService.SetImage(image);
+            OpenEditor(image);
+        }
+        catch (Exception ex)
+        {
+            _services.Toasts.Warn("全屏截图失败", ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task HandleSelectionAsync(DesktopSnapshot snapshot, SelectionResult result)
+    {
+        if (result.Area.IsEmpty) return;
+
+        if (result.Action is SelectionAction.Gif or SelectionAction.Video)
+        {
+            var kind = result.Action == SelectionAction.Gif ? RecordingKind.Gif : RecordingKind.Video;
+            var monitor = MonitorService.FromPoint(result.Area.Center) ?? snapshot.Monitors[0];
+            var area = PixelRect.Intersect(result.Area, monitor.Bounds);
+            if (area.IsEmpty)
+            {
+                _services.Toasts.Warn("录制区域无效", "屏幕录制仅支持单显示器内的选区。");
+                return;
+            }
+
+            if (area.Area != result.Area.Area)
+            {
+                _services.Toasts.Info("录屏仅限单显示器", "选区已裁剪到当前显示器范围。");
+            }
+
+            await _services.Recording.StartAsync(kind, area, monitor);
+            return;
+        }
+
+        using var cropped = snapshot.Crop(result.Area);
+        var image = ImageUtil.ToBitmapSource(cropped);
+
+        switch (result.Action)
+        {
+            case SelectionAction.Copy:
+                CopyImage(image);
+                break;
+            case SelectionAction.Save:
+                SaveImage(image);
+                break;
+            case SelectionAction.Pin:
+                new PinWindow(image, NewBaseName()).Show();
+                break;
+            default:
+                if (_services.Settings.CopyAfterCapture) ClipboardService.SetImage(image);
+                OpenEditor(image);
+                break;
+        }
+    }
+
+    private void OpenEditor(BitmapSource image)
+    {
+        var editor = new EditorWindow(image, NewBaseName());
+        editor.Show();
+    }
+
+    private void CopyImage(BitmapSource image)
+    {
+        if (ClipboardService.SetImage(image)) _services.Toasts.Info("已复制到剪贴板", $"{image.PixelWidth} × {image.PixelHeight}");
+        else _services.Toasts.Warn("复制失败", "剪贴板被其他程序占用，请稍后重试。");
+    }
+
+    private void SaveImage(BitmapSource image)
+    {
+        try
+        {
+            string path = _services.SaveScreenshot(image, NewBaseName(), out _);
+            _services.Toasts.Info("已保存", path);
+        }
+        catch (Exception ex)
+        {
+            _services.Toasts.Warn("保存失败", ex.Message);
+        }
+    }
+
+    private static string NewBaseName() => OutputNaming.TimestampedBaseName("SnipTrace", DateTime.Now);
+}

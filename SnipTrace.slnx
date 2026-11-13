@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SnipTrace.App/SnipTrace.App.csproj" />
+    <Project Path="src/SnipTrace.Domain/SnipTrace.Domain.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SnipTrace.Tests/SnipTrace.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/GifProbe/GifProbe.csproj" />
+  </Folder>
+</Solution>
