@@ -64,6 +64,34 @@ internal static class SelfTest
 
             Check("GIF 循环标记", ContainsLoopBlock(gifPath));
 
+            // 大画布 + 多颜色：覆盖 LZW 码长 9→12 位的增长与码表重置路径。
+            // 码长时序错位时像素流会被截断，表现为只有顶部一条内容、其余发黑。
+            const int bigWidth = 900;
+            const int bigHeight = 350;
+            string bigGifPath = Path.Combine(root, "large.gif");
+            using (var source = new Bitmap(bigWidth, bigHeight, PixelFormat.Format32bppArgb))
+            {
+                using (var graphics = Graphics.FromImage(source))
+                {
+                    for (int y = 0; y < bigHeight; y += 10)
+                    {
+                        using var brush = new SolidBrush(Color.FromArgb(255, (y * 7) % 256, (y * 3) % 256, (y * 11) % 256));
+                        graphics.FillRectangle(brush, 0, y, bigWidth, 10);
+                    }
+                }
+
+                using (var stream = new FileStream(bigGifPath, FileMode.Create, FileAccess.Write))
+                {
+                    using var encoder = new GifStreamEncoder(stream, bigWidth, bigHeight);
+                    encoder.AddFrame(source, 100);
+                }
+
+                using var decoded = new Bitmap(bigGifPath);
+                var expected = source.GetPixel(10, bigHeight - 5);
+                var actual = decoded.GetPixel(10, bigHeight - 5);
+                Check("GIF 大画布像素流完整", Near(actual, expected), $"{actual} / 期望 {expected}");
+            }
+
             var (mp4Available, reason) = Mp4Encoder.ProbeAvailability(root);
             Check("MP4 编码器可用", mp4Available, reason);
 

@@ -140,7 +140,7 @@ dotnet publish src/SnipTrace.App -c Release -r win-x64 --self-contained false -o
 验证一个构建是否可用：
 
 ```powershell
-.\dist\win-x64\SnipTrace.exe --selftest                      # 期望 7 行 PASS，退出码 0
+.\dist\win-x64\SnipTrace.exe --selftest                      # 期望 8 行 PASS，退出码 0
 .\dist\win-x64\SnipTrace.exe --preview 录制文件.gif|.mp4      # 打开录制预览窗口
 .\dist\win-x64\SnipTrace.exe --page settings                 # 直接打开指定页面
 ```

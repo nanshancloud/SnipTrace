@@ -234,7 +234,9 @@ internal static class GifLzw
                 if (nextCode < 4096)
                 {
                     dictionary[key] = nextCode++;
-                    if (nextCode > (1 << codeSize) - 1 && codeSize < 12) codeSize++;
+                    // 解码端的码表比编码端慢一个码：它要在读下一个码时才补登记当前条目，
+                    // 因此码长必须比"表满"晚一个码增长，否则从 9→10 位起整段像素流错位。
+                    if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
                 }
                 else
                 {
