@@ -106,11 +106,21 @@ dotnet run --project src/SnipTrace.App          # 启动应用
 dotnet run --project src/SnipTrace.App -- --selftest   # GIF / MP4 / 导出管线自检
 ```
 
-发布：
+发布可执行版本：
 
 ```powershell
-dotnet publish src/SnipTrace.App -c Release -r win-x64 --self-contained false
+dotnet publish src/SnipTrace.App -c Release -r win-x64 --self-contained false -o dist/win-x64
 ```
+
+产物在 `dist/win-x64/`（`dist/` 已被 git 忽略），直接运行 `SnipTrace.exe` 即可；该版本依赖 .NET 11 桌面运行时。
+
+验证一个构建是否可用：
+
+```powershell
+.\dist\win-x64\SnipTrace.exe --selftest   # 期望 7 行 PASS，退出码 0
+```
+
+`--selftest` 会在临时目录真实生成一张 GIF 与一个 MP4 并校验尺寸/颜色/循环标记/导出像素，验证完自动清理。
 
 ## 已知限制
 
