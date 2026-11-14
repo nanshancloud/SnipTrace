@@ -4,10 +4,12 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using SnipTrace.App.Infrastructure.Capture;
 using SnipTrace.App.Infrastructure.Encoding;
 using SnipTrace.App.Presentation.Editing;
 using SnipTrace.App.Presentation.Recording;
+using SnipTrace.App.Presentation.Views;
 using SnipTrace.Domain;
 using Color = System.Drawing.Color;
 
@@ -128,9 +130,42 @@ internal static class SelfTest
         }
 
         CheckWindowLayouts(root, Check);
+        CheckSettingsLiveApply(Check);
 
         writer.WriteLine($"失败 {failures}");
         return failures;
+    }
+
+    /// <summary>设置页即时生效：只改控件、不点任何按钮，防抖结束设置即写回。</summary>
+    private static void CheckSettingsLiveApply(Action<string, bool, string?> check)
+    {
+        try
+        {
+            var paths = new Infrastructure.Storage.PathService();
+            var settings = AppSettings.CreateDefault();
+            settings.Normalize(paths.DefaultScreenshotDirectory, paths.DefaultVideoDirectory);
+            var view = new SettingsView(settings, paths);
+
+            string target = Path.Combine(paths.RootDirectory, "shots-smoke");
+            view.ScreenshotDirBox.Text = target;
+
+            var frame = new DispatcherFrame();
+            var timer = new DispatcherTimer(
+                TimeSpan.FromMilliseconds(700),
+                DispatcherPriority.Background,
+                (_, _) => frame.Continue = false,
+                Dispatcher.CurrentDispatcher);
+            timer.Start();
+            Dispatcher.PushFrame(frame);
+            timer.Stop();
+
+            bool ok = string.Equals(settings.ScreenshotDirectory, target, StringComparison.OrdinalIgnoreCase);
+            check("设置改动即时生效", ok, ok ? target : "仍为 " + settings.ScreenshotDirectory);
+        }
+        catch (Exception ex)
+        {
+            check("设置改动即时生效", false, ex.Message);
+        }
     }
 
     /// <summary>UI 冒烟：离屏构建各浮动窗口并强制一次布局，覆盖 XAML 解析、样式引用与尺寸计算。</summary>
@@ -144,6 +179,11 @@ internal static class SelfTest
             {
                 var path = Path.Combine(root, "smoke.mp4");
                 return new RecordingResultWindow(null, path, RecordingKind.Video, TimeSpan.FromSeconds(4), 1024);
+            }),
+            ("钉图窗口", () =>
+            {
+                using var source = new Bitmap(240, 160);
+                return new PinWindow(ImageUtil.ToBitmapSource(source), "smoke");
             })
         };
 

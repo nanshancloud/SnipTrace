@@ -387,7 +387,7 @@ public sealed class SelectionOverlay : IDisposable
 
         _pendingShape = new ShapeAnnotation(kind, new[] { point, point }, CurrentAnnotateStyle());
         _annotating = true;
-        _overlayAnnotations.Add(_pendingShape);
+        _overlayAnnotations!.Add(_pendingShape);
         RefreshAnnotations();
     }
 
@@ -606,7 +606,8 @@ public sealed class SelectionOverlay : IDisposable
         _toolbar.RefreshRatio(_requestedRatio);
         _magnifier.UpdateInfo(infoRect, _cursor, ratioLabel, hasGap, _pixelColor);
 
-        if (forceMagnifier || _cursor != _lastMagnifierCursor || (DateTime.UtcNow - _lastMagnifierUpdate).TotalMilliseconds > 80)
+        // 放大镜只在框选过程中出现，其余时间把屏幕让给截图内容。
+        if (_dragging && (forceMagnifier || _cursor != _lastMagnifierCursor || (DateTime.UtcNow - _lastMagnifierUpdate).TotalMilliseconds > 80))
         {
             _lastMagnifierCursor = _cursor;
             _lastMagnifierUpdate = DateTime.UtcNow;
@@ -665,7 +666,8 @@ public sealed class SelectionOverlay : IDisposable
     /// </summary>
     private void PlaceMagnifier()
     {
-        if (_completed)
+        // 仅在按住鼠标框选截图范围时显示放大镜。
+        if (_completed || !_dragging)
         {
             _magnifier.SetShown(false);
             return;

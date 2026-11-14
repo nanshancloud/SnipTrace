@@ -4,7 +4,7 @@
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         Topmost="True" Focusable="False" WindowStartupLocation="Manual" SizeToContent="WidthAndHeight"
         AllowsTransparency="True" Background="Transparent" Title="SnipTrace Menu">
-    <Border Background="#F5161E28" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+    <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             CornerRadius="8" Padding="4">
         <StackPanel x:Name="MenuPanel" MinWidth="196" />
     </Border>

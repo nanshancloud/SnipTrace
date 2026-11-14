@@ -64,11 +64,11 @@
                 </StackPanel>
             </Border>
 
-            <Grid Grid.Column="1" Background="#0F151D" ClipToBounds="True">
+            <Grid Grid.Column="1" Background="{DynamicResource CanvasBrush}" ClipToBounds="True">
                 <editing:AnnotationCanvas x:Name="Canvas" />
                 <TextBox x:Name="TextEditorBox" Style="{StaticResource AppTextBox}" Visibility="Collapsed"
                          AcceptsReturn="True" TextWrapping="Wrap" VerticalAlignment="Top" HorizontalAlignment="Left"
-                         MinWidth="160" Background="#F218212C" BorderBrush="{DynamicResource AccentBrush}"
+                         MinWidth="160" Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource AccentBrush}"
                          KeyDown="TextEditor_KeyDown" LostFocus="TextEditor_LostFocus" />
             </Grid>
 

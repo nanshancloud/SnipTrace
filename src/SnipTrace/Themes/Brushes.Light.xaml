@@ -20,4 +20,9 @@
     <SolidColorBrush x:Key="TrackBrush" Color="#D8DEE8" />
     <SolidColorBrush x:Key="CheckStrokeBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="OverlayMaskBrush" Color="#8C000000" />
+    <!-- 浮动工具条 / 悬浮介绍 / 预览面板的半透明底，避免出现死黑块 -->
+    <SolidColorBrush x:Key="ChromeBrush" Color="#F7FFFFFF" />
+    <SolidColorBrush x:Key="CanvasBrush" Color="#E9EDF3" />
+    <SolidColorBrush x:Key="HairlineBrush" Color="#33000000" />
+    <SolidColorBrush x:Key="WarnBrush" Color="#B9791A" />
 </ResourceDictionary>

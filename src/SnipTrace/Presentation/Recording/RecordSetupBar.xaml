@@ -4,7 +4,7 @@
         WindowStyle="None" SizeToContent="WidthAndHeight" ResizeMode="NoResize"
         ShowInTaskbar="False" Topmost="True" Background="Transparent" AllowsTransparency="True"
         WindowStartupLocation="Manual" Title="SnipTrace Record Setup">
-    <Border Background="#F2161E28" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+    <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             CornerRadius="24" Padding="14,8">
         <StackPanel Orientation="Horizontal">
             <TextBlock Text="选择格式" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
@@ -26,7 +26,7 @@
                     ToolTip="MP4 码率档位：标准按分辨率自动估算，高清 12 Mbps，超清 24 Mbps" />
             <Popup x:Name="QualityPopup" PlacementTarget="{Binding ElementName=QualityButton}"
                    Placement="Top" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
-                <Border Background="#F5161E28" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                         CornerRadius="8" Padding="4" Margin="6">
                     <StackPanel>
                         <Button Content="标准" Style="{StaticResource SelectionMenuItem}" Click="QualityOption_Click" Tag="0" />

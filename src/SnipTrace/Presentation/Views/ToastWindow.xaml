@@ -4,7 +4,7 @@
         Width="360" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="False" Topmost="True" ResizeMode="NoResize">
-    <Border Background="#F21A2330" CornerRadius="10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+    <Border Background="{DynamicResource ChromeBrush}" CornerRadius="10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             Padding="14,12" Margin="12">
         <Grid>
             <Grid.ColumnDefinitions>

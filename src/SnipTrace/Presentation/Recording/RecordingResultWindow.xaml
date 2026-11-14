@@ -27,7 +27,7 @@
             </Border>
 
             <!-- 预览画面 -->
-            <Border Height="300" Margin="14,0,14,0" CornerRadius="8" Background="#0F151D" ClipToBounds="True">
+            <Border Height="300" Margin="14,0,14,0" CornerRadius="8" Background="{DynamicResource CanvasBrush}" ClipToBounds="True">
                 <Grid>
                     <Image x:Name="PreviewImage" Stretch="Uniform" />
                     <MediaElement x:Name="VideoPreview" Stretch="Uniform" Visibility="Collapsed"

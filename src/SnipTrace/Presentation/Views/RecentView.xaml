@@ -18,7 +18,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Height="54" CornerRadius="6" Background="#0F151D" ClipToBounds="True">
+                                <Border Height="54" CornerRadius="6" Background="{DynamicResource CanvasBrush}" ClipToBounds="True">
                                     <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">

@@ -21,7 +21,7 @@
                                     Margin="0,0,10,10" Cursor="Hand" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                                     MouseLeftButtonUp="RecentItem_MouseLeftButtonUp">
                                 <StackPanel>
-                                    <Border Height="88" CornerRadius="6" Background="#0F151D" ClipToBounds="True">
+                                    <Border Height="88" CornerRadius="6" Background="{DynamicResource CanvasBrush}" ClipToBounds="True">
                                         <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                                     </Border>
                                     <TextBlock Text="{Binding Title}" Margin="2,8,2,0" FontSize="12" TextTrimming="CharacterEllipsis" />

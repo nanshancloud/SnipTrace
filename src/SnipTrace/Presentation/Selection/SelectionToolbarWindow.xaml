@@ -3,8 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" SizeToContent="WidthAndHeight" ResizeMode="NoResize"
         ShowInTaskbar="False" ShowActivated="False" Topmost="True" Focusable="False"
-        Background="#F2161E28" AllowsTransparency="False" WindowStartupLocation="Manual">
-    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="6,4">
+        Background="Transparent" AllowsTransparency="True" WindowStartupLocation="Manual"
+        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+    <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1" CornerRadius="9" Padding="5,3">
         <StackPanel x:Name="ButtonRow" Orientation="Horizontal" />
     </Border>
 </Window>

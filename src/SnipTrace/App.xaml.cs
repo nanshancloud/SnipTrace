@@ -27,6 +27,17 @@ public partial class App : Application
             return;
         }
 
+        // 直接检验钉图窗口（排查/验收用）：--pin <图片路径>
+        string? pinPath = ReadArgument(e.Args, "--pin");
+        if (pinPath is not null && System.IO.File.Exists(pinPath))
+        {
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage(new Uri(pinPath));
+            var pin = new SnipTrace.App.Presentation.Views.PinWindow(bitmap, "pin");
+            MainWindow = pin;
+            pin.Show();
+            return;
+        }
+
         // 直接预览某个录制产物（排查/验收用）：--preview <文件路径>
         string? previewPath = ReadArgument(e.Args, "--preview");
         if (previewPath is not null && System.IO.File.Exists(previewPath))

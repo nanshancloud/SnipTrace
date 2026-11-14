@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using SnipTrace.App.Infrastructure.Capture;
@@ -12,6 +13,14 @@ public partial class PinWindow : Window
 {
     private readonly BitmapSource _image;
     private readonly string _baseName;
+    private readonly double _baseWidth;
+    private readonly double _baseHeight;
+
+    /// <summary>相对原始大小的缩放倍率（滚轮调节）。</summary>
+    private double _zoom = 1;
+
+    /// <summary>右键唤出的工具条是否常驻（不随鼠标移出隐藏）。</summary>
+    private bool _toolbarPinned;
 
     public PinWindow(BitmapSource image, string baseName)
     {
@@ -22,21 +31,49 @@ public partial class PinWindow : Window
 
         var area = SystemParameters.WorkArea;
         double scale = Math.Min(1.0, Math.Min(area.Width * 0.8 / image.PixelWidth, area.Height * 0.8 / image.PixelHeight));
-        Width = Math.Max(80, image.PixelWidth * scale);
-        Height = Math.Max(60, image.PixelHeight * scale) + 2;
+        _baseWidth = Math.Max(80, image.PixelWidth * scale);
+        _baseHeight = Math.Max(60, image.PixelHeight * scale);
+        ApplyZoom(1);
 
-        MouseEnter += (_, _) => ToolBar.Opacity = 1;
-        MouseLeave += (_, _) => ToolBar.Opacity = 0;
+        MouseEnter += (_, _) => ShowToolbar(true);
+        MouseLeave += (_, _) =>
+        {
+            if (!_toolbarPinned) ShowToolbar(false);
+        };
+
+        PreviewMouseWheel += PinWindow_MouseWheel;
+        MouseRightButtonUp += (_, e) =>
+        {
+            // 右键开关工具条（Snipaste 行为：钉图上也用右键唤出操作条）。
+            _toolbarPinned = !_toolbarPinned;
+            ShowToolbar(_toolbarPinned);
+            e.Handled = true;
+        };
+
         KeyDown += PinWindow_KeyDown;
     }
 
     private static AppServices Services => AppServices.Current!;
+
+    private void ShowToolbar(bool visible) => ToolBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
     private void PinWindow_KeyDown(object sender, KeyEventArgs e)
     {
         switch (e.Key)
         {
             case Key.Escape:
+                if (_toolbarPinned)
+                {
+                    _toolbarPinned = false;
+                    ShowToolbar(false);
+                }
+                else
+                {
+                    Close();
+                }
+
+                e.Handled = true;
+                break;
             case Key.Delete:
                 Close();
                 e.Handled = true;
@@ -49,6 +86,70 @@ public partial class PinWindow : Window
                 SaveAs();
                 e.Handled = true;
                 break;
+        }
+    }
+
+    /// <summary>滚轮缩放钉图；按住 Alt 滚轮切换半透明显示。</summary>
+    private void PinWindow_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
+        {
+            ToggleOpacity();
+            return;
+        }
+
+        ZoomBy(e.Delta > 0 ? 1.1 : 1 / 1.1);
+    }
+
+    private void ZoomBy(double factor)
+    {
+        double target = Math.Clamp(_zoom * factor, 0.1, 4.0);
+        if (Math.Abs(target - _zoom) < 0.001) return;
+
+        var cursor = Mouse.GetPosition(this);
+        double oldWidth = ActualWidth > 0 ? ActualWidth : Width;
+        double oldHeight = ActualHeight > 0 ? ActualHeight : Height;
+        double relX = oldWidth > 0 ? cursor.X / oldWidth : 0.5;
+        double relY = oldHeight > 0 ? cursor.Y / oldHeight : 0.5;
+
+        ApplyZoom(target);
+        UpdateLayout();
+
+        // 保持光标下的画面点不动，缩放围绕光标进行。
+        Left += (oldWidth - ActualWidth) * relX;
+        Top += (oldHeight - ActualHeight) * relY;
+    }
+
+    private void ApplyZoom(double zoom)
+    {
+        _zoom = zoom;
+        Width = Math.Max(60, _baseWidth * zoom);
+        Height = Math.Max(40, _baseHeight * zoom) + 2;
+        if (ZoomText is not null) ZoomText.Text = $"{zoom * 100:0}%";
+    }
+
+    private void ZoomReset_Click(object sender, RoutedEventArgs e) => ApplyZoom(1);
+
+    private void ToggleOpacity()
+    {
+        Opacity = Opacity < 1 ? 1 : 0.55;
+        if (OpacityMenu is not null)
+        {
+            OpacityMenu.Header = Opacity < 1 ? "恢复不透明 (Alt+滚轮)" : "半透明显示 (Alt+滚轮)";
+        }
+    }
+
+    private void ToggleOpacity_Click(object sender, RoutedEventArgs e) => ToggleOpacity();
+
+    private void More_Click(object sender, RoutedEventArgs e)
+    {
+        if (MoreButton.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = MoreButton;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
         }
     }
 

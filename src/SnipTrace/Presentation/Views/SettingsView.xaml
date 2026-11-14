@@ -77,7 +77,7 @@
                 <RadioButton x:Name="ThemeDarkRadio" Content="深色" GroupName="AppTheme" Style="{StaticResource FormatRadio}"
                              ToolTip="深色界面（默认）" />
                 <RadioButton x:Name="ThemeLightRadio" Content="浅色" GroupName="AppTheme" Margin="8,0,0,0"
-                             Style="{StaticResource FormatRadio}" ToolTip="浅色界面，保存后立即生效" />
+                             Style="{StaticResource FormatRadio}" ToolTip="浅色界面，选中即生效" />
             </StackPanel>
 
             <TextBlock Text="截图与录制" FontSize="15" FontWeight="SemiBold" Margin="0,14,0,10" />
@@ -125,9 +125,10 @@
             </Grid>
 
             <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                <Button Content="保存设置" Style="{StaticResource PrimaryButton}" Click="Save_Click" />
-                <Button Content="恢复默认" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0" Click="Reset_Click" />
-                <TextBlock x:Name="StatusText" Style="{StaticResource CaptionText}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                <Button Content="恢复默认" Style="{StaticResource SecondaryButton}" Click="Reset_Click"
+                        ToolTip="恢复全部设置为默认值，同样立即生效" />
+                <TextBlock x:Name="StatusText" Style="{StaticResource CaptionText}" VerticalAlignment="Center" Margin="12,0,0,0"
+                           Text="修改即生效，无需保存" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
