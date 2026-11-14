@@ -17,6 +17,7 @@ Windows 桌面截图 / 标注 / GIF / 录屏工具。完全本地处理，无账
 - 比例锁定：自由 / 原始 / 16:9 / 16:10 / 4:3 / 3:2 / 1:1 / 9:16；按住 `Shift` 临时锁定当前比例。
 - 实时显示宽 × 高、坐标与比例，放大镜显示局部像素与颜色值。
 - 选区外 55% 遮罩，工具条自动翻转并钳制在工作区内。
+- 选区工具条为图标式操作条：复制 / 保存 / 钉图 ｜ GIF / 录屏 ｜ 取消 / 完成，功能见 ToolTip。
 
 **标注编辑器**
 
@@ -40,6 +41,7 @@ Windows 桌面截图 / 标注 / GIF / 录屏工具。完全本地处理，无账
 - 奇数宽高自动右/下裁 1 px，不拉伸画面。
 - 暂停不计入成片时间；显示器分辨率或排列变化时自动停止并完成封装。
 - 录制边框与悬浮控制条位于画面之外；磁盘空间不足时先预警，见底时停止并封装已录内容。
+- 录制结束弹出预览窗口：GIF 逐帧播放，MP4 直接播放并可暂停/继续，另可打开、另存为、复制、打开文件夹。
 
 ## 分辨率与 DPI 适配
 
@@ -134,7 +136,9 @@ dotnet publish src/SnipTrace.App -c Release -r win-x64 --self-contained false -o
 验证一个构建是否可用：
 
 ```powershell
-.\dist\win-x64\SnipTrace.exe --selftest   # 期望 7 行 PASS，退出码 0
+.\dist\win-x64\SnipTrace.exe --selftest                      # 期望 7 行 PASS，退出码 0
+.\dist\win-x64\SnipTrace.exe --preview 录制文件.gif|.mp4      # 打开录制预览窗口
+.\dist\win-x64\SnipTrace.exe --page settings                 # 直接打开指定页面
 ```
 
 `--selftest` 会在临时目录真实生成一张 GIF 与一个 MP4 并校验尺寸/颜色/循环标记/导出像素，验证完自动清理。
