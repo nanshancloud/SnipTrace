@@ -94,6 +94,7 @@ public sealed class TrayService : IDisposable
         return item;
     }
 
+    /// <summary>托盘图标与 exe / 窗口图标保持同一图形：圆角方块 + 白色取景框 + 圆点。</summary>
     private static Icon CreateIcon(Color accent, bool recording)
     {
         using var bitmap = new Bitmap(32, 32);
@@ -101,20 +102,23 @@ public sealed class TrayService : IDisposable
         {
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.Clear(Color.Transparent);
+
             using var accentBrush = new SolidBrush(accent);
-            graphics.FillEllipse(accentBrush, 2, 2, 28, 28);
-            using var whitePen = new Pen(Color.White, 2.2f);
-            graphics.DrawRectangle(whitePen, 9, 10, 14, 11);
-            graphics.DrawLine(whitePen, 12, 8, 20, 8);
+            using var rounded = RoundedRect(new RectangleF(2, 2, 28, 28), 8f);
+            graphics.FillPath(accentBrush, rounded);
+
+            using var whitePen = new Pen(Color.White, 2.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            graphics.DrawRectangle(whitePen, 9f, 11f, 14f, 10f);
+            graphics.DrawLine(whitePen, 12f, 8f, 20f, 8f);
+
+            using var dotBrush = new SolidBrush(Color.White);
             if (recording)
             {
-                using var dotBrush = new SolidBrush(Color.White);
-                graphics.FillEllipse(dotBrush, 14, 14, 4, 4);
+                graphics.FillEllipse(dotBrush, 14f, 14f, 4f, 4f);
             }
             else
             {
-                using var dotBrush = new SolidBrush(Color.White);
-                graphics.FillEllipse(dotBrush, 13, 13, 6, 6);
+                graphics.FillEllipse(dotBrush, 13f, 13f, 6f, 6f);
             }
         }
 
@@ -128,6 +132,18 @@ public sealed class TrayService : IDisposable
         {
             NativeMethods.DestroyIcon(handle);
         }
+    }
+
+    private static GraphicsPath RoundedRect(RectangleF bounds, float radius)
+    {
+        float diameter = radius * 2;
+        var path = new GraphicsPath();
+        path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     public void Dispose()

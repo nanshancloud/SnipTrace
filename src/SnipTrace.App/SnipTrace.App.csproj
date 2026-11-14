@@ -11,12 +11,18 @@
     <AssemblyName>SnipTrace</AssemblyName>
     <RootNamespace>SnipTrace.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SnipTrace.Domain\SnipTrace.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 同一份图标用作 exe 文件图标与各窗口图标 -->
+    <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
 </Project>

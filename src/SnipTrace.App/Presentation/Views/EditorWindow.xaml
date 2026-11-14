@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:editing="clr-namespace:SnipTrace.App.Presentation.Editing"
         Title="标注编辑器" Width="1080" Height="720" MinWidth="780" MinHeight="520"
+        Icon="pack://application:,,,/Assets/app.ico"
         WindowStyle="None" Background="{StaticResource BgBrush}" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
     <WindowChrome.WindowChrome>

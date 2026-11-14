@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" Width="460" SizeToContent="Height" ResizeMode="NoResize"
         Background="{StaticResource BgBrush}" AllowsTransparency="False" ShowInTaskbar="True"
+        Icon="pack://application:,,,/Assets/app.ico"
         WindowStartupLocation="CenterScreen">
     <Border Background="{StaticResource PanelBrush}" CornerRadius="12" BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1" Padding="18" Margin="10" MouseLeftButtonDown="Root_MouseDown">
