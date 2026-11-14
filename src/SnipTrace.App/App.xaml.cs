@@ -45,6 +45,10 @@ public partial class App : Application
         MainWindow = _shell;
         _shell.Show();
 
+        // 供自动化截图/排查使用：--page settings 直接打开指定页面。
+        string? startPage = ReadArgument(e.Args, "--page");
+        if (startPage is not null) _shell.ShowPage(startPage);
+
         WireTray();
         DispatcherUnhandledException += OnUnhandledException;
 
@@ -60,6 +64,16 @@ public partial class App : Application
         }
 
         Task.Run(ProbeMp4Encoder);
+    }
+
+    private static string? ReadArgument(string[] args, string name)
+    {
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase)) return args[i + 1];
+        }
+
+        return null;
     }
 
     private void ProbeMp4Encoder()
