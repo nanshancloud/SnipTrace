@@ -6,6 +6,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using SnipTrace.App.Infrastructure.Platform;
+using SnipTrace.App.Presentation.Views;
 using SnipTrace.Domain;
 
 namespace SnipTrace.App.Presentation.Selection;
@@ -86,33 +87,48 @@ public partial class SelectionToolbarWindow : Window
         }
     }
 
+    /// <summary>
+    /// 图标式操作条：输出动作、录制动作、取消/完成分组，中间用细分隔线断开。
+    /// 只保留图标，功能靠 ToolTip 说明（与参考设计一致）。
+    /// </summary>
     private void BuildActions()
     {
-        ActionRow.Children.Add(ActionButton("标注", true, SelectionAction.Edit));
-        ActionRow.Children.Add(ActionButton("复制", false, SelectionAction.Copy));
-        ActionRow.Children.Add(ActionButton("保存", false, SelectionAction.Save));
-        ActionRow.Children.Add(ActionButton("钉图", false, SelectionAction.Pin));
-        ActionRow.Children.Add(ActionButton("GIF", false, SelectionAction.Gif));
-        ActionRow.Children.Add(ActionButton("录屏", false, SelectionAction.Video));
-        ActionRow.Children.Add(ActionButton("取消", false, SelectionAction.Cancel));
+        AddAction("\uE8C8", "复制到剪贴板（Ctrl+C）", SelectionAction.Copy);
+        AddAction("\uE74E", "保存为 PNG（Ctrl+S）", SelectionAction.Save);
+        AddAction("\uE840", "钉图置顶", SelectionAction.Pin);
+        AddSeparator();
+        AddAction("\uE91B", "录制 GIF（Ctrl+Shift+G）", SelectionAction.Gif);
+        AddAction("\uE714", "录制 MP4（Ctrl+Shift+R）", SelectionAction.Video);
+        AddSeparator();
+        AddAction("\uE711", "取消（Esc）", SelectionAction.Cancel);
+        AddAction("\uE73E", "完成并标注（Enter）", SelectionAction.Edit, primary: true);
     }
 
-    private Button ActionButton(string text, bool primary, SelectionAction action)
+    private void AddAction(string glyph, string tooltip, SelectionAction action, bool primary = false)
     {
         var button = new Button
         {
-            Content = text,
-            Style = (Style)FindResource(primary ? "PrimaryButton" : "GhostButton"),
-            MinHeight = 32,
-            Padding = new Thickness(12, 4, 12, 4),
-            FontSize = 12,
-            Margin = new Thickness(0, 0, 6, 4)
+            Content = IconContent.Create(glyph),
+            Style = (Style)FindResource(primary ? "ToolIconPrimaryButton" : "ToolIconButton"),
+            ToolTip = tooltip
         };
         button.Click += (_, _) =>
         {
             if (action == SelectionAction.Cancel) _overlay?.Cancel();
             else _overlay?.RequestAction(action);
         };
-        return button;
+        ActionRow.Children.Add(button);
+    }
+
+    private void AddSeparator()
+    {
+        ActionRow.Children.Add(new Border
+        {
+            Width = 1,
+            Height = 18,
+            Margin = new Thickness(6, 0, 6, 0),
+            Background = (Brush)FindResource("BorderBrush"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
     }
 }

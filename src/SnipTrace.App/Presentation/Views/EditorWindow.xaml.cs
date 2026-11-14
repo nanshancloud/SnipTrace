@@ -140,12 +140,11 @@ public partial class EditorWindow : Window
         };
 
         var textFont = (FontFamily)FindResource("AppFont");
-        var iconFont = new FontFamily("Segoe MDL2 Assets");
         foreach (var (button, text, glyph) in actions)
         {
-            button.Content = narrow ? glyph : text;
-            button.FontFamily = narrow ? iconFont : textFont;
-            button.FontSize = narrow ? 14 : 13;
+            button.Content = narrow ? IconContent.Create(glyph, 14) : text;
+            button.FontFamily = textFont;
+            button.FontSize = 13;
         }
     }
 
