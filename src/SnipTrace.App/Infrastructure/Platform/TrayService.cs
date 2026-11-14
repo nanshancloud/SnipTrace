@@ -21,6 +21,8 @@ public sealed class TrayService : IDisposable
 
         var menu = new ContextMenuStrip();
         menu.Items.Add(CreateItem("区域截图", () => ScreenshotRequested?.Invoke()));
+        menu.Items.Add(CreateItem("全屏截图（当前显示器）", () => FullScreenRequested?.Invoke()));
+        menu.Items.Add(CreateItem("全屏截图（所有显示器）", () => AllScreensRequested?.Invoke()));
         menu.Items.Add(CreateItem("GIF 录制", () => GifRequested?.Invoke()));
         menu.Items.Add(CreateItem("屏幕录制", () => VideoRequested?.Invoke()));
         menu.Items.Add(new ToolStripSeparator());
@@ -48,6 +50,12 @@ public sealed class TrayService : IDisposable
     }
 
     public event Action? ScreenshotRequested;
+
+    /// <summary>当前鼠标所在显示器全屏截图。</summary>
+    public event Action? FullScreenRequested;
+
+    /// <summary>所有显示器（虚拟桌面并集）全屏截图。</summary>
+    public event Action? AllScreensRequested;
 
     public event Action? GifRequested;
 

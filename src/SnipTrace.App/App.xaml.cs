@@ -80,6 +80,8 @@ public partial class App : Application
         tray.OpenRequested += () => Dispatcher.BeginInvoke(new Action(() => _shell?.ShowAndActivate()));
         tray.SettingsRequested += () => Dispatcher.BeginInvoke(new Action(() => _shell?.ShowPage("settings")));
         tray.ScreenshotRequested += () => Dispatcher.BeginInvoke(new Action(() => _ = services.Capture.CaptureAsync(CaptureIntent.Screenshot)));
+        tray.FullScreenRequested += () => Dispatcher.BeginInvoke(new Action(() => _ = services.Capture.CaptureFullScreenAsync(false)));
+        tray.AllScreensRequested += () => Dispatcher.BeginInvoke(new Action(() => _ = services.Capture.CaptureFullScreenAsync(true)));
         tray.GifRequested += () => Dispatcher.BeginInvoke(new Action(() => _ = services.Capture.CaptureAsync(CaptureIntent.Gif)));
         tray.VideoRequested += () => Dispatcher.BeginInvoke(new Action(() => _ = services.Capture.CaptureAsync(CaptureIntent.Video)));
         tray.ExitRequested += () => Dispatcher.BeginInvoke(new Action(ShutdownApplication));

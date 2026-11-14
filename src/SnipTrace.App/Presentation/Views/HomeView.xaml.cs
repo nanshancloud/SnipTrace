@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using SnipTrace.App.Presentation.ViewModels;
+using SnipTrace.Domain;
 
 namespace SnipTrace.App.Presentation.Views;
 
@@ -18,6 +19,12 @@ public partial class HomeView : UserControl
     }
 
     public event Action? ScreenshotRequested;
+
+    /// <summary>当前显示器全屏截图。</summary>
+    public event Action? FullScreenRequested;
+
+    /// <summary>所有显示器全屏截图。</summary>
+    public event Action? AllScreensRequested;
 
     public event Action? GifRequested;
 
@@ -34,8 +41,8 @@ public partial class HomeView : UserControl
         UpdateRecentHint();
     }
 
-    /// <summary>按内容区尺寸调整：模式卡列数、最近记录位置、装饰区域。</summary>
-    public void ApplyLayout(bool compactCards, bool lowHeight, bool wideRecent)
+    /// <summary>按内容区尺寸调整：模式卡列数、标题区高度档位、最近记录位置。</summary>
+    public void ApplyLayout(bool compactCards, ShellHeightTier heightTier, bool wideRecent)
     {
         CardGrid.Columns = compactCards ? 1 : 3;
         CardGrid.Rows = 0;
@@ -45,9 +52,18 @@ public partial class HomeView : UserControl
         GifCard.Margin = margin;
         VideoCard.Margin = new Thickness(0);
 
-        SubtitleText.Visibility = lowHeight ? Visibility.Collapsed : Visibility.Visible;
-        TitleText.FontSize = lowHeight ? 22 : 26;
-        TitleText.Margin = lowHeight ? new Thickness(0) : new Thickness(0);
+        // 高度档位：≥760 完整，600–759 压缩标题区，<600 再隐藏副标题并折叠最近记录。
+        SubtitleText.Visibility = heightTier == ShellHeightTier.Minimal ? Visibility.Collapsed : Visibility.Visible;
+        TitleText.FontSize = heightTier switch
+        {
+            ShellHeightTier.Full => 26,
+            ShellHeightTier.Compact => 22,
+            _ => 20
+        };
+        HeaderPanel.Margin = heightTier == ShellHeightTier.Full
+            ? new Thickness(0, 0, 0, 20)
+            : new Thickness(0, 0, 0, 12);
+        RecentPanel.Visibility = heightTier == ShellHeightTier.Minimal ? Visibility.Collapsed : Visibility.Visible;
 
         if (_wideRecent != wideRecent)
         {
@@ -92,6 +108,10 @@ public partial class HomeView : UserControl
     }
 
     private void ScreenshotCard_Click(object sender, RoutedEventArgs e) => ScreenshotRequested?.Invoke();
+
+    private void FullScreenButton_Click(object sender, RoutedEventArgs e) => FullScreenRequested?.Invoke();
+
+    private void AllScreensButton_Click(object sender, RoutedEventArgs e) => AllScreensRequested?.Invoke();
 
     private void GifCard_Click(object sender, RoutedEventArgs e) => GifRequested?.Invoke();
 

@@ -36,7 +36,7 @@
             </StackPanel>
 
             <StackPanel x:Name="MainPanel">
-                <StackPanel Margin="0,0,0,20">
+                <StackPanel x:Name="HeaderPanel" Margin="0,0,0,20">
                     <TextBlock x:Name="TitleText" Text="捕捉，标注，讲清楚" FontSize="26" FontWeight="SemiBold" />
                     <TextBlock x:Name="SubtitleText" Text="区域截图、GIF 动图与高清录屏，一次完成"
                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0" />
@@ -82,6 +82,14 @@
                         </StackPanel>
                     </Button>
                 </UniformGrid>
+
+                <StackPanel x:Name="QuickActionsPanel" Orientation="Horizontal" Margin="0,14,0,0">
+                    <TextBlock Text="快捷入口" Style="{StaticResource CaptionText}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <Button x:Name="FullScreenButton" Style="{StaticResource GhostButton}" Content="当前显示器全屏"
+                            Click="FullScreenButton_Click" />
+                    <Button x:Name="AllScreensButton" Style="{StaticResource GhostButton}" Content="所有显示器全屏"
+                            Click="AllScreensButton_Click" Margin="6,0,0,0" />
+                </StackPanel>
             </StackPanel>
         </DockPanel>
     </ScrollViewer>

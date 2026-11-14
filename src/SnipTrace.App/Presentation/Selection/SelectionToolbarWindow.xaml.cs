@@ -74,7 +74,7 @@ public partial class SelectionToolbarWindow : Window
                 Margin = new Thickness(0, 0, 6, 4),
                 FontSize = 11,
                 Padding = new Thickness(9, 3, 9, 3),
-                IsChecked = ratio.IsFree
+                IsChecked = ratio == AspectRatio.Free
             };
             chip.Click += (_, _) =>
             {

@@ -16,7 +16,7 @@ public readonly record struct AspectRatio(int Width, int Height, string Label)
 
     public double Value => IsFree ? 0 : (double)Width / Height;
 
-    public static IReadOnlyList<AspectRatio> Presets { get; } = new[] { Free, R16x9, R16x10, R4x3, R3x2, R1x1, R9x16 };
+    public static IReadOnlyList<AspectRatio> Presets { get; } = new[] { Free, Original, R16x9, R16x10, R4x3, R3x2, R1x1, R9x16 };
 
     public static AspectRatio ForOriginal(PixelRect rect)
         => rect.IsEmpty ? Original : new AspectRatio(rect.Width, rect.Height, "原始");

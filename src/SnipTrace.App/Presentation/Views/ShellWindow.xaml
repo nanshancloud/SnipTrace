@@ -62,10 +62,16 @@
         <Border Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
             <Grid Margin="16,0">
-                <TextBlock x:Name="ShortcutHintText" Text="F1 截图 · Ctrl+Shift+G GIF · Ctrl+Shift+R 录屏"
-                           Style="{StaticResource CaptionText}" FontSize="11" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <TextBlock x:Name="ShortcutHintText" Text="F1 截图 · Ctrl+Shift+G GIF · Ctrl+Shift+R 录屏"
+                               Style="{StaticResource CaptionText}" FontSize="11" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="·" Style="{StaticResource CaptionText}" FontSize="11" Margin="8,0" />
+                    <TextBlock x:Name="TrayHintText" Text="托盘常驻" Style="{StaticResource CaptionText}"
+                               FontSize="11" VerticalAlignment="Center" />
+                </StackPanel>
                 <TextBlock x:Name="OutputDirectoryText" Style="{StaticResource CaptionText}" FontSize="11"
-                           VerticalAlignment="Center" HorizontalAlignment="Right" MaxWidth="480"
+                           VerticalAlignment="Center" HorizontalAlignment="Right" MaxWidth="420"
                            TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>

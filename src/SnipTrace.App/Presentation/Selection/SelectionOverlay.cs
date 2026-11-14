@@ -41,6 +41,7 @@ public sealed class SelectionOverlay : IDisposable
 
     private AspectRatio _requestedRatio = AspectRatio.Free;
     private AspectRatio _effectiveRatio = AspectRatio.Free;
+    private AspectRatio? _shiftRatio;
     private PixelRect _selection;
     private PixelPoint _anchor;
     private PixelPoint _cursor;
@@ -100,6 +101,7 @@ public sealed class SelectionOverlay : IDisposable
 
         _anchor = _cursor;
         _dragging = true;
+        _shiftRatio = null;
         _selection = PixelRect.Empty;
         UpdateViews();
         UpdateToolbar(forceMagnifier: true);
@@ -112,9 +114,10 @@ public sealed class SelectionOverlay : IDisposable
 
         if (_dragging)
         {
-            _selection = _effectiveRatio.IsFree
+            AspectRatio dragRatio = ResolveDragRatio();
+            _selection = dragRatio.IsFree
                 ? PixelRect.FromCorners(_anchor.X, _anchor.Y, _cursor.X, _cursor.Y).ClampTo(_virtualBounds)
-                : _effectiveRatio.FromDrag(_anchor, _cursor, _virtualBounds);
+                : dragRatio.FromDrag(_anchor, _cursor, _virtualBounds);
 
             if (_selection.Width < 2 || _selection.Height < 2) _selection = PixelRect.Empty;
             UpdateViews();
@@ -127,6 +130,7 @@ public sealed class SelectionOverlay : IDisposable
     {
         if (_completed || !_dragging) return;
         _dragging = false;
+        _shiftRatio = null;
         _cursor = MonitorService.GetCursorPosition();
 
         if (_selection.IsEmpty)
@@ -137,6 +141,28 @@ public sealed class SelectionOverlay : IDisposable
 
         UpdateViews();
         UpdateToolbar(forceMagnifier: true);
+    }
+
+    /// <summary>
+    /// 拖动中按住 Shift 时，以按下 Shift 那一刻的形状比例临时锁定，
+    /// 松开后恢复自由比例；已有预设比例时始终以预设为准。
+    /// </summary>
+    private AspectRatio ResolveDragRatio()
+    {
+        if (!_effectiveRatio.IsFree) return _effectiveRatio;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        {
+            _shiftRatio = null;
+            return AspectRatio.Free;
+        }
+
+        if (_shiftRatio is null && _selection.Width >= 8 && _selection.Height >= 8)
+        {
+            _shiftRatio = AspectRatio.ForOriginal(_selection);
+        }
+
+        return _shiftRatio ?? AspectRatio.Free;
     }
 
     public void OnRightClick()

@@ -106,10 +106,15 @@ public partial class ShellWindow : Window
         var settings = Services.Settings;
         ShortcutHintText.Text = $"{settings.CaptureHotkey} 截图 · {settings.GifHotkey} GIF · {settings.VideoHotkey} 录屏";
         OutputDirectoryText.Text = "输出目录：" + settings.ScreenshotDirectory;
-        TrayStateText.Text = "托盘常驻";
+        SetTrayState("托盘常驻");
     }
 
-    public void SetTrayState(string text) => TrayStateText.Text = text;
+    /// <summary>标题栏状态与底部状态栏的托盘状态保持同步。</summary>
+    public void SetTrayState(string text)
+    {
+        TrayStateText.Text = text;
+        TrayHintText.Text = "托盘：" + text;
+    }
 
     private void BuildNavigation()
     {
@@ -202,6 +207,8 @@ public partial class ShellWindow : Window
     {
         var home = new HomeView();
         home.ScreenshotRequested += () => _ = Services.Capture.CaptureAsync(CaptureIntent.Screenshot);
+        home.FullScreenRequested += () => _ = Services.Capture.CaptureFullScreenAsync(false);
+        home.AllScreensRequested += () => _ = Services.Capture.CaptureFullScreenAsync(true);
         home.GifRequested += () => _ = Services.Capture.CaptureAsync(CaptureIntent.Gif);
         home.VideoRequested += () => _ = Services.Capture.CaptureAsync(CaptureIntent.Video);
         home.RecentActivated += OpenRecentItem;
@@ -302,25 +309,26 @@ public partial class ShellWindow : Window
     private void UpdateResponsiveLayout()
     {
         if (!IsLoaded && ActualWidth <= 0) return;
-        double width = ActualWidth;
-        double height = ActualHeight;
 
-        bool minimal = width < 900;
-        bool compact = width < 1120;
+        ShellLayoutMetrics metrics = ShellLayout.Resolve(ActualWidth, ActualHeight);
+        bool minimal = metrics.Mode == ShellLayoutMode.Minimal;
 
-        NavColumn.Width = new GridLength(minimal ? 0 : compact ? 64 : 220);
+        NavColumn.Width = new GridLength(metrics.NavWidth);
         NavBorder.Visibility = minimal ? Visibility.Collapsed : Visibility.Visible;
         TopNavBar.Visibility = minimal ? Visibility.Visible : Visibility.Collapsed;
 
+        bool wideNav = metrics.Mode is ShellLayoutMode.Expanded or ShellLayoutMode.Standard;
         foreach (var (_, label) in _navButtons)
         {
-            label.Visibility = compact && !minimal ? Visibility.Collapsed : Visibility.Visible;
+            label.Visibility = wideNav ? Visibility.Visible : Visibility.Collapsed;
         }
 
         PageHost.Margin = minimal ? new Thickness(16, 18, 16, 12) : new Thickness(24, 22, 24, 16);
 
-        double contentWidth = width - (minimal ? 0 : compact ? 64 : 220);
-        _home?.ApplyLayout(contentWidth < 980, height < 780, contentWidth >= 1220 && height >= 620);
+        _home?.ApplyLayout(
+            ShellLayout.UsesSingleColumn(metrics.Mode),
+            metrics.HeightTier,
+            ShellLayout.UsesRecentSidebar(metrics.Mode, metrics.HeightTier));
     }
 
     private void ApplyStoredLayout()
