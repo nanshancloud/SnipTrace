@@ -89,12 +89,8 @@ public static class AnnotationRenderer
                 break;
             }
             case AnnotationKind.Arrow:
-            {
-                var start = new Point(points[0].X, points[0].Y);
-                var end = new Point(points[^1].X, points[^1].Y);
-                DrawArrow(dc, start, end, pen, brush);
+                DrawArrow(dc, shape, pen, brush);
                 break;
-            }
             default:
             {
                 if (points.Count == 1)
@@ -118,24 +114,56 @@ public static class AnnotationRenderer
         }
     }
 
-    private static void DrawArrow(DrawingContext dc, Point start, Point end, Pen pen, Brush brush)
+    /// <summary>箭头：线身支持任意多段，端头按 <see cref="ShapeAnnotation.ArrowHead"/> 画在首 / 尾。</summary>
+    private static void DrawArrow(DrawingContext dc, ShapeAnnotation shape, Pen pen, Brush brush)
     {
-        double dx = end.X - start.X;
-        double dy = end.Y - start.Y;
+        var points = shape.Points;
+        if (points.Count < 2) return;
+
+        if (points.Count == 2)
+        {
+            dc.DrawLine(pen, ToPoint(points[0]), ToPoint(points[1]));
+        }
+        else
+        {
+            var geometry = new StreamGeometry();
+            using (var ctx = geometry.Open())
+            {
+                ctx.BeginFigure(ToPoint(points[0]), false, false);
+                for (int i = 1; i < points.Count; i++) ctx.LineTo(ToPoint(points[i]), true, true);
+            }
+
+            geometry.Freeze();
+            dc.DrawGeometry(null, pen, geometry);
+        }
+
+        if (shape.ArrowHead is ArrowHead.End or ArrowHead.Both)
+        {
+            DrawArrowHead(dc, points[^2], points[^1], pen, brush);
+        }
+
+        if (shape.ArrowHead is ArrowHead.Start or ArrowHead.Both)
+        {
+            DrawArrowHead(dc, points[1], points[0], pen, brush);
+        }
+    }
+
+    private static void DrawArrowHead(DrawingContext dc, PointD from, PointD tip, Pen pen, Brush brush)
+    {
+        double dx = tip.X - from.X;
+        double dy = tip.Y - from.Y;
         double length = Math.Sqrt(dx * dx + dy * dy);
         if (length < 0.5) return;
 
-        double headLength = Math.Max(9, pen.Thickness * 3.6);
+        double headLength = Math.Min(Math.Max(9, pen.Thickness * 3.8), length);
         double headWidth = headLength * 0.55;
         double ux = dx / length;
         double uy = dy / length;
+        double normalX = -uy;
+        double normalY = ux;
 
-        var shaftEnd = new Point(end.X - ux * headLength * 0.85, end.Y - uy * headLength * 0.85);
-        dc.DrawLine(pen, start, shaftEnd);
-
-        var normalX = -uy;
-        var normalY = ux;
-        var basePoint = new Point(end.X - ux * headLength, end.Y - uy * headLength);
+        var end = ToPoint(tip);
+        var basePoint = new Point(tip.X - ux * headLength, tip.Y - uy * headLength);
         var head = new StreamGeometry();
         using (var ctx = head.Open())
         {
@@ -147,6 +175,8 @@ public static class AnnotationRenderer
         head.Freeze();
         dc.DrawGeometry(brush, null, head);
     }
+
+    private static Point ToPoint(PointD point) => new(point.X, point.Y);
 
     private static void DrawText(DrawingContext dc, TextAnnotation text, Brush brush)
     {

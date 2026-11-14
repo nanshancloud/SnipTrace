@@ -257,6 +257,9 @@ public sealed class AppSettings
     /// <summary>ThemeModes.Dark / Light。</summary>
     public string Theme { get; set; } = ThemeModes.Dark;
 
+    /// <summary>序号标记改样式（形状 / 填充）后是否按阅读顺序重新计数。</summary>
+    public bool RenumberBadgesOnStyleChange { get; set; }
+
     public HighlightOptions Highlight { get; set; } = new();
 
     public bool RunAtStartup { get; set; }

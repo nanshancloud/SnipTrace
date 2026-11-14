@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using SnipTrace.App.Infrastructure.Capture;
@@ -132,7 +133,7 @@ internal static class SelfTest
                     (BadgeShape.Circle, "圆"), (BadgeShape.Triangle, "三角"), (BadgeShape.Square, "方"),
                     (BadgeShape.Pentagon, "五边"), (BadgeShape.Hexagon, "六边"), (BadgeShape.Heart, "心")
                 };
-                var badgeDoc = new AnnotationDocument(560, 220);
+                var badgeDoc = new AnnotationDocument(560, 330);
                 for (int i = 0; i < shapes.Length; i++)
                 {
                     badgeDoc.Add(new NumberBadgeAnnotation
@@ -154,18 +155,38 @@ internal static class SelfTest
                     });
                 }
 
-                using (var canvas = new Bitmap(560, 220, PixelFormat.Format32bppArgb))
+                // 箭头端头 / 多段 / 直角折线：与编辑器工具条选项一一对应。
+                var arrowStyle = new AnnotationStyle(0xFFFF6B5F, 3, 1);
+                badgeDoc.Add(new ShapeAnnotation(AnnotationKind.Arrow,
+                    new[] { new PointD(40, 225), new PointD(150, 225) }, arrowStyle) { ArrowHead = ArrowHead.End });
+                badgeDoc.Add(new ShapeAnnotation(AnnotationKind.Arrow,
+                    new[] { new PointD(200, 225), new PointD(310, 225) }, arrowStyle) { ArrowHead = ArrowHead.Both });
+                badgeDoc.Add(new ShapeAnnotation(AnnotationKind.Arrow,
+                    new[] { new PointD(360, 225), new PointD(470, 225) }, arrowStyle) { ArrowHead = ArrowHead.None });
+                badgeDoc.Add(new ShapeAnnotation(AnnotationKind.Arrow,
+                    new[] { new PointD(60, 265), new PointD(170, 265), new PointD(170, 300), new PointD(300, 300) }, arrowStyle)
+                {
+                    ArrowHead = ArrowHead.End,
+                    Elbow = true
+                });
+                badgeDoc.Add(new ShapeAnnotation(AnnotationKind.Arrow,
+                    new[] { new PointD(360, 265), new PointD(420, 300), new PointD(470, 265), new PointD(520, 300) }, arrowStyle)
+                {
+                    ArrowHead = ArrowHead.End
+                });
+
+                using (var canvas = new Bitmap(560, 330, PixelFormat.Format32bppArgb))
                 {
                     using (var graphics = Graphics.FromImage(canvas)) graphics.Clear(Color.FromArgb(24, 32, 44));
                     var badgeImage = AnnotationRenderer.Render(ImageUtil.ToBitmapSource(canvas), badgeDoc);
                     string badgePath = Path.Combine(root, "badge-shapes.png");
                     ImageUtil.SavePng(badgeImage, badgePath);
-                    Check("序号形状渲染", File.Exists(badgePath) && new FileInfo(badgePath).Length > 1000, badgePath);
+                    Check("序号与箭头形状渲染", File.Exists(badgePath) && new FileInfo(badgePath).Length > 1000, badgePath);
                 }
             }
             catch (Exception badgeEx)
             {
-                Check("序号形状渲染", false, badgeEx.Message);
+                Check("序号与箭头形状渲染", false, badgeEx.Message);
             }
         }
         catch (Exception ex)
@@ -175,9 +196,65 @@ internal static class SelfTest
 
         CheckWindowLayouts(root, Check);
         CheckSettingsLiveApply(Check);
+        CheckEditorInteractions(Check);
 
         writer.WriteLine($"失败 {failures}");
         return failures;
+    }
+
+    /// <summary>画布交互冒烟：多段箭头、双击结束、直角吸附、橡皮只擦画笔。</summary>
+    private static void CheckEditorInteractions(Action<string, bool, string?> check)
+    {
+        try
+        {
+            var document = new AnnotationDocument(400, 300);
+            var canvas = new AnnotationCanvas
+            {
+                Document = document,
+                Tool = EditorTool.Arrow,
+                ArrowHead = ArrowHead.End
+            };
+
+            // 三次点击 → 三段折线（起点 + 两个顶点）
+            canvas.BeginArrowDraft(new PointD(40, 40));
+            canvas.AppendArrowPoint(new PointD(140, 40));
+            canvas.AppendArrowPoint(new PointD(140, 120));
+            bool drafting = canvas.HasArrowDraft && canvas.ArrowDraftPointCount >= 3;
+            canvas.FinishArrowDraft();
+            var arrow = document.Annotations.OfType<ShapeAnnotation>().FirstOrDefault(a => a.Kind == AnnotationKind.Arrow);
+            check("多段箭头三击成折线", drafting && arrow is not null && arrow.Points.Count == 3,
+                arrow is null ? "无箭头" : arrow.Points.Count.ToString());
+
+            // 双击（点回上一顶点）结束草稿
+            canvas.BeginArrowDraft(new PointD(200, 40));
+            canvas.AppendArrowPoint(new PointD(260, 40));
+            canvas.AppendArrowPoint(new PointD(260, 40), 2);
+            check("双击结束箭头草稿", !canvas.HasArrowDraft, null);
+
+            // 直角模式：每段横平竖直
+            canvas.ArrowElbow = true;
+            canvas.BeginArrowDraft(new PointD(40, 160));
+            canvas.AppendArrowPoint(new PointD(140, 176));
+            canvas.FinishArrowDraft();
+            var elbow = document.Annotations.OfType<ShapeAnnotation>().Last(a => a.Kind == AnnotationKind.Arrow);
+            check("直角箭头按横竖吸附", Math.Abs(elbow.Points[1].Y - 160) < 0.01 && Math.Abs(elbow.Points[1].X - 140) < 0.01,
+                $"{elbow.Points[1].X:0},{elbow.Points[1].Y:0}");
+            canvas.ArrowElbow = false;
+
+            // 橡皮：只擦画笔，文本与箭头保留
+            var pen = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(300, 200), new PointD(360, 200) });
+            var text = new TextAnnotation { Origin = new PointD(40, 250), Text = "保留" };
+            document.Add(pen);
+            document.Add(text);
+            canvas.EraseAt(new PointD(330, 200));
+            check("橡皮擦掉画笔笔画", !document.Annotations.Contains(pen), null);
+            check("橡皮不动文本与箭头",
+                document.Annotations.Contains(text) && document.Annotations.OfType<ShapeAnnotation>().Any(a => a.Kind == AnnotationKind.Arrow), null);
+        }
+        catch (Exception ex)
+        {
+            check("画布交互冒烟", false, ex.Message);
+        }
     }
 
     /// <summary>设置页即时生效：只改控件、不点任何按钮，防抖结束设置即写回。</summary>

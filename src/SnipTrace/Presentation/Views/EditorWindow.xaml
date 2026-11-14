@@ -57,6 +57,8 @@
                     <ToggleButton Style="{StaticResource ToolButton}" Content="高亮" Tag="Highlight" Click="Tool_Click" ToolTip="高亮笔 (H)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="文本" Tag="Text" Click="Tool_Click" ToolTip="文本 (T)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="序号" Tag="Number" Click="Tool_Click" ToolTip="序号标签 (N)" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="橡皮" Tag="Eraser" Click="Tool_Click"
+                                  ToolTip="橡皮：擦除画笔 / 高亮笔画（X）；文本、箭头、序号不参与" />
                     <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="8,10" />
                     <ToggleButton x:Name="FitButton" Style="{StaticResource ToolButton}" Content="适应" Click="Fit_Click" ToolTip="适应窗口" />
                     <ToggleButton x:Name="PropertiesToggle" Style="{StaticResource ToolButton}" Content="属性" Visibility="Collapsed"
@@ -82,6 +84,9 @@
                         <TextBlock Text="线宽" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
                         <WrapPanel x:Name="WidthPanel" />
 
+                        <TextBlock Text="箭头模式" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
+                        <WrapPanel x:Name="ArrowModePanel" />
+
                         <TextBlock Text="字号" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
                         <WrapPanel x:Name="FontSizePanel" />
 
@@ -93,6 +98,10 @@
 
                         <TextBlock Text="填充方式" FontSize="13" FontWeight="SemiBold" Margin="0,12,0,8" />
                         <WrapPanel x:Name="BadgeFillPanel" />
+
+                        <CheckBox x:Name="RenumberStyleCheck" Style="{StaticResource AppCheckBox}" FontSize="12"
+                                  Content="改样式后重新计数" Margin="0,12,0,0" Click="RenumberStyle_Click"
+                                  ToolTip="打开后：修改任一号标的形状或填充方式，会按阅读顺序把序号重排为 1、2、3…" />
 
                         <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,18" />
                         <Button Content="重排编号（阅读顺序）" Style="{StaticResource SecondaryButton}" MinHeight="34"
@@ -111,7 +120,7 @@
             <Grid Margin="14,0">
                 <TextBlock x:Name="StatusLeft" Style="{StaticResource CaptionText}" FontSize="11" VerticalAlignment="Center" />
                 <TextBlock x:Name="StatusRight" Style="{StaticResource CaptionText}" FontSize="11" VerticalAlignment="Center"
-                           HorizontalAlignment="Right" Text="Ctrl+Z 撤销 · Delete 删除 · 滚轮缩放 · Esc 关闭" />
+                           HorizontalAlignment="Right" Text="双击文本改内容 · Delete 删除 · 滚轮缩放 · Esc 关闭" />
             </Grid>
         </Border>
     </Grid>

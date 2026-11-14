@@ -68,6 +68,20 @@ public partial class App : Application
 
         _services = new AppServices();
         ThemeManager.Apply(_services.Settings.Theme);
+
+        // 直接打开标注编辑器（排查/验收用）：--edit <图片路径>
+        string? editPath = ReadArgument(e.Args, "--edit");
+        if (editPath is not null && System.IO.File.Exists(editPath))
+        {
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage(new Uri(editPath));
+            bitmap.Freeze();
+            var editor = new SnipTrace.App.Presentation.Views.EditorWindow(
+                bitmap, System.IO.Path.GetFileNameWithoutExtension(editPath));
+            MainWindow = editor;
+            editor.Show();
+            return;
+        }
+
         _shell = new ShellWindow();
         _services.Shell = _shell;
         MainWindow = _shell;

@@ -30,6 +30,15 @@ public enum BadgeFillMode
     Outline
 }
 
+/// <summary>箭头端头：无端头（直线）/ 仅末端 / 仅起点 / 两端。</summary>
+public enum ArrowHead
+{
+    None,
+    End,
+    Start,
+    Both
+}
+
 /// <summary>颜色为 0xAARRGGBB，线宽与字号均为原图像素单位。</summary>
 public sealed record AnnotationStyle(uint Argb, double StrokeWidth, double Opacity)
 {
@@ -82,7 +91,7 @@ public abstract class Annotation
     }
 }
 
-/// <summary>矩形、椭圆、箭头（两端点）与画笔/高亮（折线）。</summary>
+/// <summary>矩形、椭圆、箭头（两段起，可多段）与画笔/高亮（折线）。</summary>
 public sealed class ShapeAnnotation : Annotation
 {
     private readonly AnnotationKind _kind;
@@ -92,7 +101,11 @@ public sealed class ShapeAnnotation : Annotation
         _kind = kind;
         Points = points.ToList();
         if (Points.Count == 0) Points.Add(new PointD(0, 0));
-        if (!IsPolyline && Points.Count == 1) Points.Add(Points[0]);
+        if (_kind is not (AnnotationKind.Pen or AnnotationKind.Highlight or AnnotationKind.Arrow) && Points.Count == 1)
+        {
+            Points.Add(Points[0]);
+        }
+
         Style = style ?? AnnotationStyle.Default;
     }
 
@@ -100,7 +113,14 @@ public sealed class ShapeAnnotation : Annotation
 
     public List<PointD> Points { get; }
 
+    /// <summary>画笔 / 高亮：采样折线，创建时逐点追加。</summary>
     public bool IsPolyline => _kind is AnnotationKind.Pen or AnnotationKind.Highlight;
+
+    /// <summary>箭头端头形式；多段箭头同样适用（起点 / 末端取首尾段方向）。</summary>
+    public ArrowHead ArrowHead { get; set; } = ArrowHead.End;
+
+    /// <summary>箭头折线是否按正交（横 / 竖）方向吸附。</summary>
+    public bool Elbow { get; set; }
 
     private PixelRect RawBounds
     {
@@ -135,7 +155,7 @@ public sealed class ShapeAnnotation : Annotation
     {
         double pad = tolerance + Style.Width / 2;
 
-        if (IsPolyline)
+        if (IsPolyline || _kind == AnnotationKind.Arrow)
         {
             if (Points.Count == 1) return point.DistanceTo(Points[0]) <= pad;
             for (int i = 1; i < Points.Count; i++)
@@ -147,12 +167,6 @@ public sealed class ShapeAnnotation : Annotation
         }
 
         var start = Points[0];
-        var end = Points[^1];
-
-        if (_kind == AnnotationKind.Arrow)
-        {
-            return DistanceToSegment(point, start, end) <= pad;
-        }
 
         var raw = RawBounds;
         if (raw.IsEmpty) return point.DistanceTo(start) <= pad;
@@ -203,7 +217,12 @@ public sealed class ShapeAnnotation : Annotation
 
     public override Annotation Clone()
     {
-        var clone = new ShapeAnnotation(_kind, Points, Style) { ZIndex = ZIndex };
+        var clone = new ShapeAnnotation(_kind, Points, Style)
+        {
+            ZIndex = ZIndex,
+            ArrowHead = ArrowHead,
+            Elbow = Elbow
+        };
         return clone;
     }
 }

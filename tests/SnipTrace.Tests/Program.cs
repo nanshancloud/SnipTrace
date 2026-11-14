@@ -271,15 +271,43 @@ internal static class Program
         Check("方形四点", BadgeShapes.Outline(BadgeShape.Square, 10).Count == 4);
         Check("五边五点", BadgeShapes.Outline(BadgeShape.Pentagon, 10).Count == 5);
         Check("六边六点", BadgeShapes.Outline(BadgeShape.Hexagon, 10).Count == 6);
-        Check("心形闭合采样", BadgeShapes.Outline(BadgeShape.Heart, 10).Count == 64);
 
         var triangle = BadgeShapes.Outline(BadgeShape.Triangle, 10);
         Check("多边形顶点朝上", Math.Abs(triangle[0].X) < 0.001 && triangle[0].Y < 0,
             $"{triangle[0].X:0.##},{triangle[0].Y:0.##}");
 
+        // 正心形 ♥：左右对称、宽度贴合直径、上圆瓣 + 下尖点、顶部凹口浅于瓣顶。
+        var heart = BadgeShapes.Outline(BadgeShape.Heart, 10);
+        Check("心形闭合采样", heart.Count >= 40, heart.Count.ToString());
+        Check("心形宽度对齐直径", Math.Abs(heart.Max(p => Math.Abs(p.X)) - 10) < 0.01,
+            heart.Max(p => Math.Abs(p.X)).ToString("0.##"));
+        Check("心形左右对称", Math.Abs(heart.Sum(p => p.X)) < 0.5, heart.Sum(p => p.X).ToString("0.##"));
+
+        double top = heart.Min(p => p.Y);
+        double bottom = heart.Max(p => p.Y);
+        Check("心形上圆下尖", top < -8 && bottom > 8, $"{top:0.##},{bottom:0.##}");
+
+        double notch = heart.Where(p => Math.Abs(p.X) < 0.01).Min(p => p.Y);
+        Check("心形凹口浅于瓣顶", notch > top + 1 && notch < 0, $"{notch:0.##} vs {top:0.##}");
+
         var badge = new NumberBadgeAnnotation { Shape = BadgeShape.Heart, FillMode = BadgeFillMode.Outline };
         var clone = (NumberBadgeAnnotation)badge.Clone();
         Check("克隆保留形状与填充", clone.Shape == BadgeShape.Heart && clone.FillMode == BadgeFillMode.Outline);
+
+        // 多段箭头：折线命中、端头与克隆。
+        var arrow = new ShapeAnnotation(AnnotationKind.Arrow,
+            new[] { new PointD(10, 10), new PointD(60, 10), new PointD(60, 60) })
+        {
+            ArrowHead = ArrowHead.Both
+        };
+        Check("多段箭头命中第二段", arrow.HitTest(new PointD(60, 40), 2));
+        Check("多段箭头不命中内部空白", !arrow.HitTest(new PointD(20, 50), 2));
+        var arrowClone = (ShapeAnnotation)arrow.Clone();
+        Check("克隆保留箭头端头与折线",
+            arrowClone.ArrowHead == ArrowHead.Both && arrowClone.Points.Count == 3 && arrowClone.Kind == AnnotationKind.Arrow);
+
+        var straight = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
+        Check("默认箭头仅末端有头", straight.ArrowHead == ArrowHead.End);
     }
 
     private static NumberBadgeAnnotation Badge(AnnotationDocument doc, double x, double y)

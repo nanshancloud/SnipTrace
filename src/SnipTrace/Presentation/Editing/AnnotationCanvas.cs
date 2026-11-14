@@ -18,7 +18,8 @@ public enum EditorTool
     Pen,
     Highlight,
     Text,
-    Number
+    Number,
+    Eraser
 }
 
 /// <summary>
@@ -50,6 +51,12 @@ public sealed class AnnotationCanvas : FrameworkElement
     private Point _marqueeEnd;
     private bool _interactionChanged;
 
+    private ShapeAnnotation? _arrowDraft;
+    private int _vertexIndex = -1;
+    private bool _erasing;
+    private bool _eraseChanged;
+    private PointD _lastErasePoint;
+
     public AnnotationCanvas()
     {
         Focusable = true;
@@ -61,13 +68,23 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     public event EventHandler? SelectionChanged;
 
-    public event Action<TextAnnotation>? TextEditRequested;
+    /// <summary>请求编辑文本：(标注, 是否为新建)。</summary>
+    public event Action<TextAnnotation, bool>? TextEditRequested;
 
     public BitmapSource? Image { get; set; }
 
     public EditorTool Tool { get; set; } = EditorTool.Select;
 
     public AnnotationStyle CurrentStyle { get; set; } = AnnotationStyle.Default;
+
+    /// <summary>新建箭头使用的端头形式（单向 / 双向 / 无头）。</summary>
+    public ArrowHead ArrowHead { get; set; } = ArrowHead.End;
+
+    /// <summary>新建箭头是否按正交方向吸附（直角折线）。</summary>
+    public bool ArrowElbow { get; set; }
+
+    /// <summary>是否存在尚未结束的多段箭头。</summary>
+    public bool HasArrowDraft => _arrowDraft is not null;
 
     public double Zoom => _zoom;
 
@@ -134,6 +151,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     public void DeleteSelection()
     {
         if (_document is null || _selection.Count == 0) return;
+        if (_arrowDraft is not null) FinishArrowDraft(false);
         _document.RemoveRange(_selection.ToList());
         _selection.Clear();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -193,11 +211,24 @@ public sealed class AnnotationCanvas : FrameworkElement
         var handleFill = Brushes.White;
         var handlePen = new Pen(new SolidColorBrush(Color.FromArgb(255, 255, 107, 95)), 1);
         handlePen.Freeze();
+        var vertexFill = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+        vertexFill.Freeze();
+        var vertexPen = new Pen(new SolidColorBrush(Color.FromArgb(255, 78, 161, 255)), 1.4);
+        vertexPen.Freeze();
 
         foreach (var annotation in _selection)
         {
             var screenRect = ToScreenRect(annotation.Bounds);
             dc.DrawRectangle(null, pen, screenRect);
+
+            if (annotation is ShapeAnnotation { Kind: AnnotationKind.Arrow } arrow)
+            {
+                // 箭头顶点手柄：拖任一端点即可重新定向、拖中间顶点可改折线。
+                foreach (var vertex in arrow.Points)
+                {
+                    dc.DrawEllipse(vertexFill, vertexPen, ToScreen(vertex), 4.5, 4.5);
+                }
+            }
 
             if (_selection.Count == 1)
             {
@@ -248,8 +279,63 @@ public sealed class AnnotationCanvas : FrameworkElement
         var image = ToImage(screen);
         _dragStartImage = new PixelPoint((int)Math.Round(image.X), (int)Math.Round(image.Y));
 
+        if (Tool == EditorTool.Eraser)
+        {
+            // 橡皮：按住拖动擦除画笔 / 高亮笔画；文本、箭头、序号与形状不参与。
+            _erasing = true;
+            _eraseChanged = false;
+            _lastErasePoint = image;
+            _document.BeginEdit();
+            EraseBetween(image, image);
+            CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
+        if (Tool == EditorTool.Arrow)
+        {
+            if (_arrowDraft is not null)
+            {
+                AddArrowPoint(image, e.ClickCount);
+                e.Handled = true;
+                return;
+            }
+
+            var arrow = BeginArrowDraft(image);
+            if (arrow is null)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            _creating = arrow;
+            _dragMode = DragMode.Create;
+            _interactionChanged = false;
+            _selection.Clear();
+            _selection.Add(arrow);
+            CaptureMouse();
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (Tool == EditorTool.Select)
         {
+            // 箭头顶点优先：单击选中后再拖顶点即可重新定向。
+            int vertex = HitVertexHandle(screen);
+            if (vertex >= 0 && _selection.Count == 1 && _selection[0] is ShapeAnnotation arrow)
+            {
+                _dragTarget = arrow;
+                _vertexIndex = vertex;
+                _dragMode = DragMode.Reshape;
+                _document.BeginEdit();
+                _interactionChanged = false;
+                CaptureMouse();
+                e.Handled = true;
+                return;
+            }
+
             int handle = HitHandle(screen);
             if (handle >= 0 && _selection.Count == 1)
             {
@@ -265,6 +351,17 @@ public sealed class AnnotationCanvas : FrameworkElement
             }
 
             var hit = _document.HitTest(_dragStartImage);
+            if (hit is TextAnnotation textAnnotation && e.ClickCount == 2)
+            {
+                // 双击文本进入内容修改。
+                _selection.Clear();
+                _selection.Add(textAnnotation);
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+                TextEditRequested?.Invoke(textAnnotation, false);
+                e.Handled = true;
+                return;
+            }
+
             if (hit is not null)
             {
                 bool alreadySelected = _selection.Contains(hit);
@@ -329,7 +426,7 @@ public sealed class AnnotationCanvas : FrameworkElement
                 Style = CurrentStyle,
                 Text = string.Empty
             };
-            TextEditRequested?.Invoke(text);
+            TextEditRequested?.Invoke(text, true);
             e.Handled = true;
             return;
         }
@@ -377,10 +474,33 @@ public sealed class AnnotationCanvas : FrameworkElement
         var image = ToImage(screen);
         var imagePoint = new PixelPoint((int)Math.Round(image.X), (int)Math.Round(image.Y));
 
+        if (_erasing)
+        {
+            EraseBetween(_lastErasePoint, image);
+            _lastErasePoint = image;
+            return;
+        }
+
+        // 多段箭头：光标移动时实时预览下一段。
+        if (_arrowDraft is not null && _dragMode == DragMode.None && _arrowDraft.Points.Count >= 2)
+        {
+            _arrowDraft.Points[^1] = SnapArrowPoint(_arrowDraft.Points[^2], image, _arrowDraft.Elbow);
+            InvalidateVisual();
+            return;
+        }
+
         switch (_dragMode)
         {
             case DragMode.Create when _creating is not null:
             {
+                if (_creating.Kind == AnnotationKind.Arrow)
+                {
+                    _creating.Points[1] = SnapArrowPoint(_creating.Points[0], image, _creating.Elbow);
+                    _interactionChanged = true;
+                    InvalidateVisual();
+                    break;
+                }
+
                 if (_creating.IsPolyline)
                 {
                     var last = _creating.Points[^1];
@@ -408,6 +528,24 @@ public sealed class AnnotationCanvas : FrameworkElement
                 foreach (var annotation in _selection) annotation.Move(dx, dy);
                 _dragStartImage = imagePoint;
                 _dragStartBounds = _dragTarget.Bounds;
+                _interactionChanged = true;
+                InvalidateVisual();
+                break;
+            }
+            case DragMode.Reshape when _dragTarget is ShapeAnnotation shape
+                                      && _vertexIndex >= 0 && _vertexIndex < shape.Points.Count:
+            {
+                var point = image;
+                if (shape.Elbow && shape.Points.Count > 1)
+                {
+                    int neighbor = _vertexIndex == shape.Points.Count - 1 ? _vertexIndex - 1 : _vertexIndex + 1;
+                    if (neighbor >= 0 && neighbor != _vertexIndex)
+                    {
+                        point = SnapArrowPoint(shape.Points[neighbor], image, true);
+                    }
+                }
+
+                shape.Points[_vertexIndex] = point;
                 _interactionChanged = true;
                 InvalidateVisual();
                 break;
@@ -440,6 +578,15 @@ public sealed class AnnotationCanvas : FrameworkElement
     {
         if (_document is null) return;
 
+        if (_erasing)
+        {
+            _erasing = false;
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            _document.EndEdit(_eraseChanged);
+            _eraseChanged = false;
+            return;
+        }
+
         if (_marquee)
         {
             var rect = ToImageRect(new Rect(_marqueeStart, _marqueeEnd));
@@ -453,7 +600,23 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (_dragMode == DragMode.Create && _creating is not null)
         {
             var bounds = _creating.Bounds;
-            if (bounds.Width < 3 && bounds.Height < 3)
+
+            if (_creating.Kind == AnnotationKind.Arrow)
+            {
+                // 只是点击：保留草稿，后续单击继续追加段；真正拖动过：落成一条两点箭头。
+                if (!_interactionChanged)
+                {
+                    _dragMode = DragMode.None;
+                    _creating = null;
+                    if (IsMouseCaptured) ReleaseMouseCapture();
+                    InvalidateVisual();
+                    return;
+                }
+
+                _arrowDraft = null;
+                _document.EndEdit();
+            }
+            else if (bounds.Width < 3 && bounds.Height < 3)
             {
                 _document.RemoveWithoutHistory(_creating);
                 _selection.Clear();
@@ -464,7 +627,7 @@ public sealed class AnnotationCanvas : FrameworkElement
                 _document.EndEdit();
             }
         }
-        else if (_dragMode is DragMode.Move or DragMode.Resize)
+        else if (_dragMode is DragMode.Move or DragMode.Resize or DragMode.Reshape)
         {
             _document.EndEdit(_interactionChanged);
         }
@@ -473,6 +636,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         _dragTarget = null;
         _creating = null;
         _handleIndex = -1;
+        _vertexIndex = -1;
         _interactionChanged = false;
         if (IsMouseCaptured) ReleaseMouseCapture();
     }
@@ -501,8 +665,27 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
     }
 
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        if (_arrowDraft is not null)
+        {
+            FinishArrowDraft();
+            e.Handled = true;
+            return;
+        }
+
+        base.OnMouseRightButtonDown(e);
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (_arrowDraft is not null && e.Key is Key.Enter or Key.Escape)
+        {
+            FinishArrowDraft(e.Key == Key.Enter);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Delete || e.Key == Key.Back)
         {
             DeleteSelection();
@@ -536,6 +719,153 @@ public sealed class AnnotationCanvas : FrameworkElement
         Cursor = _document?.HitTest(new PixelPoint((int)ToImage(screen).X, (int)ToImage(screen).Y)) is not null
             ? Cursors.SizeAll
             : Cursors.Arrow;
+    }
+
+    /// <summary>命中箭头顶点手柄（仅单选箭头时有效）。</summary>
+    private int HitVertexHandle(Point screen)
+    {
+        if (_selection.Count != 1 || _selection[0] is not ShapeAnnotation { Kind: AnnotationKind.Arrow } arrow) return -1;
+
+        for (int i = 0; i < arrow.Points.Count; i++)
+        {
+            var point = ToScreen(arrow.Points[i]);
+            if (Math.Abs(point.X - screen.X) <= HandleSize && Math.Abs(point.Y - screen.Y) <= HandleSize) return i;
+        }
+
+        return -1;
+    }
+
+    /// <summary>开始一条箭头草稿：先两点（起点 + 预览点），后续单击追加段。</summary>
+    internal ShapeAnnotation? BeginArrowDraft(PointD image)
+    {
+        if (_document is null) return null;
+
+        var arrow = new ShapeAnnotation(AnnotationKind.Arrow, new[] { image, image }, CurrentStyle)
+        {
+            ArrowHead = ArrowHead,
+            Elbow = ArrowElbow
+        };
+
+        _document.BeginEdit();
+        _document.InsertWithoutHistory(arrow);
+        _arrowDraft = arrow;
+        return arrow;
+    }
+
+    /// <summary>自动化 / 自检入口：以图像坐标推进多段箭头，与鼠标点击同一套逻辑。</summary>
+    internal void AppendArrowPoint(PointD image, int clickCount = 1) => AddArrowPoint(image, clickCount);
+
+    /// <summary>自动化 / 自检入口：按图像坐标擦除画笔 / 高亮。</summary>
+    internal bool EraseAt(PointD image)
+    {
+        EraseBetween(image, image);
+        return _eraseChanged;
+    }
+
+    /// <summary>自动化 / 自检入口：当前草稿的顶点数（无草稿时为 -1）。</summary>
+    internal int ArrowDraftPointCount => _arrowDraft?.Points.Count ?? -1;
+
+    /// <summary>多段箭头：单击追加一段；双击或点回上一个已确定的顶点结束。</summary>
+    private void AddArrowPoint(PointD image, int clickCount)
+    {
+        if (_document is null || _arrowDraft is null) return;
+        var draft = _arrowDraft;
+
+        // 末尾一点是跟随光标的预览，比较对象必须是它前面的已确定顶点。
+        bool backToLast = draft.Points.Count >= 2
+            && Math.Abs(draft.Points[^2].X - image.X) + Math.Abs(draft.Points[^2].Y - image.Y) < 2.5;
+
+        if (clickCount >= 2 || backToLast)
+        {
+            FinishArrowDraft();
+            return;
+        }
+
+        // 当前预览点转正（直角模式按横 / 竖吸附），再追加新的预览点。
+        var point = SnapArrowPoint(draft.Points[^2], image, draft.Elbow);
+        draft.Points[^1] = point;
+        draft.Points.Add(point);
+        InvalidateVisual();
+    }
+
+    /// <summary>结束多段箭头；commit=false 表示取消（Esc）。</summary>
+    public void FinishArrowDraft(bool commit = true)
+    {
+        var draft = _arrowDraft;
+        if (draft is null || _document is null) return;
+
+        _arrowDraft = null;
+        _creating = null;
+        _dragMode = DragMode.None;
+        _vertexIndex = -1;
+
+        while (draft.Points.Count > 2
+               && Math.Abs(draft.Points[^1].X - draft.Points[^2].X) + Math.Abs(draft.Points[^1].Y - draft.Points[^2].Y) < 0.5)
+        {
+            draft.Points.RemoveAt(draft.Points.Count - 1);
+        }
+
+        double length = 0;
+        for (int i = 1; i < draft.Points.Count; i++)
+        {
+            length += draft.Points[i].DistanceTo(draft.Points[i - 1]);
+        }
+
+        if (!commit || draft.Points.Count < 2 || length < 3)
+        {
+            _document.RemoveWithoutHistory(draft);
+            _selection.Remove(draft);
+            _document.EndEdit(false);
+        }
+        else
+        {
+            _document.EndEdit();
+        }
+
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
+    }
+
+    /// <summary>正交箭头：把光标吸附成相对上一点的横 / 竖段。</summary>
+    private static PointD SnapArrowPoint(PointD previous, PointD cursor, bool elbow)
+    {
+        if (!elbow) return cursor;
+        double dx = Math.Abs(cursor.X - previous.X);
+        double dy = Math.Abs(cursor.Y - previous.Y);
+        return dx >= dy ? new PointD(cursor.X, previous.Y) : new PointD(previous.X, cursor.Y);
+    }
+
+    /// <summary>橡皮：沿拖动轨迹擦掉画笔 / 高亮笔画（文本、箭头、序号不参与）。</summary>
+    private void EraseBetween(PointD from, PointD to)
+    {
+        if (_document is null) return;
+
+        double length = from.DistanceTo(to);
+        int steps = Math.Max(1, (int)(length / 5));
+        bool changed = false;
+
+        for (int i = 0; i <= steps; i++)
+        {
+            var point = new PointD(from.X + (to.X - from.X) * i / steps, from.Y + (to.Y - from.Y) * i / steps);
+            var hits = _document.Annotations
+                .Where(a => a is ShapeAnnotation shape && shape.Kind is (AnnotationKind.Pen or AnnotationKind.Highlight) && shape.HitTest(point, 3))
+                .ToList();
+
+            foreach (var hit in hits)
+            {
+                if (_document.RemoveWithoutHistory(hit))
+                {
+                    _selection.Remove(hit);
+                    changed = true;
+                }
+            }
+        }
+
+        if (!changed) return;
+        _eraseChanged = true;
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
     }
 
     private int HitHandle(Point screen)
@@ -607,6 +937,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         None,
         Move,
         Resize,
-        Create
+        Create,
+        Reshape
     }
 }

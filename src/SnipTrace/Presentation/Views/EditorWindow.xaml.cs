@@ -36,6 +36,8 @@ public partial class EditorWindow : Window
     private bool _updatingPanels;
     private bool _propertiesOverlay;
     private bool? _topBarIcons;
+    private ArrowHead _arrowHead = ArrowHead.End;
+    private bool _arrowElbow;
 
     public EditorWindow(BitmapSource image, string baseName, AnnotationDocument? initialAnnotations = null)
     {
@@ -58,7 +60,7 @@ public partial class EditorWindow : Window
         Canvas.CurrentStyle = _style;
         Canvas.ZoomChanged += (_, _) => UpdateStatus();
         Canvas.SelectionChanged += (_, _) => SyncFromSelection();
-        Canvas.TextEditRequested += BeginNewText;
+        Canvas.TextEditRequested += BeginTextEdit;
 
         _document.Changed += (_, _) =>
         {
@@ -68,6 +70,7 @@ public partial class EditorWindow : Window
 
         FileNameText.Text = baseName + ".png";
         InitializeTools();
+        RenumberStyleCheck.IsChecked = AppServices.Current?.Settings.RenumberBadgesOnStyleChange == true;
         RefreshPanels();
         UpdateStatus();
         ApplyInitialSize();
@@ -221,6 +224,25 @@ public partial class EditorWindow : Window
                 OpacityPanel.Children.Add(Chip($"{opacity * 100:0}%", Math.Abs(_style.Opacity - opacity) < 0.01, () => SetOpacity(captured)));
             }
 
+            var selectedArrow = Canvas.Selection.OfType<ShapeAnnotation>().FirstOrDefault(s => s.Kind == AnnotationKind.Arrow);
+            var arrowHead = selectedArrow?.ArrowHead ?? _arrowHead;
+            bool arrowElbow = selectedArrow?.Elbow ?? _arrowElbow;
+            ArrowModePanel.Children.Clear();
+            foreach (var (head, elbow, label, hint) in new[]
+            {
+                (ArrowHead.End, false, "单向", "末端一个箭头"),
+                (ArrowHead.Both, false, "双向", "两端都是箭头"),
+                (ArrowHead.None, false, "无头", "只画直线，不带箭头"),
+                (ArrowHead.End, true, "直角", "每段横平竖直的折线箭头")
+            })
+            {
+                var capturedHead = head;
+                bool capturedElbow = elbow;
+                var chip = Chip(label, arrowHead == head && arrowElbow == elbow, () => SetArrowMode(capturedHead, capturedElbow));
+                chip.ToolTip = hint;
+                ArrowModePanel.Children.Add(chip);
+            }
+
             BadgePanel.Children.Clear();
             var selectedBadge = Canvas.Selection.OfType<NumberBadgeAnnotation>().FirstOrDefault();
             var badgeShape = selectedBadge?.Shape ?? BadgeShape.Circle;
@@ -311,22 +333,53 @@ public partial class EditorWindow : Window
         RefreshPanels();
     }
 
-    private void SetBadgeShape(BadgeShape shape)
+    /// <summary>箭头模式：单向 / 双向 / 无头 / 直角折线；已有选中的箭头一并改。</summary>
+    private void SetArrowMode(ArrowHead head, bool elbow)
     {
+        _arrowHead = head;
+        _arrowElbow = elbow;
+        Canvas.ArrowHead = head;
+        Canvas.ArrowElbow = elbow;
         Canvas.ApplyToSelection(annotation =>
         {
-            if (annotation is NumberBadgeAnnotation badge) badge.Shape = shape;
+            if (annotation is ShapeAnnotation { Kind: AnnotationKind.Arrow } arrow)
+            {
+                arrow.ArrowHead = head;
+                arrow.Elbow = elbow;
+            }
         });
         RefreshPanels();
     }
 
-    private void SetBadgeFillMode(BadgeFillMode mode)
+    private void SetBadgeShape(BadgeShape shape) => ApplyBadgeStyle(badge => badge.Shape = shape);
+
+    private void SetBadgeFillMode(BadgeFillMode mode) => ApplyBadgeStyle(badge => badge.FillMode = mode);
+
+    /// <summary>
+    /// 改形状 / 填充：一次编辑会话内改完；「改样式后重新计数」打开时同一步里按阅读顺序重排 1..n，
+    /// 撤销一次即可回到改样式之前。
+    /// </summary>
+    private void ApplyBadgeStyle(Action<NumberBadgeAnnotation> apply)
     {
-        Canvas.ApplyToSelection(annotation =>
-        {
-            if (annotation is NumberBadgeAnnotation badge) badge.FillMode = mode;
-        });
+        var badges = Canvas.Selection.OfType<NumberBadgeAnnotation>().ToList();
+        if (badges.Count == 0) return;
+
+        _document.BeginEdit();
+        foreach (var badge in badges) apply(badge);
+        if (AppServices.Current?.Settings.RenumberBadgesOnStyleChange == true) _document.RenumberByReadingOrder();
+        _document.EndEdit();
+
+        Canvas.Refresh();
+        UpdateStatus();
         RefreshPanels();
+    }
+
+    private void RenumberStyle_Click(object sender, RoutedEventArgs e)
+    {
+        var services = AppServices.Current;
+        if (services is null) return;
+        services.Settings.RenumberBadgesOnStyleChange = RenumberStyleCheck.IsChecked == true;
+        services.SaveSettings();
     }
 
     private void SyncFromSelection()
@@ -342,13 +395,15 @@ public partial class EditorWindow : Window
 
     #region 文本编辑
 
-    private void BeginNewText(TextAnnotation annotation)
+    /// <summary>新建文本，或双击已有文本进入内容修改；两者都走一次编辑会话以便撤销。</summary>
+    private void BeginTextEdit(TextAnnotation annotation, bool isNew)
     {
-        annotation.Style = _style;
-        _editingText = annotation;
-        _editingNewText = true;
+        if (isNew) annotation.Style = _style;
         _document.BeginEdit();
-        _document.InsertWithoutHistory(annotation);
+        if (isNew) _document.InsertWithoutHistory(annotation);
+
+        _editingText = annotation;
+        _editingNewText = isNew;
         Canvas.SelectAnnotation(annotation);
         ShowTextEditor(annotation);
     }
@@ -376,13 +431,14 @@ public partial class EditorWindow : Window
 
         if (cancel || (string.IsNullOrWhiteSpace(text) && _editingNewText))
         {
-            _document.RemoveWithoutHistory(annotation);
+            if (_editingNewText) _document.RemoveWithoutHistory(annotation);
             _document.EndEdit(false);
         }
         else
         {
+            bool changed = annotation.Text != text;
             annotation.Text = text;
-            _document.EndEdit();
+            _document.EndEdit(changed);
         }
 
         _editingNewText = false;
@@ -415,6 +471,8 @@ public partial class EditorWindow : Window
 
     private void SelectTool(EditorTool tool)
     {
+        // 切换工具时结束未完成的多段箭头，避免草稿悬空。
+        Canvas.FinishArrowDraft();
         Canvas.Tool = tool;
         foreach (var pair in _toolButtons) pair.Value.IsChecked = pair.Key == tool;
         Canvas.Focus();
@@ -522,7 +580,7 @@ public partial class EditorWindow : Window
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
-        if (TextEditorBox.IsKeyboardFocusWithin)
+        if (e.Handled || TextEditorBox.IsKeyboardFocusWithin)
         {
             return;
         }
@@ -554,6 +612,13 @@ public partial class EditorWindow : Window
         switch (e.Key)
         {
             case Key.Escape:
+                if (Canvas.HasArrowDraft)
+                {
+                    Canvas.FinishArrowDraft(false);
+                    e.Handled = true;
+                    break;
+                }
+
                 CommitText();
                 Close();
                 e.Handled = true;
@@ -594,6 +659,14 @@ public partial class EditorWindow : Window
                 SelectTool(EditorTool.Number);
                 e.Handled = true;
                 break;
+            case Key.X:
+                SelectTool(EditorTool.Eraser);
+                e.Handled = true;
+                break;
+            case Key.F2 when Canvas.Selection.Count == 1 && Canvas.Selection[0] is TextAnnotation selected:
+                BeginTextEdit(selected, false);
+                e.Handled = true;
+                break;
             case Key.OemPlus:
             case Key.Add:
                 Canvas.SetZoom(Canvas.Zoom * 1.1);
@@ -624,10 +697,11 @@ public partial class EditorWindow : Window
             EditorTool.Select => "选择",
             EditorTool.Rectangle => "矩形",
             EditorTool.Ellipse => "椭圆",
-            EditorTool.Arrow => "箭头",
+            EditorTool.Arrow => _arrowElbow ? "箭头（直角）" : "箭头",
             EditorTool.Pen => "画笔",
             EditorTool.Highlight => "高亮",
             EditorTool.Text => "文本",
+            EditorTool.Eraser => "橡皮",
             _ => "序号"
         };
 

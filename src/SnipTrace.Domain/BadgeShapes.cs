@@ -48,31 +48,49 @@ public static class BadgeShapes
         };
     }
 
+    /// <summary>
+    /// 正心形 ♥：左右两个圆瓣 + 下方尖点，用切线把圆瓣与尖点连成闭合轮廓，
+    /// 与 ♥ 字形一致（浅凹口、饱满圆瓣、尖而对称的底）。
+    /// </summary>
     private static PointD[] Heart(double radius)
     {
-        // 经典心形参数曲线 x = 16sin³t，y = 13cost − 5cos2t − 2cos3t − cos4t，归一化到 ±radius。
-        const int samples = 64;
-        double maxAbsX = 0, maxY = double.MinValue, minY = double.MaxValue;
-        var raw = new (double X, double Y)[samples];
-        for (int i = 0; i < samples; i++)
+        const double lobeOffset = 0.45;   // 瓣心横向偏移（半径比例）
+        const double lobeCenterY = -0.42; // 瓣心纵坐标
+        const double lobeRadius = 0.55;   // 瓣半径
+        const double tipY = 1.0;          // 底部尖点
+        const int arcSteps = 26;
+
+        // 从尖点作圆瓣的切线：右瓣切点在圆上的角度 = 圆心→尖点方向 − acos(r/d)。
+        double distance = Math.Sqrt(lobeOffset * lobeOffset + (tipY - lobeCenterY) * (tipY - lobeCenterY));
+        double toTip = Math.Atan2(tipY - lobeCenterY, -lobeOffset);
+        double theta = Math.Acos(Math.Clamp(lobeRadius / distance, -1, 1));
+        double tangentAngle = toTip - theta;
+
+        // 顶部凹口：两瓣圆的交点。
+        double notchY = lobeCenterY - Math.Sqrt(lobeRadius * lobeRadius - lobeOffset * lobeOffset);
+        double notchAngle = Math.Atan2(notchY - lobeCenterY, -lobeOffset);
+
+        var right = new List<PointD>(arcSteps + 3);
+        for (int i = 0; i <= arcSteps; i++)
         {
-            double t = Math.PI * 2 * i / samples;
-            double x = 16 * Math.Pow(Math.Sin(t), 3);
-            double y = 13 * Math.Cos(t) - 5 * Math.Cos(2 * t) - 2 * Math.Cos(3 * t) - Math.Cos(4 * t);
-            raw[i] = (x, y);
-            maxAbsX = Math.Max(maxAbsX, Math.Abs(x));
-            maxY = Math.Max(maxY, y);
-            minY = Math.Min(minY, y);
+            double angle = notchAngle + (tangentAngle - notchAngle) * i / arcSteps;
+            right.Add(new PointD(lobeOffset + Math.Cos(angle) * lobeRadius, lobeCenterY + Math.Sin(angle) * lobeRadius));
         }
 
-        double scale = radius / maxAbsX;
-        double midY = (maxY + minY) / 2;
-        var points = new PointD[samples];
-        for (int i = 0; i < samples; i++)
+        right.Add(new PointD(0, tipY));
+
+        var points = new List<PointD>(right.Count * 2 - 2);
+        points.AddRange(right);
+        for (int i = right.Count - 2; i >= 1; i--) points.Add(new PointD(-right[i].X, right[i].Y));
+
+        // 归一化：宽度对齐直径，垂直居中。
+        double midY = (lobeCenterY - lobeRadius + tipY) / 2;
+        var scaled = new PointD[points.Count];
+        for (int i = 0; i < points.Count; i++)
         {
-            points[i] = new PointD(raw[i].X * scale, (raw[i].Y - midY) * scale * 1.15);
+            scaled[i] = new PointD(points[i].X * radius, (points[i].Y - midY) * radius);
         }
 
-        return points;
+        return scaled;
     }
 }
