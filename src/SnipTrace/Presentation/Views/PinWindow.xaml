@@ -1,17 +1,77 @@
-<Window x:Class="SnipTrace.App.Presentation.Views.PinWindow"
+﻿<Window x:Class="SnipTrace.App.Presentation.Views.PinWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        WindowStyle="None" Background="#0B0F14" Topmost="True" ShowInTaskbar="False"
+        WindowStyle="None" Background="{DynamicResource PanelBrush}" Topmost="True" ShowInTaskbar="False"
         ResizeMode="CanResizeWithGrip" WindowStartupLocation="CenterScreen" AllowsTransparency="False">
-    <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" Background="#0B0F14">
+    <Window.Resources>
+        <!-- 深浅色主题通用的钉图右键菜单 -->
+        <Style x:Key="PinMenu" TargetType="ContextMenu">
+            <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <StackPanel IsItemsHost="True" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PinMenuItem" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Root" Background="Transparent" CornerRadius="6" Padding="10,6">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PinMenuSeparator" TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Margin="6,4" Background="{DynamicResource BorderBrush}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Window.ContextMenu>
+        <ContextMenu Style="{StaticResource PinMenu}">
+            <MenuItem Header="复制 (Ctrl+C)" Style="{StaticResource PinMenuItem}" Click="Copy_Click" />
+            <MenuItem Header="保存… (Ctrl+S)" Style="{StaticResource PinMenuItem}" Click="Save_Click" />
+            <MenuItem Header="存到截图目录" Style="{StaticResource PinMenuItem}" Click="SaveToDirectory_Click" />
+            <Separator Style="{StaticResource PinMenuSeparator}" />
+            <MenuItem Header="关闭钉图 (Esc)" Style="{StaticResource PinMenuItem}" Click="Close_Click" />
+        </ContextMenu>
+    </Window.ContextMenu>
+    <Border BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" Background="{DynamicResource PanelBrush}">
         <Grid>
-            <Image x:Name="PreviewImage" Stretch="Uniform" MouseLeftButtonDown="Image_MouseLeftButtonDown" />
+            <Image x:Name="PreviewImage" Stretch="Uniform"
+                   MouseLeftButtonDown="Image_MouseLeftButtonDown" />
             <Border x:Name="ToolBar" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="8"
                     Background="#D91A2330" CornerRadius="8" Padding="4" Opacity="0">
                 <StackPanel Orientation="Horizontal">
-                    <Button Content="复制" Style="{StaticResource GhostButton}" Click="Copy_Click" FontSize="12" MinHeight="28" />
-                    <Button Content="保存" Style="{StaticResource GhostButton}" Click="Save_Click" FontSize="12" MinHeight="28" />
-                    <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" Width="28" Height="28" FontSize="11" />
+                    <Button Content="复制" Style="{StaticResource GhostButton}" Click="Copy_Click" FontSize="12" MinHeight="28"
+                            ToolTip="复制钉图到剪贴板" />
+                    <Button Content="保存" Style="{StaticResource GhostButton}" Click="Save_Click" FontSize="12" MinHeight="28"
+                            ToolTip="另存为对话框，默认定位到截图目录" />
+                    <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" Width="28" Height="28" FontSize="11"
+                            ToolTip="关闭钉图" />
                 </StackPanel>
             </Border>
         </Grid>

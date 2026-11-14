@@ -98,13 +98,16 @@ public partial class ShellWindow : Window
     public void RefreshSettings()
     {
         _settingsPage?.LoadFrom(Services.Settings);
+        _home?.RefreshHotkeys(Services.Settings);
         UpdateStatusBar();
     }
 
     public void UpdateStatusBar()
     {
         var settings = Services.Settings;
-        ShortcutHintText.Text = $"{settings.CaptureHotkey} 截图 · {settings.GifHotkey} GIF · {settings.VideoHotkey} 录屏";
+        ShortcutHintText.Text = settings.HotkeyMode == HotkeyModes.Unified
+            ? $"{settings.CaptureHotkey} 唤起选区 · 选后在工具条选择 GIF / 录屏 / 完成"
+            : $"{settings.CaptureHotkey} 截图 · {settings.GifHotkey} GIF · {settings.VideoHotkey} 录屏";
         OutputDirectoryText.Text = "输出目录：" + settings.ScreenshotDirectory;
         SetTrayState("托盘常驻");
     }

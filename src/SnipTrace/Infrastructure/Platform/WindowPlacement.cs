@@ -22,6 +22,15 @@ public static class WindowPlacement
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
     }
 
+    /// <summary>不改变位置与尺寸，仅把窗口提回置顶层（新弹出窗口会把同层窗口压到覆盖层后面）。</summary>
+    public static void Raise(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == IntPtr.Zero) return;
+        NativeMethods.SetWindowPos(handle, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+    }
+
     public static void MoveTo(Window window, int x, int y)
     {
         var handle = new WindowInteropHelper(window).Handle;
@@ -48,6 +57,17 @@ public static class WindowPlacement
         var handle = new WindowInteropHelper(window).Handle;
         if (handle != IntPtr.Zero && NativeMethods.GetWindowRect(handle, out var rect)) return (rect.Width, rect.Height);
         return ((int)window.ActualWidth, (int)window.ActualHeight);
+    }
+
+    public static PixelRect GetPixelBounds(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle != IntPtr.Zero && NativeMethods.GetWindowRect(handle, out var rect))
+        {
+            return PixelRect.FromLtrb(rect.Left, rect.Top, rect.Right, rect.Bottom);
+        }
+
+        return new PixelRect(0, 0, (int)window.ActualWidth, (int)window.ActualHeight);
     }
 
     public static void ApplyToolWindowStyle(Window window)

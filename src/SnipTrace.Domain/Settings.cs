@@ -170,6 +170,65 @@ public sealed class WindowLayout
     }
 }
 
+/// <summary>快捷键模式：三种动作各自独立，或统一由一个快捷键唤起、在工具条里选择动作。</summary>
+public static class HotkeyModes
+{
+    public const string Individual = "Individual";
+    public const string Unified = "Unified";
+
+    public static string Normalize(string? value) => Unified.Equals(value, StringComparison.OrdinalIgnoreCase)
+        ? Unified
+        : Individual;
+}
+
+/// <summary>界面主题：深色 / 浅色。</summary>
+public static class ThemeModes
+{
+    public const string Dark = "Dark";
+    public const string Light = "Light";
+
+    public static string Normalize(string? value) => Light.Equals(value, StringComparison.OrdinalIgnoreCase)
+        ? Light
+        : Dark;
+}
+
+/// <summary>录制 / GIF 中的鼠标高亮参数（QQ 演示模式）。</summary>
+public sealed class HighlightOptions
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>高亮圈颜色，#RRGGBB 或 #AARRGGBB。</summary>
+    public string Color { get; set; } = "#FFCC00";
+
+    /// <summary>高亮圈直径（物理像素）。</summary>
+    public int Diameter { get; set; } = 48;
+
+    /// <summary>填充不透明度（0–100）。</summary>
+    public int OpacityPercent { get; set; } = 35;
+
+    public void Normalize()
+    {
+        Color = NormalizeColor(Color);
+        Diameter = Math.Clamp(Diameter, 16, 200);
+        OpacityPercent = Math.Clamp(OpacityPercent, 10, 80);
+    }
+
+    public string? Validate()
+    {
+        if (Diameter is < 16 or > 200) return "鼠标高亮直径必须在 16–200 之间。";
+        if (OpacityPercent is < 10 or > 80) return "鼠标高亮不透明度必须在 10–80 之间。";
+        return null;
+    }
+
+    private static string NormalizeColor(string? value)
+    {
+        string text = (value ?? string.Empty).Trim();
+        if (text.StartsWith('#')) text = text[1..];
+        if (text.Length is 6 or 8 && text.All(char.IsAsciiHexDigit)) return "#" + text.ToUpperInvariant();
+        return "#FFCC00";
+    }
+}
+
 public sealed class AppSettings
 {
     public const string DefaultCaptureHotkey = "F1";
@@ -185,6 +244,20 @@ public sealed class AppSettings
     public bool IncludeCursorInCapture { get; set; }
 
     public bool CopyAfterCapture { get; set; } = true;
+
+    /// <summary>截图完成后自动把 PNG 存到截图目录（保存按钮的对话框除外）。</summary>
+    public bool AutoSaveAfterCapture { get; set; }
+
+    /// <summary>快捷键注册失败时是否弹提示。</summary>
+    public bool WarnHotkeyFailure { get; set; } = true;
+
+    /// <summary>HotkeyModes.Individual / Unified。</summary>
+    public string HotkeyMode { get; set; } = HotkeyModes.Individual;
+
+    /// <summary>ThemeModes.Dark / Light。</summary>
+    public string Theme { get; set; } = ThemeModes.Dark;
+
+    public HighlightOptions Highlight { get; set; } = new();
 
     public bool RunAtStartup { get; set; }
 
@@ -215,6 +288,10 @@ public sealed class AppSettings
         Video ??= new VideoOptions();
         Gif.Normalize();
         Video.Normalize();
+        Highlight ??= new HighlightOptions();
+        Highlight.Normalize();
+        Theme = ThemeModes.Normalize(Theme);
+        HotkeyMode = HotkeyModes.Normalize(HotkeyMode);
 
         CaptureHotkey = NormalizeHotkey(CaptureHotkey, DefaultCaptureHotkey);
         GifHotkey = NormalizeHotkey(GifHotkey, DefaultGifHotkey);
@@ -225,14 +302,15 @@ public sealed class AppSettings
         MainWindow?.Normalize();
     }
 
-    /// <summary>返回快捷键重复项的可读提示，无冲突时为 null。</summary>
+    /// <summary>返回快捷键重复项的可读提示，无冲突时为 null。统一快捷键模式下不参与唤起的 GIF / 录屏键不检查。</summary>
     public string? FindHotkeyConflict()
     {
+        bool unified = HotkeyMode == HotkeyModes.Unified;
         var gestures = new (string Name, string Text)[]
         {
             ("区域截图", CaptureHotkey),
-            ("GIF 录制", GifHotkey),
-            ("屏幕录制", VideoHotkey),
+            ("GIF 录制", unified ? string.Empty : GifHotkey),
+            ("屏幕录制", unified ? string.Empty : VideoHotkey),
             ("全屏截图", FullScreenHotkey),
             ("所有显示器截图", AllScreensHotkey)
         };

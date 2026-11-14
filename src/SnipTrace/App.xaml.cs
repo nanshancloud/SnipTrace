@@ -56,6 +56,7 @@ public partial class App : Application
         _singleInstance.ActivationRequested += () => Dispatcher.BeginInvoke(new Action(() => _shell?.ShowAndActivate()));
 
         _services = new AppServices();
+        ThemeManager.Apply(_services.Settings.Theme);
         _shell = new ShellWindow();
         _services.Shell = _shell;
         MainWindow = _shell;
@@ -69,7 +70,7 @@ public partial class App : Application
         DispatcherUnhandledException += OnUnhandledException;
 
         var failures = _services.ApplyHotkeys();
-        if (failures.Count > 0)
+        if (failures.Count > 0 && _services.Settings.WarnHotkeyFailure)
         {
             _services.Toasts.Warn("快捷键注册失败", string.Join("；", failures) + "。可在设置中重新录入。");
         }

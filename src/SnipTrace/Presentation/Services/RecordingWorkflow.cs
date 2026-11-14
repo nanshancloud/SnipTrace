@@ -35,6 +35,24 @@ public sealed class RecordingWorkflow
             return;
         }
 
+        // QQ 录屏式：先在控制条上确认格式与清晰度，再倒计时开始。
+        RecordSetupChoice? choice;
+        try
+        {
+            var setup = new RecordSetupBar(kind);
+            choice = await setup.RunAsync(area, monitor);
+        }
+        catch (Exception ex)
+        {
+            _services.Toasts.Warn("无法打开录制设置", ex.Message);
+            return;
+        }
+
+        if (choice is null) return;
+
+        kind = choice.Value.Kind;
+        int bitRateMbps = choice.Value.BitRateMbps;
+
         var countdown = new CountdownWindow();
         string hint = kind == RecordingKind.Gif ? "3 秒后开始 GIF 录制 · Esc 取消" : "3 秒后开始屏幕录制 · Esc 取消";
         if (!await countdown.RunAsync(3, area, hint)) return;
@@ -50,8 +68,14 @@ public sealed class RecordingWorkflow
             string target = OutputNaming.UniquePath(directory, baseName, extension);
             string temp = Path.Combine(_services.Paths.TempDirectory, baseName + extension);
 
-            var engine = new RecordingEngine(kind, area, monitor, temp, target, settings.Gif, settings.Video,
-                kind == RecordingKind.Video && settings.Video.IncludeCursor);
+            var videoOptions = CloneVideo(settings.Video);
+            if (bitRateMbps > 0) videoOptions.BitRate = bitRateMbps * 1_000_000;
+            var gifOptions = CloneGif(settings.Gif);
+
+            // 高亮开启时 GIF 也带上光标，否则只剩色圈没有箭头会很怪。
+            bool includeCursor = (kind == RecordingKind.Video && videoOptions.IncludeCursor) || settings.Highlight.Enabled;
+            var engine = new RecordingEngine(kind, area, monitor, temp, target, gifOptions, videoOptions,
+                includeCursor, settings.Highlight);
             _engine = engine;
 
             _frame = new RecordingFrame();
@@ -197,6 +221,22 @@ public sealed class RecordingWorkflow
             _engine.RequestStop();
         }));
     }
+
+    private static VideoOptions CloneVideo(VideoOptions source) => new()
+    {
+        Fps = source.Fps,
+        IncludeCursor = source.IncludeCursor,
+        BitRate = source.BitRate
+    };
+
+    private static GifOptions CloneGif(GifOptions source) => new()
+    {
+        Fps = source.Fps,
+        MaxDurationSeconds = source.MaxDurationSeconds,
+        MaxFrames = source.MaxFrames,
+        MaxEdge = source.MaxEdge,
+        HighQualityDither = source.HighQualityDither
+    };
 
     /// <summary>关闭录制 UI 并恢复空闲状态。</summary>
     private void ShutdownUi()

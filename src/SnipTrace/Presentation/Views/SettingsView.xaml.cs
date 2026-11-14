@@ -1,6 +1,8 @@
 using System;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Win32;
 using SnipTrace.App.Infrastructure.Platform;
 using SnipTrace.App.Infrastructure.Storage;
@@ -34,8 +36,46 @@ public partial class SettingsView : UserControl
         AllScreensHotkeyBox.Text = settings.AllScreensHotkey;
         CursorInCaptureCheck.IsChecked = settings.IncludeCursorInCapture;
         CopyAfterCaptureCheck.IsChecked = settings.CopyAfterCapture;
+        AutoSaveCheck.IsChecked = settings.AutoSaveAfterCapture;
+        HotkeyWarnCheck.IsChecked = settings.WarnHotkeyFailure;
         StartupCheck.IsChecked = settings.RunAtStartup;
+
+        if (settings.HotkeyMode == HotkeyModes.Unified) HotkeyUnifiedRadio.IsChecked = true;
+        else HotkeyIndividualRadio.IsChecked = true;
+
+        if (settings.Theme == ThemeModes.Light) ThemeLightRadio.IsChecked = true;
+        else ThemeDarkRadio.IsChecked = true;
+
+        HighlightCheck.IsChecked = settings.Highlight.Enabled;
+        HighlightColorBox.Text = settings.Highlight.Color;
+        HighlightSizeBox.Text = settings.Highlight.Diameter.ToString(CultureInfo.InvariantCulture);
+        HighlightOpacityBox.Text = settings.Highlight.OpacityPercent.ToString(CultureInfo.InvariantCulture);
+        RefreshHighlightSwatch();
+        RefreshHotkeyModeUi();
+
+        HotkeyIndividualRadio.Checked += (_, _) => RefreshHotkeyModeUi();
+        HotkeyUnifiedRadio.Checked += (_, _) => RefreshHotkeyModeUi();
+        HighlightColorBox.TextChanged += (_, _) => RefreshHighlightSwatch();
+
         StatusText.Text = string.Empty;
+    }
+
+    private void RefreshHighlightSwatch()
+    {
+        try
+        {
+            HighlightSwatch.Color = (Color)ColorConverter.ConvertFromString(HighlightColorBox.Text.Trim());
+        }
+        catch (FormatException)
+        {
+        }
+    }
+
+    private void RefreshHotkeyModeUi()
+    {
+        bool unified = HotkeyUnifiedRadio.IsChecked == true;
+        GifHotkeyBox.IsEnabled = !unified;
+        VideoHotkeyBox.IsEnabled = !unified;
     }
 
     private void BrowseScreenshot_Click(object sender, RoutedEventArgs e) => Browse(ScreenshotDirBox);
@@ -79,6 +119,9 @@ public partial class SettingsView : UserControl
             box.Text = gesture.ToDisplayString();
         }
 
+        if (!int.TryParse(HighlightSizeBox.Text.Trim(), out int highlightDiameter)) highlightDiameter = 48;
+        if (!int.TryParse(HighlightOpacityBox.Text.Trim(), out int highlightOpacity)) highlightOpacity = 35;
+
         if (error is null)
         {
             var updated = new AppSettings
@@ -87,7 +130,18 @@ public partial class SettingsView : UserControl
                 VideoDirectory = VideoDirBox.Text.Trim(),
                 IncludeCursorInCapture = CursorInCaptureCheck.IsChecked == true,
                 CopyAfterCapture = CopyAfterCaptureCheck.IsChecked == true,
+                AutoSaveAfterCapture = AutoSaveCheck.IsChecked == true,
+                WarnHotkeyFailure = HotkeyWarnCheck.IsChecked == true,
                 RunAtStartup = StartupCheck.IsChecked == true,
+                HotkeyMode = HotkeyUnifiedRadio.IsChecked == true ? HotkeyModes.Unified : HotkeyModes.Individual,
+                Theme = ThemeLightRadio.IsChecked == true ? ThemeModes.Light : ThemeModes.Dark,
+                Highlight = new HighlightOptions
+                {
+                    Enabled = HighlightCheck.IsChecked == true,
+                    Color = HighlightColorBox.Text.Trim(),
+                    Diameter = highlightDiameter,
+                    OpacityPercent = highlightOpacity
+                },
                 CaptureHotkey = CaptureHotkeyBox.Text.Trim(),
                 GifHotkey = GifHotkeyBox.Text.Trim(),
                 VideoHotkey = VideoHotkeyBox.Text.Trim(),
@@ -135,7 +189,12 @@ public partial class SettingsView : UserControl
         target.VideoDirectory = source.VideoDirectory;
         target.IncludeCursorInCapture = source.IncludeCursorInCapture;
         target.CopyAfterCapture = source.CopyAfterCapture;
+        target.AutoSaveAfterCapture = source.AutoSaveAfterCapture;
+        target.WarnHotkeyFailure = source.WarnHotkeyFailure;
         target.RunAtStartup = source.RunAtStartup;
+        target.HotkeyMode = source.HotkeyMode;
+        target.Theme = source.Theme;
+        target.Highlight = source.Highlight;
         target.CaptureHotkey = source.CaptureHotkey;
         target.GifHotkey = source.GifHotkey;
         target.VideoHotkey = source.VideoHotkey;
@@ -143,5 +202,6 @@ public partial class SettingsView : UserControl
         target.AllScreensHotkey = source.AllScreensHotkey;
         target.Gif = source.Gif;
         target.Video = source.Video;
+        target.MainWindow = source.MainWindow;
     }
 }

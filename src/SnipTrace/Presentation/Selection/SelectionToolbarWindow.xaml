@@ -1,25 +1,10 @@
-<Window x:Class="SnipTrace.App.Presentation.Selection.SelectionToolbarWindow"
+﻿<Window x:Class="SnipTrace.App.Presentation.Selection.SelectionToolbarWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        WindowStyle="None" SizeToContent="Height" Width="452" ResizeMode="NoResize"
+        WindowStyle="None" SizeToContent="WidthAndHeight" ResizeMode="NoResize"
         ShowInTaskbar="False" ShowActivated="False" Topmost="True" Focusable="False"
         Background="#F2161E28" AllowsTransparency="False" WindowStartupLocation="Manual">
-    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,8">
-        <StackPanel>
-            <DockPanel>
-                <Image x:Name="MagnifierImage" DockPanel.Dock="Right" Width="64" Height="64" Margin="10,0,0,0"
-                       Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="SizeText" FontSize="14" FontWeight="SemiBold" Text="拖动选择区域" />
-                    <TextBlock x:Name="CoordText" Style="{StaticResource CaptionText}" FontSize="11" Margin="0,3,0,0" />
-                    <TextBlock x:Name="ColorText" Style="{StaticResource CaptionText}" FontSize="11" Margin="0,3,0,0" />
-                    <TextBlock x:Name="GapText" Foreground="#FFD166" FontSize="11" Margin="0,3,0,0"
-                               Visibility="Collapsed" TextWrapping="Wrap" />
-                </StackPanel>
-            </DockPanel>
-
-            <WrapPanel x:Name="RatioRow" Margin="0,8,0,0" />
-            <StackPanel x:Name="ActionRow" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0" />
-        </StackPanel>
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="6,4">
+        <StackPanel x:Name="ButtonRow" Orientation="Horizontal" />
     </Border>
 </Window>

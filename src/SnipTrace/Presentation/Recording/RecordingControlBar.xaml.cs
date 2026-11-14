@@ -19,10 +19,9 @@ public partial class RecordingControlBar : Window
     {
         InitializeComponent();
         _fps = fps;
-        MetaText.Text = $"{fps} FPS · 0 帧";
-        DetailText.Text = kind == RecordingKind.Gif
-            ? "正在录制 GIF，鼠标移出控制条可继续操作"
-            : "正在录制 MP4，边框位于画面外侧";
+        MetaText.Text = kind == RecordingKind.Gif
+            ? $"GIF · {fps} FPS · 0 帧"
+            : $"{fps} FPS · 0 帧";
         SourceInitialized += (_, _) => WindowPlacement.ApplyNoActivate(this);
     }
 
@@ -38,15 +37,15 @@ public partial class RecordingControlBar : Window
         MetaText.Text = $"{_fps} FPS · {progress.Frames} 帧 · {progress.SizeText}";
     }
 
-    public void SetStatus(string text) => DetailText.Text = text;
+    public void SetStatus(string text) => MetaText.Text = text;
 
     public void SetPaused(bool paused)
     {
         _paused = paused;
-        PauseButton.Content = paused ? "继续" : "暂停";
+        PauseGlyph.Text = paused ? "\uE769" : "\uE768";
         Dot.Fill = paused ? PausedBrush : RecordingBrush;
         TimeText.Foreground = paused ? PausedBrush : (Brush)FindResource("TextPrimaryBrush");
-        DetailText.Text = paused ? "已暂停，暂停时间不计入成片" : "正在录制，边框位于画面外侧";
+        PauseButton.ToolTip = paused ? "继续录制" : "暂停录制";
     }
 
     public void PlaceNear(PixelRect area, MonitorInfo monitor)
@@ -56,8 +55,8 @@ public partial class RecordingControlBar : Window
         var (width, height) = WindowPlacement.GetPixelSize(this);
         if (width <= 0 || height <= 0)
         {
-            width = (int)(Width * monitor.Scale);
-            height = (int)(60 * monitor.Scale);
+            width = (int)(300 * monitor.Scale);
+            height = (int)(44 * monitor.Scale);
         }
 
         int x = area.Left;

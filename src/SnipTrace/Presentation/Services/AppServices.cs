@@ -84,9 +84,15 @@ public sealed class AppServices
         Hotkeys.UnregisterAll();
         Hotkeys.Failures.Clear();
 
+        bool unified = Settings.HotkeyMode == HotkeyModes.Unified;
         Register("capture", Settings.CaptureHotkey);
-        Register("gif", Settings.GifHotkey);
-        Register("video", Settings.VideoHotkey);
+        if (!unified)
+        {
+            // 统一快捷键模式：只唤起选区，GIF / 录屏在工具条里选择，不再单独注册。
+            Register("gif", Settings.GifHotkey);
+            Register("video", Settings.VideoHotkey);
+        }
+
         Register("fullscreen", Settings.FullScreenHotkey);
         Register("allscreens", Settings.AllScreensHotkey);
         return Hotkeys.Failures.ToList();
@@ -96,6 +102,7 @@ public sealed class AppServices
 
     public void NotifySettingsChanged()
     {
+        ThemeManager.Apply(Settings.Theme);
         SaveSettings();
         SettingsChanged?.Invoke();
         ApplyHotkeys();

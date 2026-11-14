@@ -32,6 +32,17 @@ public partial class HomeView : UserControl
 
     public event Action<RecentItemView>? RecentActivated;
 
+    /// <summary>同步首页快捷键徽标（统一快捷键模式下 GIF / 录屏卡片不再显示单独按键）。</summary>
+    public void RefreshHotkeys(AppSettings settings)
+    {
+        bool unified = settings.HotkeyMode == HotkeyModes.Unified;
+        ScreenshotKeyText.Text = settings.CaptureHotkey;
+        GifKeyBadge.Visibility = unified ? Visibility.Collapsed : Visibility.Visible;
+        VideoKeyBadge.Visibility = unified ? Visibility.Collapsed : Visibility.Visible;
+        GifKeyText.Text = settings.GifHotkey;
+        VideoKeyText.Text = settings.VideoHotkey;
+    }
+
     public void SetRecent(IReadOnlyList<RecentItemView> items)
     {
         RecentList.ItemsSource = items;

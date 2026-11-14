@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Windows;
 using SnipTrace.App.Infrastructure.Capture;
 using SnipTrace.App.Infrastructure.Encoding;
 using SnipTrace.App.Presentation.Editing;
+using SnipTrace.App.Presentation.Recording;
 using SnipTrace.Domain;
+using Color = System.Drawing.Color;
 
 namespace SnipTrace.App;
 
@@ -124,8 +127,58 @@ internal static class SelfTest
             Check("自检未抛出异常", false, ex.Message + " @ " + ex.StackTrace?.Split('\n')[0]);
         }
 
+        CheckWindowLayouts(root, Check);
+
         writer.WriteLine($"失败 {failures}");
         return failures;
+    }
+
+    /// <summary>UI 冒烟：离屏构建各浮动窗口并强制一次布局，覆盖 XAML 解析、样式引用与尺寸计算。</summary>
+    private static void CheckWindowLayouts(string root, Action<string, bool, string?> check)
+    {
+        var factories = new (string Name, Func<Window> Create)[]
+        {
+            ("录制前控制条", () => new RecordSetupBar(RecordingKind.Gif)),
+            ("录制中控制条", () => new RecordingControlBar(RecordingKind.Gif, 12)),
+            ("录制预览窗口", () =>
+            {
+                var path = Path.Combine(root, "smoke.mp4");
+                return new RecordingResultWindow(null, path, RecordingKind.Video, TimeSpan.FromSeconds(4), 1024);
+            })
+        };
+
+        foreach (var (name, create) in factories)
+        {
+            Window? window = null;
+            try
+            {
+                window = create();
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+                window.ShowInTaskbar = false;
+                window.ShowActivated = false;
+                window.Left = -4000;
+                window.Top = -4000;
+                window.Show();
+                window.UpdateLayout();
+                double width = window.ActualWidth;
+                double height = window.ActualHeight;
+                check(name + " 布局", width > 120 && height > 30, $"{width:0}×{height:0}");
+            }
+            catch (Exception ex)
+            {
+                check(name + " 布局", false, ex.Message + " @ " + ex.StackTrace?.Split('\n')[0]);
+            }
+            finally
+            {
+                try
+                {
+                    window?.Close();
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
     }
 
     private static bool Near(Color actual, Color expected)

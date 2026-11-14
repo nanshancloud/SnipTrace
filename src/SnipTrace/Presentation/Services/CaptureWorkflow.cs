@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using SnipTrace.App.Infrastructure.Capture;
 using SnipTrace.App.Infrastructure.Platform;
+using SnipTrace.App.Presentation.Editing;
 using SnipTrace.App.Presentation.Selection;
 using SnipTrace.App.Presentation.Views;
 using SnipTrace.Domain;
@@ -126,28 +127,56 @@ public sealed class CaptureWorkflow
 
         using var cropped = snapshot.Crop(result.Area);
         var image = ImageUtil.ToBitmapSource(cropped);
+        var annotations = result.Annotations;
+
+        // 覆盖层上直接绘制的标注：导出/复制/钉图时烘焙进图片；进编辑器时带文档继续精标。
+        BitmapSource? annotatedImage = null;
+        if (annotations is { Annotations.Count: > 0 } && result.Action != SelectionAction.Edit)
+        {
+            annotatedImage = AnnotationRenderer.Render(image, annotations);
+        }
+
+        BitmapSource finalImage() => annotatedImage ?? image;
 
         switch (result.Action)
         {
             case SelectionAction.Copy:
-                CopyImage(image);
+                CopyImage(finalImage());
+                AutoSaveIfEnabled(finalImage());
                 break;
             case SelectionAction.Save:
-                SaveImage(image);
+                SaveImage(finalImage());
                 break;
             case SelectionAction.Pin:
-                new PinWindow(image, NewBaseName()).Show();
+                AutoSaveIfEnabled(finalImage());
+                new PinWindow(finalImage(), NewBaseName()).Show();
                 break;
             default:
-                if (_services.Settings.CopyAfterCapture) ClipboardService.SetImage(image);
-                OpenEditor(image);
+                if (_services.Settings.CopyAfterCapture) ClipboardService.SetImage(finalImage());
+                AutoSaveIfEnabled(finalImage());
+                OpenEditor(image, annotations);
                 break;
         }
     }
 
-    private void OpenEditor(BitmapSource image)
+    /// <summary>「截图后自动保存」开关打开时，把截图静默存入截图目录（保存按钮的显式保存除外）。</summary>
+    private void AutoSaveIfEnabled(BitmapSource image)
     {
-        var editor = new EditorWindow(image, NewBaseName());
+        if (!_services.Settings.AutoSaveAfterCapture) return;
+        try
+        {
+            string path = _services.SaveScreenshot(image, NewBaseName(), out _);
+            _services.Toasts.Info("已自动保存", path);
+        }
+        catch (Exception ex)
+        {
+            _services.Toasts.Warn("自动保存失败", ex.Message);
+        }
+    }
+
+    private void OpenEditor(BitmapSource image, AnnotationDocument? annotations = null)
+    {
+        var editor = new EditorWindow(image, NewBaseName(), annotations);
         editor.Show();
     }
 
@@ -161,8 +190,37 @@ public sealed class CaptureWorkflow
     {
         try
         {
-            string path = _services.SaveScreenshot(image, NewBaseName(), out _);
-            _services.Toasts.Info("已保存", path);
+            if (_services.Settings.AutoSaveAfterCapture)
+            {
+                // 自动保存开关打开：与自动保存一致，直接存入截图目录，不打断流程。
+                string path = _services.SaveScreenshot(image, NewBaseName(), out _);
+                _services.Toasts.Info("已保存", path);
+                return;
+            }
+
+            // 开关关闭：弹出另存为对话框，默认定位到截图目录。
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "保存截图",
+                FileName = NewBaseName(),
+                DefaultExt = ".png",
+                Filter = "PNG 图片 (*.png)|*.png",
+                InitialDirectory = _services.ScreenshotDirectory
+            };
+
+            if (dialog.ShowDialog() != true) return;
+            ImageUtil.SavePng(image, dialog.FileName);
+
+            try
+            {
+                using var thumbnail = ImageUtil.ToBitmap(image);
+                _services.Recent.Add(dialog.FileName, RecentItemKind.Screenshot, image.PixelWidth, image.PixelHeight, 0, thumbnail);
+            }
+            catch (Exception)
+            {
+            }
+
+            _services.Toasts.Info("已保存", dialog.FileName);
         }
         catch (Exception ex)
         {

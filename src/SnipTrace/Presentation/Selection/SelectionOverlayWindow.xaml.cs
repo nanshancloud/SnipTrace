@@ -34,6 +34,14 @@ public partial class SelectionOverlayWindow : Window
 
     public void UpdateSelection(PixelRect selection) => Mask.Selection = selection;
 
+    public void UpdateHover(PixelRect hover) => Mask.Hover = hover;
+
+    public void UpdateAnnotations(AnnotationDocument? annotations, PixelRect selection)
+    {
+        Mask.Annotations = annotations;
+        Mask.AnnotationArea = selection;
+    }
+
     private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (_overlay is null) return;

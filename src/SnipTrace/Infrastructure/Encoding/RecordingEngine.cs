@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Threading;
 using SnipTrace.App.Infrastructure.Capture;
@@ -24,6 +25,7 @@ public sealed class RecordingEngine : IDisposable
     private readonly GifOptions? _gifOptions;
     private readonly VideoOptions? _videoOptions;
     private readonly bool _includeCursor;
+    private readonly HighlightOptions? _highlight;
     private readonly PixelRect _gifSize;
     private readonly CancellationTokenSource _cts = new();
     private readonly object _gate = new();
@@ -49,7 +51,8 @@ public sealed class RecordingEngine : IDisposable
         string targetPath,
         GifOptions? gifOptions,
         VideoOptions? videoOptions,
-        bool includeCursor)
+        bool includeCursor,
+        HighlightOptions? highlight = null)
     {
         Kind = kind;
         _monitor = monitor;
@@ -58,6 +61,7 @@ public sealed class RecordingEngine : IDisposable
         _gifOptions = gifOptions;
         _videoOptions = videoOptions;
         _includeCursor = includeCursor;
+        _highlight = highlight;
 
         int fps = kind == RecordingKind.Gif ? gifOptions?.Fps ?? 12 : videoOptions?.Fps ?? 30;
         _session = new RecordingSession(kind, area, fps, () => _clock.Elapsed);
@@ -167,6 +171,8 @@ public sealed class RecordingEngine : IDisposable
                     var bitmap = ScreenGrabber.CaptureArea(_session.Area, _monitor, _includeCursor);
                     if (bitmap is not null)
                     {
+                        ApplyHighlight(bitmap);
+
                         if (_preview is null)
                         {
                             try
@@ -236,6 +242,36 @@ public sealed class RecordingEngine : IDisposable
         }
         catch (ObjectDisposedException)
         {
+        }
+    }
+
+    /// <summary>鼠标高亮（演示模式）：按设置在光标位置画半透明色圈，GIF 与 MP4 通用。</summary>
+    private void ApplyHighlight(Bitmap bitmap)
+    {
+        var options = _highlight;
+        if (options is null || !options.Enabled) return;
+
+        try
+        {
+            var cursor = MonitorService.GetCursorPosition();
+            int cx = cursor.X - _session.Area.Left;
+            int cy = cursor.Y - _session.Area.Top;
+            int d = Math.Min(options.Diameter, Math.Min(bitmap.Width, bitmap.Height));
+            if (d < 4) return;
+            if (cx + d < 0 || cy + d < 0 || cx - d > bitmap.Width || cy - d > bitmap.Height) return;
+
+            var color = ColorTranslator.FromHtml(options.Color);
+            int alpha = (int)Math.Round(255 * options.OpacityPercent / 100.0);
+            using var g = Graphics.FromImage(bitmap);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var fill = new SolidBrush(Color.FromArgb(alpha, color));
+            g.FillEllipse(fill, cx - d / 2f, cy - d / 2f, d, d);
+            using var ring = new Pen(Color.FromArgb(Math.Min(220, alpha + 90), color), 2f);
+            g.DrawEllipse(ring, cx - d / 2f + 1, cy - d / 2f + 1, d - 2, d - 2);
+        }
+        catch (Exception)
+        {
+            // 高亮失败不影响录制。
         }
     }
 

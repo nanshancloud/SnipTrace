@@ -37,12 +37,21 @@ public partial class EditorWindow : Window
     private bool _propertiesOverlay;
     private bool? _topBarIcons;
 
-    public EditorWindow(BitmapSource image, string baseName)
+    public EditorWindow(BitmapSource image, string baseName, AnnotationDocument? initialAnnotations = null)
     {
         InitializeComponent();
         _image = image;
         _baseName = baseName;
         _document = new AnnotationDocument(image.PixelWidth, image.PixelHeight);
+
+        // 覆盖层上已画的标注带进编辑器继续精标。
+        if (initialAnnotations is not null)
+        {
+            foreach (var annotation in initialAnnotations.Annotations)
+            {
+                _document.Add(annotation.Clone());
+            }
+        }
 
         Canvas.Image = image;
         Canvas.Document = _document;
