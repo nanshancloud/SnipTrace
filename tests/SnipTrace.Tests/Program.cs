@@ -11,6 +11,7 @@ internal static class Program
     {
         NumberingTests();
         AnnotationTests();
+        BadgeShapeTests();
         RecordingTests();
         SettingsTests();
         OutputTests();
@@ -260,6 +261,25 @@ internal static class Program
 
         var original = AspectRatio.ForOriginal(new PixelRect(0, 0, 800, 600));
         Check("原始比例取自选区", Math.Abs(original.Value - 4.0 / 3) < 0.001, original.ToString());
+    }
+
+    /// <summary>序号标记形状几何：多边形顶点数、心形闭合采样与克隆保留形状/填充。</summary>
+    private static void BadgeShapeTests()
+    {
+        Check("圆形由渲染层直接绘制", BadgeShapes.Outline(BadgeShape.Circle, 10).Count == 0);
+        Check("三角三点", BadgeShapes.Outline(BadgeShape.Triangle, 10).Count == 3);
+        Check("方形四点", BadgeShapes.Outline(BadgeShape.Square, 10).Count == 4);
+        Check("五边五点", BadgeShapes.Outline(BadgeShape.Pentagon, 10).Count == 5);
+        Check("六边六点", BadgeShapes.Outline(BadgeShape.Hexagon, 10).Count == 6);
+        Check("心形闭合采样", BadgeShapes.Outline(BadgeShape.Heart, 10).Count == 64);
+
+        var triangle = BadgeShapes.Outline(BadgeShape.Triangle, 10);
+        Check("多边形顶点朝上", Math.Abs(triangle[0].X) < 0.001 && triangle[0].Y < 0,
+            $"{triangle[0].X:0.##},{triangle[0].Y:0.##}");
+
+        var badge = new NumberBadgeAnnotation { Shape = BadgeShape.Heart, FillMode = BadgeFillMode.Outline };
+        var clone = (NumberBadgeAnnotation)badge.Clone();
+        Check("克隆保留形状与填充", clone.Shape == BadgeShape.Heart && clone.FillMode == BadgeFillMode.Outline);
     }
 
     private static NumberBadgeAnnotation Badge(AnnotationDocument doc, double x, double y)

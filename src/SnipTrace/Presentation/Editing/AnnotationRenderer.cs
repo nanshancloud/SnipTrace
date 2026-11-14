@@ -167,45 +167,67 @@ public static class AnnotationRenderer
     {
         double radius = badge.Diameter / 2;
         var center = new Point(badge.Center.X, badge.Center.Y);
+        bool outline = badge.FillMode == BadgeFillMode.Outline;
         var typeface = new Typeface(new FontFamily("Segoe UI Variable, Microsoft YaHei UI, Segoe UI"),
             FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+
+        // 填充模式：形状用标注色、数字白色；边框模式：形状描边、数字与描边同色。
+        var fillBrush = outline ? null : brush;
+        var strokePen = outline ? Freeze(new Pen(brush, Math.Max(1.5, badge.FontSize * 0.12))) : null;
+        var textBrush = outline ? brush : Brushes.White;
         var label = new FormattedText(
             badge.Number.ToString(CultureInfo.InvariantCulture),
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
             typeface,
             badge.FontSize,
-            Brushes.White,
+            textBrush,
             1.0);
+        var textOrigin = new Point(center.X - label.Width / 2, center.Y - label.Height / 2);
 
-        var radiusRect = new Rect(badge.Bounds.X, badge.Bounds.Y, badge.Bounds.Width, badge.Bounds.Height);
-
-        switch (badge.BadgeStyle)
+        switch (badge.Shape)
         {
-            case BadgeStyle.OutlineCircle:
-            {
-                var pen = new Pen(brush, Math.Max(1.5, badge.FontSize * 0.12));
-                pen.Freeze();
-                dc.DrawEllipse(null, pen, center, radius, radius);
-                var outlineText = new FormattedText(
-                    badge.Number.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                    typeface, badge.FontSize, brush, 1.0);
-                dc.DrawText(outlineText, new Point(center.X - outlineText.Width / 2, center.Y - outlineText.Height / 2));
-                break;
-            }
-            case BadgeStyle.RoundedRect:
+            case BadgeShape.RoundedRect:
             {
                 double width = Math.Max(badge.Diameter, label.Width + badge.Diameter * 0.7);
                 double height = badge.Diameter;
                 var rect = new Rect(center.X - width / 2, center.Y - height / 2, width, height);
-                dc.DrawRoundedRectangle(brush, null, rect, height * 0.28, height * 0.28);
-                dc.DrawText(label, new Point(center.X - label.Width / 2, center.Y - label.Height / 2));
+                if (outline) dc.DrawRoundedRectangle(null, strokePen, rect, height * 0.28, height * 0.28);
+                else dc.DrawRoundedRectangle(brush, null, rect, height * 0.28, height * 0.28);
+                dc.DrawText(label, textOrigin);
                 break;
             }
-            default:
-                dc.DrawEllipse(brush, null, center, radius, radius);
-                dc.DrawText(label, new Point(center.X - label.Width / 2, center.Y - label.Height / 2 + 1));
+            case BadgeShape.Circle:
+                if (outline) dc.DrawEllipse(null, strokePen, center, radius, radius);
+                else dc.DrawEllipse(brush, null, center, radius, radius);
+                dc.DrawText(label, textOrigin);
                 break;
+            default:
+            {
+                // 三角 / 方 / 五边 / 六边 / 心形：闭合多边形，与 BadgeShapes 顶点一致。
+                var vertices = BadgeShapes.Outline(badge.Shape, radius);
+                if (vertices.Count < 3)
+                {
+                    dc.DrawEllipse(brush, null, center, radius, radius);
+                    dc.DrawText(label, textOrigin);
+                    break;
+                }
+
+                var geometry = new StreamGeometry();
+                using (var ctx = geometry.Open())
+                {
+                    ctx.BeginFigure(new Point(center.X + vertices[0].X, center.Y + vertices[0].Y), true, true);
+                    for (int i = 1; i < vertices.Count; i++)
+                    {
+                        ctx.LineTo(new Point(center.X + vertices[i].X, center.Y + vertices[i].Y), true, true);
+                    }
+                }
+
+                geometry.Freeze();
+                dc.DrawGeometry(fillBrush, strokePen, geometry);
+                dc.DrawText(label, textOrigin);
+                break;
+            }
         }
     }
 

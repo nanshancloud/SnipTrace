@@ -40,7 +40,8 @@ public enum OverlayAnnotateTool
     Pen,
     Rectangle,
     Ellipse,
-    Text
+    Text,
+    Number
 }
 
 /// <summary>
@@ -82,6 +83,8 @@ public sealed class SelectionOverlay : IDisposable
     private AnnotationTextPopup? _textPopup;
     private int _paletteIndex;
     private bool _annotating;
+    private BadgeShape _badgeShape = BadgeShape.Circle;
+    private BadgeFillMode _badgeFillMode = BadgeFillMode.Fill;
 
     public SelectionOverlay(DesktopSnapshot snapshot)
     {
@@ -337,6 +340,16 @@ public sealed class SelectionOverlay : IDisposable
 
     public uint AnnotateColor => AnnotatePalette[_paletteIndex];
 
+    public BadgeShape BadgeShape => _badgeShape;
+
+    public BadgeFillMode BadgeFillMode => _badgeFillMode;
+
+    /// <summary>设置序号标记外形（圆 / 三角 / 方 / 五边 / 六边 / 心形 / 圆角）。</summary>
+    public void SetBadgeShape(BadgeShape shape) => _badgeShape = shape;
+
+    /// <summary>设置序号标记绘制方式（填充 / 边框）。</summary>
+    public void SetBadgeFillMode(BadgeFillMode mode) => _badgeFillMode = mode;
+
     /// <summary>切换覆盖层标注工具；选中当前工具再次点击则回到普通框选模式。</summary>
     public void SetAnnotateTool(OverlayAnnotateTool tool)
     {
@@ -377,6 +390,22 @@ public sealed class SelectionOverlay : IDisposable
             return;
         }
 
+        if (_annotateTool == OverlayAnnotateTool.Number)
+        {
+            // 序号标记：点击即放置，编号自动递增，无需拖动。
+            _overlayAnnotations!.Add(new NumberBadgeAnnotation
+            {
+                Number = _overlayAnnotations.NextNumber,
+                Center = point,
+                FontSize = 16,
+                Shape = _badgeShape,
+                FillMode = _badgeFillMode,
+                Style = CurrentAnnotateStyle()
+            });
+            RefreshAnnotations();
+            return;
+        }
+
         var kind = _annotateTool switch
         {
             OverlayAnnotateTool.Arrow => AnnotationKind.Arrow,
@@ -414,6 +443,65 @@ public sealed class SelectionOverlay : IDisposable
         _annotating = false;
         _pendingShape = null;
         RefreshAnnotations();
+    }
+
+    /// <summary>
+    /// 滚轮缩放标注：默认只作用于上一个操作产生的标注（文字 / 图形 / 画笔 / 序号），
+    /// 且光标需位于选区内；每格 10% 步进，缩放围绕图形中心进行。
+    /// </summary>
+    public void OnMouseWheel(int delta)
+    {
+        if (_completed || _selection.IsEmpty) return;
+        _cursor = MonitorService.GetCursorPosition();
+        if (!_selection.Contains(_cursor)) return;
+
+        var annotations = _overlayAnnotations;
+        if (annotations is null || annotations.Annotations.Count == 0) return;
+
+        double factor = delta > 0 ? 1.1 : 1 / 1.1;
+        switch (annotations.Annotations[^1])
+        {
+            case TextAnnotation text:
+                text.FontSize = Math.Clamp(text.FontSize * factor, 10, 200);
+                break;
+            case NumberBadgeAnnotation badge:
+                badge.FontSize = Math.Clamp(badge.FontSize * factor, 10, 160);
+                break;
+            case ShapeAnnotation shape:
+                ScaleShape(shape, factor);
+                break;
+            default:
+                return;
+        }
+
+        RefreshAnnotations();
+    }
+
+    private static void ScaleShape(ShapeAnnotation shape, double factor)
+    {
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var point in shape.Points)
+        {
+            minX = Math.Min(minX, point.X);
+            minY = Math.Min(minY, point.Y);
+            maxX = Math.Max(maxX, point.X);
+            maxY = Math.Max(maxY, point.Y);
+        }
+
+        if (minX > maxX) return;
+
+        // 缩小后不足 6 px 时停止，避免缩没了。
+        if (factor < 1 && (maxX - minX) * factor < 6 && (maxY - minY) * factor < 6 && shape.Points.Count > 1) return;
+
+        double centerX = (minX + maxX) / 2;
+        double centerY = (minY + maxY) / 2;
+        for (int i = 0; i < shape.Points.Count; i++)
+        {
+            var point = shape.Points[i];
+            shape.Points[i] = new PointD(
+                centerX + (point.X - centerX) * factor,
+                centerY + (point.Y - centerY) * factor);
+        }
     }
 
     private void ShowTextPopup(PointD point)
@@ -568,8 +656,45 @@ public sealed class SelectionOverlay : IDisposable
         if (_completed) return;
         _completed = true;
         var result = new SelectionResult { Area = _selection, Action = action, Annotations = _overlayAnnotations };
-        CloseAll();
+
+        if (action == SelectionAction.Save)
+        {
+            // 保存对话框打开期间保持截图状态：选区、遮罩与标注继续显示，
+            // 只收起工具条 / 菜单 / 放大镜；对话框结束（保存或取消）后由
+            // CaptureWorkflow 的 using 触发 Dispose 关闭覆盖层。
+            SuspendFloaters();
+        }
+        else
+        {
+            CloseAll();
+        }
+
         _completion.TrySetResult(result);
+    }
+
+    /// <summary>收起覆盖层上的浮动窗口（工具条 / 菜单 / 放大镜 / 文字输入框），保留选区与标注画面。</summary>
+    private void SuspendFloaters()
+    {
+        try
+        {
+            HideContextMenu();
+            _toolbar.SetShown(false);
+            _magnifier.SetShown(false);
+            _textPopup?.Close();
+            _textPopup = null;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    /// <summary>另存为对话框即将弹出：取消覆盖层置顶，让对话框压在截图画面之上。</summary>
+    public void BeginSaveDialog()
+    {
+        foreach (var window in _windows)
+        {
+            window.Topmost = false;
+        }
     }
 
     private void CloseAll()
@@ -764,10 +889,8 @@ public sealed class SelectionOverlay : IDisposable
 
     public void Dispose()
     {
-        if (!_completed)
-        {
-            _completed = true;
-            CloseAll();
-        }
+        // 无论正常完成还是保存对话框中断，都要确保覆盖层窗口关闭。
+        _completed = true;
+        CloseAll();
     }
 }

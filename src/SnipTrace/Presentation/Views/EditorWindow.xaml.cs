@@ -222,10 +222,23 @@ public partial class EditorWindow : Window
             }
 
             BadgePanel.Children.Clear();
-            var badgeStyle = Canvas.Selection.OfType<NumberBadgeAnnotation>().FirstOrDefault()?.BadgeStyle ?? BadgeStyle.FilledCircle;
-            BadgePanel.Children.Add(Chip("实心", badgeStyle == BadgeStyle.FilledCircle, () => SetBadgeStyle(BadgeStyle.FilledCircle)));
-            BadgePanel.Children.Add(Chip("描边", badgeStyle == BadgeStyle.OutlineCircle, () => SetBadgeStyle(BadgeStyle.OutlineCircle)));
-            BadgePanel.Children.Add(Chip("圆角", badgeStyle == BadgeStyle.RoundedRect, () => SetBadgeStyle(BadgeStyle.RoundedRect)));
+            var selectedBadge = Canvas.Selection.OfType<NumberBadgeAnnotation>().FirstOrDefault();
+            var badgeShape = selectedBadge?.Shape ?? BadgeShape.Circle;
+            var badgeFill = selectedBadge?.FillMode ?? BadgeFillMode.Fill;
+            foreach (var (shape, label) in new[]
+            {
+                (BadgeShape.Circle, "圆形"), (BadgeShape.Triangle, "三角"), (BadgeShape.Square, "方形"),
+                (BadgeShape.Pentagon, "五边"), (BadgeShape.Hexagon, "六边"), (BadgeShape.Heart, "心形"),
+                (BadgeShape.RoundedRect, "圆角")
+            })
+            {
+                var capturedShape = shape;
+                BadgePanel.Children.Add(Chip(label, badgeShape == shape, () => SetBadgeShape(capturedShape)));
+            }
+
+            BadgeFillPanel.Children.Clear();
+            BadgeFillPanel.Children.Add(Chip("填充", badgeFill == BadgeFillMode.Fill, () => SetBadgeFillMode(BadgeFillMode.Fill)));
+            BadgeFillPanel.Children.Add(Chip("边框", badgeFill == BadgeFillMode.Outline, () => SetBadgeFillMode(BadgeFillMode.Outline)));
         }
         finally
         {
@@ -298,11 +311,20 @@ public partial class EditorWindow : Window
         RefreshPanels();
     }
 
-    private void SetBadgeStyle(BadgeStyle style)
+    private void SetBadgeShape(BadgeShape shape)
     {
         Canvas.ApplyToSelection(annotation =>
         {
-            if (annotation is NumberBadgeAnnotation badge) badge.BadgeStyle = style;
+            if (annotation is NumberBadgeAnnotation badge) badge.Shape = shape;
+        });
+        RefreshPanels();
+    }
+
+    private void SetBadgeFillMode(BadgeFillMode mode)
+    {
+        Canvas.ApplyToSelection(annotation =>
+        {
+            if (annotation is NumberBadgeAnnotation badge) badge.FillMode = mode;
         });
         RefreshPanels();
     }

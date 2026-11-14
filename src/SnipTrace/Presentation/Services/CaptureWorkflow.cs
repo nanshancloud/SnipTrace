@@ -52,7 +52,7 @@ public sealed class CaptureWorkflow
             var result = await overlay.ShowAsync();
             if (result is null) return;
 
-            await HandleSelectionAsync(snapshot, result);
+            await HandleSelectionAsync(snapshot, result, overlay);
         }
         catch (Exception ex)
         {
@@ -101,7 +101,7 @@ public sealed class CaptureWorkflow
         }
     }
 
-    private async Task HandleSelectionAsync(DesktopSnapshot snapshot, SelectionResult result)
+    private async Task HandleSelectionAsync(DesktopSnapshot snapshot, SelectionResult result, SelectionOverlay overlay)
     {
         if (result.Area.IsEmpty) return;
 
@@ -145,7 +145,7 @@ public sealed class CaptureWorkflow
                 AutoSaveIfEnabled(finalImage());
                 break;
             case SelectionAction.Save:
-                SaveImage(finalImage());
+                SaveImage(finalImage(), overlay);
                 break;
             case SelectionAction.Pin:
                 AutoSaveIfEnabled(finalImage());
@@ -186,7 +186,7 @@ public sealed class CaptureWorkflow
         else _services.Toasts.Warn("复制失败", "剪贴板被其他程序占用，请稍后重试。");
     }
 
-    private void SaveImage(BitmapSource image)
+    private void SaveImage(BitmapSource image, SelectionOverlay overlay)
     {
         try
         {
@@ -198,7 +198,9 @@ public sealed class CaptureWorkflow
                 return;
             }
 
-            // 开关关闭：弹出另存为对话框，默认定位到截图目录。
+            // 开关关闭：弹出另存为对话框。截图状态保持不退出（选区与标注继续显示），
+            // 取消置顶让对话框压在截图画面之上；对话框结束后由 using 关闭覆盖层。
+            overlay.BeginSaveDialog();
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
                 Title = "保存截图",
@@ -208,6 +210,7 @@ public sealed class CaptureWorkflow
                 InitialDirectory = _services.ScreenshotDirectory
             };
 
+            // 无论保存成功还是取消保存，对话框关闭后都退出截图状态。
             if (dialog.ShowDialog() != true) return;
             ImageUtil.SavePng(image, dialog.FileName);
 

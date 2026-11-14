@@ -1,0 +1,14 @@
+<Window x:Class="SnipTrace.App.Presentation.Selection.SelectionBadgeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
+        Topmost="True" Focusable="False" WindowStartupLocation="Manual" SizeToContent="WidthAndHeight"
+        Background="Transparent" AllowsTransparency="True" Title="SnipTrace Badge">
+    <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1" CornerRadius="9" Padding="8,6">
+        <StackPanel>
+            <WrapPanel x:Name="ShapePanel" MaxWidth="360" />
+            <WrapPanel x:Name="ModePanel" MaxWidth="360" Margin="0,4,0,0" />
+        </StackPanel>
+    </Border>
+</Window>

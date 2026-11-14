@@ -123,6 +123,50 @@ internal static class SelfTest
                 Check("导出严格 1:1 像素", rendered.PixelWidth == width && rendered.PixelHeight == height,
                     $"{rendered.PixelWidth}×{rendered.PixelHeight}");
             }
+
+            // 序号标记形状冒烟：所有形状 × 填充/边框 渲染成 PNG 供人工验收。
+            try
+            {
+                var shapes = new[]
+                {
+                    (BadgeShape.Circle, "圆"), (BadgeShape.Triangle, "三角"), (BadgeShape.Square, "方"),
+                    (BadgeShape.Pentagon, "五边"), (BadgeShape.Hexagon, "六边"), (BadgeShape.Heart, "心")
+                };
+                var badgeDoc = new AnnotationDocument(560, 220);
+                for (int i = 0; i < shapes.Length; i++)
+                {
+                    badgeDoc.Add(new NumberBadgeAnnotation
+                    {
+                        Number = i + 1,
+                        Center = new PointD(50 + i * 88, 78),
+                        FontSize = 22,
+                        Shape = shapes[i].Item1,
+                        FillMode = BadgeFillMode.Fill
+                    });
+                    badgeDoc.Add(new NumberBadgeAnnotation
+                    {
+                        Number = i + 1,
+                        Center = new PointD(50 + i * 88, 165),
+                        FontSize = 22,
+                        Shape = shapes[i].Item1,
+                        FillMode = BadgeFillMode.Outline,
+                        Style = new AnnotationStyle(0xFF4C8DFF, 3, 1)
+                    });
+                }
+
+                using (var canvas = new Bitmap(560, 220, PixelFormat.Format32bppArgb))
+                {
+                    using (var graphics = Graphics.FromImage(canvas)) graphics.Clear(Color.FromArgb(24, 32, 44));
+                    var badgeImage = AnnotationRenderer.Render(ImageUtil.ToBitmapSource(canvas), badgeDoc);
+                    string badgePath = Path.Combine(root, "badge-shapes.png");
+                    ImageUtil.SavePng(badgeImage, badgePath);
+                    Check("序号形状渲染", File.Exists(badgePath) && new FileInfo(badgePath).Length > 1000, badgePath);
+                }
+            }
+            catch (Exception badgeEx)
+            {
+                Check("序号形状渲染", false, badgeEx.Message);
+            }
         }
         catch (Exception ex)
         {

@@ -29,6 +29,7 @@ public partial class SelectionOverlayWindow : Window
         MouseLeftButtonUp += Window_MouseLeftButtonUp;
         MouseMove += Window_MouseMove;
         MouseRightButtonDown += Window_MouseRightButtonDown;
+        MouseWheel += Window_MouseWheel;
         KeyDown += Window_KeyDown;
     }
 
@@ -66,6 +67,12 @@ public partial class SelectionOverlayWindow : Window
     private void Window_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         _overlay?.OnRightClick();
+        e.Handled = true;
+    }
+
+    private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        _overlay?.OnMouseWheel(e.Delta);
         e.Handled = true;
     }
 

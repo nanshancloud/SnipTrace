@@ -22,6 +22,7 @@ public partial class SelectionToolbarWindow : Window
 {
     private readonly SelectionHintWindow _hint = new();
     private readonly SelectionRatioWindow _ratioPopup = new();
+    private readonly SelectionBadgeWindow _badgePopup = new();
     private readonly List<ToggleButton> _annotateButtons = new();
     private SelectionOverlay? _overlay;
     private ToggleButton? _ratioButton;
@@ -37,6 +38,7 @@ public partial class SelectionToolbarWindow : Window
     {
         _overlay = overlay;
         _ratioPopup.Attach(overlay);
+        _badgePopup.Attach(overlay);
         BuildActions();
         IsVisibleChanged += (_, _) =>
         {
@@ -76,6 +78,7 @@ public partial class SelectionToolbarWindow : Window
     {
         _hint.HideHint();
         _ratioPopup.HidePopup();
+        _badgePopup.HidePopup();
         if (_ratioButton is not null) _ratioButton.IsChecked = false;
     }
 
@@ -100,7 +103,7 @@ public partial class SelectionToolbarWindow : Window
     private void AddAnnotateButtons()
     {
         AddAnnotateToggle(OverlayAnnotateTool.Arrow, StrokeIcon("M2,12 L11,3 M11,3 L7.5,3.5 M11,3 L10.5,6.5"),
-            "箭头标注：在选区内拖动绘制；两种标注模式——覆盖层直标 / 点「完成」进编辑器精标");
+            "箭头标注：在选区内拖动绘制；滚轮缩放上一个标注");
         AddAnnotateToggle(OverlayAnnotateTool.Pen, StrokeIcon("M2.5,11.5 L10,4 L12,2 M2.5,11.5 L2,13 L3.5,12.5"),
             "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
         AddAnnotateToggle(OverlayAnnotateTool.Rectangle, StrokeIcon("M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z"),
@@ -108,8 +111,70 @@ public partial class SelectionToolbarWindow : Window
         AddAnnotateToggle(OverlayAnnotateTool.Ellipse, StrokeIcon("M7,3 C10.3,3 12,4.6 12,7 C12,9.4 10.3,11 7,11 C3.7,11 2,9.4 2,7 C2,4.6 3.7,3 7,3 Z"),
             "椭圆标注：在选区内拖出椭圆；再点一次退出标注模式");
         AddAnnotateToggle(OverlayAnnotateTool.Text, TextIcon(),
-            "文字标注：在选区内点击后输入，Enter 确认、Esc 取消");
+            "文字标注：在选区内点击后输入，Enter 确认、Esc 取消；滚轮缩放上一个标注");
+        AddBadgeButton();
         AddColorButton();
+    }
+
+    /// <summary>序号标记：点击选区放置自增序号；弹出层选择形状（圆/三角/方/五边/六边/心形/圆角）与填充方式。</summary>
+    private void AddBadgeButton()
+    {
+        var button = new ToggleButton
+        {
+            Content = BadgeIcon(),
+            Style = (Style)FindResource("ToolIconToggle"),
+            Tag = OverlayAnnotateTool.Number
+        };
+        button.Click += (_, _) =>
+        {
+            if (_overlay is null) return;
+            bool activate = _overlay.AnnotateTool != OverlayAnnotateTool.Number;
+            _hint.HideHint();
+            _ratioPopup.HidePopup();
+            if (_ratioButton is not null) _ratioButton.IsChecked = false;
+            _overlay.SetAnnotateTool(activate ? OverlayAnnotateTool.Number : OverlayAnnotateTool.None);
+
+            if (activate)
+            {
+                _badgePopup.Refresh(_overlay.BadgeShape, _overlay.BadgeFillMode);
+                WindowPlacement.Raise(this);
+                _badgePopup.ShowAbove(GetButtonBounds(button));
+            }
+            else
+            {
+                _badgePopup.HidePopup();
+            }
+        };
+        AttachHint(button, "序号标记：点击选区放置自动递增的序号；弹出层可选形状（圆/三角/方/五边/六边/心形/圆角）与 填充/边框");
+        _annotateButtons.Add(button);
+        ButtonRow.Children.Add(button);
+    }
+
+    private static FrameworkElement BadgeIcon()
+    {
+        var grid = new Grid { Width = 14, Height = 14 };
+        var circle = new System.Windows.Shapes.Ellipse { StrokeThickness = 1.6 };
+        circle.SetBinding(System.Windows.Shapes.Shape.StrokeProperty, new Binding("Foreground")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ToggleButton), 1)
+        });
+        grid.Children.Add(circle);
+
+        var number = new TextBlock
+        {
+            Text = "1",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        number.SetBinding(TextBlock.ForegroundProperty, new Binding("Foreground")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ToggleButton), 1)
+        });
+        grid.Children.Add(number);
+        return grid;
     }
 
     private void AddAnnotateToggle(OverlayAnnotateTool tool, FrameworkElement icon, string hint)
@@ -187,13 +252,15 @@ public partial class SelectionToolbarWindow : Window
         return text;
     }
 
-    /// <summary>刷新标注工具选中态与颜色样本。</summary>
+    /// <summary>刷新标注工具选中态与颜色样本；离开序号工具时收起形状弹出层。</summary>
     public void RefreshAnnotateState(OverlayAnnotateTool tool, uint argb)
     {
         foreach (var button in _annotateButtons)
         {
             button.IsChecked = (OverlayAnnotateTool)button.Tag! == tool;
         }
+
+        if (tool != OverlayAnnotateTool.Number) _badgePopup.HidePopup();
 
         if (_colorSwatch is not null)
         {
@@ -256,15 +323,18 @@ public partial class SelectionToolbarWindow : Window
         if (_ratioButton is not null) _ratioButton.IsChecked = _ratioPopup.IsVisible;
     }
 
-    private PixelRect GetRatioButtonBounds()
+    private PixelRect GetRatioButtonBounds() => GetButtonBounds(_ratioButton);
+
+    /// <summary>计算按钮在虚拟桌面中的物理像素矩形（弹出层锚点用）。</summary>
+    private PixelRect GetButtonBounds(FrameworkElement? target)
     {
         var window = WindowPlacement.GetPixelBounds(this);
-        if (_ratioButton is null) return window;
+        if (target is null) return window;
 
         Point offset;
         try
         {
-            offset = _ratioButton.TransformToAncestor(this).Transform(new Point(0, 0));
+            offset = target.TransformToAncestor(this).Transform(new Point(0, 0));
         }
         catch (InvalidOperationException)
         {
@@ -274,8 +344,8 @@ public partial class SelectionToolbarWindow : Window
         double scale = WindowPlacement.GetScale(new WindowInteropHelper(this).Handle);
         int left = window.Left + (int)Math.Round(offset.X * scale);
         int top = window.Top + (int)Math.Round(offset.Y * scale);
-        int width = Math.Max(1, (int)Math.Round(_ratioButton.ActualWidth * scale));
-        int height = Math.Max(1, (int)Math.Round(_ratioButton.ActualHeight * scale));
+        int width = Math.Max(1, (int)Math.Round(target.ActualWidth * scale));
+        int height = Math.Max(1, (int)Math.Round(target.ActualHeight * scale));
         return new PixelRect(left, top, width, height);
     }
 

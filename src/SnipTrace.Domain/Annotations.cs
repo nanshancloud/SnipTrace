@@ -11,11 +11,23 @@ public enum AnnotationKind
     Number
 }
 
-public enum BadgeStyle
+/// <summary>序号标记外形：圆 / 圆角胶囊 / 三角 / 方 / 五边形 / 六边形 / 心形。</summary>
+public enum BadgeShape
 {
-    FilledCircle,
-    OutlineCircle,
-    RoundedRect
+    Circle,
+    RoundedRect,
+    Triangle,
+    Square,
+    Pentagon,
+    Hexagon,
+    Heart
+}
+
+/// <summary>序号标记绘制方式：填充（白字）或边框（描边 + 同色字）。</summary>
+public enum BadgeFillMode
+{
+    Fill,
+    Outline
 }
 
 /// <summary>颜色为 0xAARRGGBB，线宽与字号均为原图像素单位。</summary>
@@ -251,7 +263,8 @@ public sealed class NumberBadgeAnnotation : Annotation
 {
     public int Number { get; set; } = 1;
     public PointD Center { get; set; }
-    public BadgeStyle BadgeStyle { get; set; } = BadgeStyle.FilledCircle;
+    public BadgeShape Shape { get; set; } = BadgeShape.Circle;
+    public BadgeFillMode FillMode { get; set; } = BadgeFillMode.Fill;
 
     /// <summary>字号最小 12 px，保证缩略图可读。</summary>
     public double FontSize { get; set; } = 16;
@@ -287,7 +300,8 @@ public sealed class NumberBadgeAnnotation : Annotation
     {
         Number = Number,
         Center = Center,
-        BadgeStyle = BadgeStyle,
+        Shape = Shape,
+        FillMode = FillMode,
         FontSize = FontSize,
         Style = Style,
         ZIndex = ZIndex
