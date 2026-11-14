@@ -67,6 +67,7 @@ public sealed class RecordingWorkflow
             engine.Progress += Engine_Progress;
             engine.Completed += Engine_Completed;
             engine.Failed += Engine_Failed;
+            engine.Warning += Engine_Warning;
             SystemEvents.DisplaySettingsChanged += SystemEvents_DisplaySettingsChanged;
 
             _services.Tray.SetRecordingState(true, $"正在录制 · {area.Width}×{area.Height}");
@@ -99,6 +100,15 @@ public sealed class RecordingWorkflow
     private void Engine_Failed(string message)
     {
         Application.Current?.Dispatcher.BeginInvoke(new Action(() => HandleFailed(message)));
+    }
+
+    private void Engine_Warning(string message)
+    {
+        Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _bar?.SetStatus(message);
+            _services.Toasts.Warn("磁盘空间预警", message);
+        }));
     }
 
     private void HandleCompleted(string path, TimeSpan duration)
@@ -200,6 +210,7 @@ public sealed class RecordingWorkflow
             engine.Progress -= Engine_Progress;
             engine.Completed -= Engine_Completed;
             engine.Failed -= Engine_Failed;
+            engine.Warning -= Engine_Warning;
         }
 
         try

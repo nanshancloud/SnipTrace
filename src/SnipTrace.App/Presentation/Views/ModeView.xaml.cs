@@ -41,6 +41,7 @@ public partial class ModeView : UserControl
         _selectedFps = gif ? settings.Gif.Fps : settings.Video.Fps;
         _selectedEdge = settings.Gif.MaxEdge;
         MaxDurationBox.Text = settings.Gif.MaxDurationSeconds.ToString();
+        MaxFramesBox.Text = settings.Gif.MaxFrames.ToString();
         DitherCheck.IsChecked = settings.Gif.HighQualityDither;
         CursorCheck.IsChecked = gif ? false : settings.Video.IncludeCursor;
         CursorCheck.Visibility = gif ? Visibility.Collapsed : Visibility.Visible;
@@ -50,7 +51,7 @@ public partial class ModeView : UserControl
             : "H.264 要求偶数宽高，奇数尺寸会从右侧或底部裁去 1 像素。";
 
         RulesText.Text = gif
-            ? "· 连续相同帧自动合并并累计延迟，减小体积\n· 默认最长 120 秒或 2400 帧，可在上方调整\n· 录制边框位于画面外侧，不会进入成片\n· 停止后完成封装并提供预览与打开文件夹"
+            ? "· 连续相同帧自动合并并累计延迟，减小体积\n· 时长与帧数上限均可调整，默认 120 秒 / 2400 帧\n· 录制边框位于画面外侧，不会进入成片\n· 停止后完成封装并提供预览、另存为与打开文件夹"
             : "· 仅录制画面，不含音频\n· 默认 30 FPS，时间戳基于有效录制时间\n· 录制中显示器分辨率或排列变化会自动停止并封装\n· 取消录制后临时文件立即删除";
 
         BuildFpsChips();
@@ -67,6 +68,7 @@ public partial class ModeView : UserControl
             settings.Gif.MaxEdge = _selectedEdge;
             settings.Gif.HighQualityDither = DitherCheck.IsChecked == true;
             if (int.TryParse(MaxDurationBox.Text.Trim(), out int seconds)) settings.Gif.MaxDurationSeconds = seconds;
+            if (int.TryParse(MaxFramesBox.Text.Trim(), out int frames)) settings.Gif.MaxFrames = frames;
             error = settings.Gif.Validate();
             settings.Gif.Normalize();
         }

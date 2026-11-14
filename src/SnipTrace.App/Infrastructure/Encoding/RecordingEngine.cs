@@ -37,6 +37,7 @@ public sealed class RecordingEngine : IDisposable
     private int _droppedFrames;
     private DateTime _lastProgress = DateTime.MinValue;
     private DateTime _lastDiskCheck = DateTime.MinValue;
+    private bool _spaceWarningRaised;
     private Bitmap? _preview;
     private bool _disposed;
 
@@ -80,6 +81,9 @@ public sealed class RecordingEngine : IDisposable
     public event Action<string, TimeSpan>? Completed;
 
     public event Action<string>? Failed;
+
+    /// <summary>非致命提示（如磁盘空间将尽），录制可以继续。</summary>
+    public event Action<string>? Warning;
 
     public void Start()
     {
@@ -328,8 +332,7 @@ public sealed class RecordingEngine : IDisposable
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_targetPath) ?? ".");
-            File.Move(_tempPath, _targetPath, true);
+            OutputFile.MoveIntoPlace(_tempPath, _targetPath);
             _session.Complete(_targetPath);
             Report();
             Completed?.Invoke(_targetPath, _session.Elapsed);
@@ -339,6 +342,12 @@ public sealed class RecordingEngine : IDisposable
             Fail("无法写入目标文件：" + ex.Message);
         }
     }
+
+    /// <summary>低于该值必须停止录制（仍会尝试封装已有内容）。</summary>
+    private const long DiskHardFloorBytes = 300L * 1024 * 1024;
+
+    /// <summary>低于该值给出一次预警，录制继续。</summary>
+    private const long DiskSoftFloorBytes = 1024L * 1024 * 1024;
 
     private bool LimitReached()
     {
@@ -351,10 +360,17 @@ public sealed class RecordingEngine : IDisposable
                 if (!string.IsNullOrEmpty(root))
                 {
                     var drive = new DriveInfo(root);
-                    if (drive.IsReady && drive.AvailableFreeSpace < 300L * 1024 * 1024)
+                    if (drive.IsReady && drive.AvailableFreeSpace < DiskHardFloorBytes)
                     {
-                        Fail("磁盘剩余空间不足，已自动停止录制。");
+                        // 空间见底时停止录制并交给正常封装流程，尽量保住已录内容。
+                        RaiseWarning("磁盘剩余空间不足 300 MB，正在停止录制并封装已录制内容。");
                         return true;
+                    }
+
+                    if (!_spaceWarningRaised && drive.IsReady && drive.AvailableFreeSpace < DiskSoftFloorBytes)
+                    {
+                        _spaceWarningRaised = true;
+                        RaiseWarning("磁盘剩余空间不足 1 GB，请及时清理磁盘或停止录制。");
                     }
                 }
             }
@@ -382,6 +398,17 @@ public sealed class RecordingEngine : IDisposable
         if (DateTime.UtcNow - _lastProgress < TimeSpan.FromMilliseconds(200)) return;
         _lastProgress = DateTime.UtcNow;
         Report();
+    }
+
+    private void RaiseWarning(string message)
+    {
+        try
+        {
+            Warning?.Invoke(message);
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private void Report()

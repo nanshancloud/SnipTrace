@@ -55,8 +55,21 @@ public sealed class Mp4Encoder : IDisposable
         _nv12 = new byte[_width * _height * 3 / 2];
 
         EnsureMediaFoundation();
-        CreateSinkWriter(Math.Max(500_000, bitRate));
+        try
+        {
+            CreateSinkWriter(Math.Max(500_000, bitRate), preferHardware: true);
+        }
+        catch (COMException)
+        {
+            // 设计稿 7.7：优先硬件编码，失败时回退软件编码，避免整段录制直接失败。
+            ReleaseWriter();
+            DeletePartialFile();
+            CreateSinkWriter(Math.Max(500_000, bitRate), preferHardware: false);
+        }
     }
+
+    /// <summary>是否成功启用了硬件编码；回退到软件编码时为 false。</summary>
+    public bool UsedHardwareAcceleration { get; private set; } = true;
 
     public int EncodedWidth => _width;
 
@@ -159,17 +172,18 @@ public sealed class Mp4Encoder : IDisposable
         ReleaseWriter();
     }
 
-    private void CreateSinkWriter(int bitRate)
+    private void CreateSinkWriter(int bitRate, bool preferHardware)
     {
         Check(MFCreateAttributes(out var attributes, 4));
         try
         {
             Guid hardware = MfReadWriteEnableHardwareTransforms;
-            attributes.SetUINT32(ref hardware, 1);
+            attributes.SetUINT32(ref hardware, preferHardware ? 1 : 0);
             Guid throttle = MfSinkWriterDisableThrottling;
             attributes.SetUINT32(ref throttle, 1);
 
             Check(MFCreateSinkWriterFromURL(_path, IntPtr.Zero, attributes, out _writer));
+            UsedHardwareAcceleration = preferHardware;
 
             Check(MFCreateMediaType(out var outputType));
             try
@@ -291,6 +305,18 @@ public sealed class Mp4Encoder : IDisposable
         if (_writer is null) return;
         Marshal.ReleaseComObject(_writer);
         _writer = null;
+    }
+
+    /// <summary>回退重试前清掉上一次创建留下的半成品文件。</summary>
+    private void DeletePartialFile()
+    {
+        try
+        {
+            if (File.Exists(_path)) File.Delete(_path);
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private static void SetUInt32(IMFAttributes attributes, Guid key, int value)

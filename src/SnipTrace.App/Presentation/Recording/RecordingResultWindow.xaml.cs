@@ -48,6 +48,47 @@ public partial class RecordingResultWindow : Window
         }
     }
 
+    private void SaveAs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string extension = Path.GetExtension(_path);
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                FileName = Path.GetFileName(_path),
+                DefaultExt = extension,
+                InitialDirectory = Path.GetDirectoryName(_path),
+                Filter = extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
+                    ? "GIF 动图 (*.gif)|*.gif"
+                    : "MP4 视频 (*.mp4)|*.mp4"
+            };
+
+            if (dialog.ShowDialog(this) != true) return;
+            if (string.Equals(dialog.FileName, _path, StringComparison.OrdinalIgnoreCase)) return;
+
+            File.Copy(_path, dialog.FileName, true);
+            AppServices.Current?.Toasts.Info("已另存为", Path.GetFileName(dialog.FileName));
+        }
+        catch (Exception ex)
+        {
+            AppServices.Current?.Toasts.Warn("另存为失败", ex.Message);
+        }
+    }
+
+    private void Copy_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = new System.Collections.Specialized.StringCollection { _path };
+            Clipboard.SetFileDropList(files);
+            AppServices.Current?.Toasts.Info("已复制文件", Path.GetFileName(_path));
+        }
+        catch (Exception ex)
+        {
+            AppServices.Current?.Toasts.Warn("无法复制文件", ex.Message);
+        }
+    }
+
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private void Root_MouseDown(object sender, MouseButtonEventArgs e)
