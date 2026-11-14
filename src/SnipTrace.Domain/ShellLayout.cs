@@ -47,7 +47,9 @@ public static class ShellLayout
     public const double CompactThreshold = 860;
 
     public const double NavWideWidth = 220;
-    public const double NavNarrowWidth = 64;
+
+    /// <summary>紧凑档只留图标的导航宽度，需容纳 18 px 字形与内边距。</summary>
+    public const double NavNarrowWidth = 76;
 
     public const double FullHeightThreshold = 760;
     public const double CompactHeightThreshold = 600;

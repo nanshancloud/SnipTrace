@@ -318,9 +318,15 @@ public partial class ShellWindow : Window
         TopNavBar.Visibility = minimal ? Visibility.Visible : Visibility.Collapsed;
 
         bool wideNav = metrics.Mode is ShellLayoutMode.Expanded or ShellLayoutMode.Standard;
-        foreach (var (_, label) in _navButtons)
+        NavList.Margin = wideNav ? new Thickness(10, 12, 10, 12) : new Thickness(6, 12, 6, 12);
+        foreach (var (button, label) in _navButtons)
         {
             label.Visibility = wideNav ? Visibility.Visible : Visibility.Collapsed;
+            // 只留图标时居中，避免固定的 18 px 字形贴边或被裁切。
+            if (button.Content is StackPanel content)
+            {
+                content.HorizontalAlignment = wideNav ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+            }
         }
 
         PageHost.Margin = minimal ? new Thickness(16, 18, 16, 12) : new Thickness(24, 22, 24, 16);

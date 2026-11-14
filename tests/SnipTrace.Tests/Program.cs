@@ -215,7 +215,7 @@ internal static class Program
 
         var compact = ShellLayout.Resolve(1000, 900);
         Check("紧凑档窄导航单列", compact.Mode == ShellLayoutMode.Compact
-            && compact.NavWidth == 64 && ShellLayout.UsesSingleColumn(compact.Mode), compact.ToString());
+            && compact.NavWidth == ShellLayout.NavNarrowWidth && ShellLayout.UsesSingleColumn(compact.Mode), compact.ToString());
 
         var minimal = ShellLayout.Resolve(859, 560);
         Check("极简档无左侧导航", minimal.Mode == ShellLayoutMode.Minimal
