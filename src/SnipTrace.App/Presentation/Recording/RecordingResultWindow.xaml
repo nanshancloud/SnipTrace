@@ -9,7 +9,18 @@
         <StackPanel>
             <TextBlock x:Name="TitleText" Text="录制完成" FontSize="18" FontWeight="SemiBold" />
             <Border Height="200" Margin="0,14,0,0" CornerRadius="8" Background="#0F151D" ClipToBounds="True">
-                <Image x:Name="PreviewImage" Stretch="Uniform" />
+                <Grid>
+                    <Image x:Name="PreviewImage" Stretch="Uniform" />
+                    <MediaElement x:Name="VideoPreview" Stretch="Uniform" Visibility="Collapsed"
+                                  LoadedBehavior="Manual" UnloadedBehavior="Manual" ScrubbingEnabled="True"
+                                  MediaEnded="VideoPreview_MediaEnded" MediaFailed="VideoPreview_MediaFailed" />
+                    <Button x:Name="PlayPauseButton" Style="{StaticResource IconButton}"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6"
+                            Background="#B30B0F14" Visibility="Collapsed" ToolTip="播放 / 暂停"
+                            Click="PlayPause_Click">
+                        <TextBlock x:Name="PlayPauseGlyph" Text="&#xE769;" FontFamily="Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+                </Grid>
             </Border>
             <TextBlock x:Name="InfoText" Style="{StaticResource CaptionText}" Margin="0,12,0,0" TextWrapping="Wrap" />
             <WrapPanel Margin="0,16,0,0">

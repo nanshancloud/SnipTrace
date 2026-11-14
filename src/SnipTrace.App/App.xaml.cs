@@ -27,6 +27,22 @@ public partial class App : Application
             return;
         }
 
+        // 直接预览某个录制产物（排查/验收用）：--preview <文件路径>
+        string? previewPath = ReadArgument(e.Args, "--preview");
+        if (previewPath is not null && System.IO.File.Exists(previewPath))
+        {
+            var kind = System.IO.Path.GetExtension(previewPath)
+                .Equals(".gif", StringComparison.OrdinalIgnoreCase)
+                ? SnipTrace.Domain.RecordingKind.Gif
+                : SnipTrace.Domain.RecordingKind.Video;
+
+            var preview = new SnipTrace.App.Presentation.Recording.RecordingResultWindow(
+                null, previewPath, kind, TimeSpan.Zero, new System.IO.FileInfo(previewPath).Length);
+            MainWindow = preview;
+            preview.Show();
+            return;
+        }
+
         _singleInstance = new SingleInstanceService();
         if (!_singleInstance.Acquire())
         {
