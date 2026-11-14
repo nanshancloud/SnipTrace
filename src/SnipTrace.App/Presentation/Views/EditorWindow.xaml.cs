@@ -34,6 +34,8 @@ public partial class EditorWindow : Window
     private TextAnnotation? _editingText;
     private bool _editingNewText;
     private bool _updatingPanels;
+    private bool _propertiesOverlay;
+    private bool? _topBarIcons;
 
     public EditorWindow(BitmapSource image, string baseName)
     {
@@ -63,6 +65,7 @@ public partial class EditorWindow : Window
 
         Loaded += (_, _) =>
         {
+            UpdatePanelVisibility();
             Canvas.ZoomToFit();
             UpdateStatus();
             Canvas.Focus();
@@ -89,7 +92,61 @@ public partial class EditorWindow : Window
     {
         bool narrow = ActualWidth < 1000;
         PropertiesColumn.Width = new GridLength(narrow ? 0 : 240);
-        PropertiesPanel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        PropertiesToggle.Visibility = narrow ? Visibility.Visible : Visibility.Collapsed;
+
+        if (narrow)
+        {
+            // 窄屏下属性面板改为覆盖在画布右侧的浮层，由工具栏「属性」按钮控制显隐。
+            Grid.SetColumn(PropertiesPanel, 1);
+            PropertiesPanel.Width = 240;
+            PropertiesPanel.HorizontalAlignment = HorizontalAlignment.Right;
+            PropertiesPanel.Visibility = _propertiesOverlay ? Visibility.Visible : Visibility.Collapsed;
+            Panel.SetZIndex(PropertiesPanel, 10);
+        }
+        else
+        {
+            Grid.SetColumn(PropertiesPanel, 2);
+            PropertiesPanel.Width = double.NaN;
+            PropertiesPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
+            PropertiesPanel.Visibility = Visibility.Visible;
+            Panel.SetZIndex(PropertiesPanel, 0);
+            _propertiesOverlay = false;
+            PropertiesToggle.IsChecked = false;
+        }
+
+        UpdateTopBarIcons(narrow);
+    }
+
+    private void PropertiesToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _propertiesOverlay = PropertiesToggle.IsChecked == true;
+        UpdatePanelVisibility();
+    }
+
+    /// <summary>窄屏时顶部按钮只保留图标，靠 ToolTip 说明功能。</summary>
+    private void UpdateTopBarIcons(bool narrow)
+    {
+        if (_topBarIcons == narrow) return;
+        _topBarIcons = narrow;
+
+        var actions = new (Button Button, string Text, string Glyph)[]
+        {
+            (UndoButton, "撤销", "\uE7A7"),
+            (RedoButton, "重做", "\uE7A6"),
+            (CopyButton, "复制", "\uE8C8"),
+            (SaveButton, "保存", "\uE74E"),
+            (PinButton, "钉图", "\uE840"),
+            (FullscreenButton, "全屏", "\uE740")
+        };
+
+        var textFont = (FontFamily)FindResource("AppFont");
+        var iconFont = new FontFamily("Segoe MDL2 Assets");
+        foreach (var (button, text, glyph) in actions)
+        {
+            button.Content = narrow ? glyph : text;
+            button.FontFamily = narrow ? iconFont : textFont;
+            button.FontSize = narrow ? 14 : 13;
+        }
     }
 
     private void InitializeTools()

@@ -25,14 +25,14 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,8,0" VerticalAlignment="Center">
-                <Button Content="撤销" Style="{StaticResource GhostButton}" Click="Undo_Click" ToolTip="Ctrl+Z" />
-                <Button Content="重做" Style="{StaticResource GhostButton}" Click="Redo_Click" ToolTip="Ctrl+Shift+Z" />
+                <Button x:Name="UndoButton" Content="撤销" Style="{StaticResource GhostButton}" Click="Undo_Click" ToolTip="Ctrl+Z" />
+                <Button x:Name="RedoButton" Content="重做" Style="{StaticResource GhostButton}" Click="Redo_Click" ToolTip="Ctrl+Shift+Z" />
                 <Border Width="1" Background="{StaticResource BorderBrush}" Margin="8,10" />
-                <Button Content="复制" Style="{StaticResource GhostButton}" Click="Copy_Click" ToolTip="Ctrl+C" />
-                <Button Content="保存" Style="{StaticResource PrimaryButton}" Padding="14,6" MinHeight="30" Margin="6,0"
+                <Button x:Name="CopyButton" Content="复制" Style="{StaticResource GhostButton}" Click="Copy_Click" ToolTip="Ctrl+C" />
+                <Button x:Name="SaveButton" Content="保存" Style="{StaticResource PrimaryButton}" Padding="14,6" MinHeight="30" Margin="6,0"
                         Click="Save_Click" ToolTip="Ctrl+S" />
-                <Button Content="钉图" Style="{StaticResource GhostButton}" Click="Pin_Click" />
-                <Button Content="全屏" Style="{StaticResource GhostButton}" Click="Fullscreen_Click" ToolTip="F11" />
+                <Button x:Name="PinButton" Content="钉图" Style="{StaticResource GhostButton}" Click="Pin_Click" ToolTip="钉图置顶" />
+                <Button x:Name="FullscreenButton" Content="全屏" Style="{StaticResource GhostButton}" Click="Fullscreen_Click" ToolTip="F11" />
                 <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" FontSize="12" />
             </StackPanel>
         </Grid>
@@ -58,6 +58,8 @@
                     <ToggleButton Style="{StaticResource ToolButton}" Content="序号" Tag="Number" Click="Tool_Click" ToolTip="序号标签 (N)" />
                     <Border Height="1" Background="{StaticResource BorderBrush}" Margin="8,10" />
                     <ToggleButton x:Name="FitButton" Style="{StaticResource ToolButton}" Content="适应" Click="Fit_Click" ToolTip="适应窗口" />
+                    <ToggleButton x:Name="PropertiesToggle" Style="{StaticResource ToolButton}" Content="属性" Visibility="Collapsed"
+                                  Click="PropertiesToggle_Click" ToolTip="属性面板" />
                 </StackPanel>
             </Border>
 
