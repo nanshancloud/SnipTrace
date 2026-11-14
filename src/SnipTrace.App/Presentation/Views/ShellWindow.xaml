@@ -54,7 +54,8 @@
                     <StackPanel x:Name="TopNavList" Orientation="Horizontal" />
                 </Border>
 
-                <ContentControl x:Name="PageHost" Grid.Row="1" MaxWidth="1360" HorizontalAlignment="Center"
+                <!-- Stretch + MaxWidth：页面铺满内容区，超宽屏时由 MaxWidth 居中，避免按期望宽度测量被裁切。 -->
+                <ContentControl x:Name="PageHost" Grid.Row="1" MaxWidth="1360" HorizontalAlignment="Stretch"
                                 Margin="24,22,24,16" />
             </Grid>
         </Grid>
