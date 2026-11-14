@@ -106,13 +106,17 @@ SnipTrace.slnx
 src/
   SnipTrace.Domain/        领域层：文档、标注、编号、比例、录制会话、设置、布局断点
   SnipTrace.App/           WPF 应用
+    Assets/app.ico         应用图标（exe 文件图标 / 任务栏 / 标题栏 / 托盘共用）
     Infrastructure/        捕获、GIF/MP4 编码、录制引擎、托盘、快捷键、存储
     Presentation/          主窗口、选区覆盖层、编辑器、录制控制、结果预览
     Themes/Theme.xaml      深色珊瑚主题
 tests/SnipTrace.Tests/     控制台测试（无需测试框架）
 tools/GifProbe/            GIF 输出探测工具
+tools/make-icon.ps1        重新生成 app.ico（多尺寸 PNG 条目）
 docs/DESIGN.md             设计方案（唯一设计基线）
 ```
+
+图标是同一份珊瑚色圆角方块 + 白色取景框：`Assets/app.ico` 作为 `ApplicationIcon` 嵌入 exe，同时以资源形式供 `Window.Icon` 使用；托盘图标由 `TrayService` 用同一几何绘制（录制中切换为琥珀色）。修改图形后执行 `pwsh -File tools/make-icon.ps1` 重新生成即可。
 
 分层约定：领域层不依赖 WPF；UI 线程不执行截图、编码或磁盘写入。
 

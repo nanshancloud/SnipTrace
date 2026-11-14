@@ -23,6 +23,8 @@
 | 2026-11-14 | 同上 | 1920×1080 全屏 | 选区工具条 | `F1` + 合成鼠标拖选后工具条出现在选区下方：比例为 8 档 chips，操作条为图标分组（复制/保存/钉图 ｜ GIF/录屏 ｜ 取消/✓）→ `images/selection-toolbar.png` |
 | 2026-11-14 | 同上 | 460×— | 录制结果窗口（GIF） | `--preview` 打开单帧 GIF，首帧正常显示，另存为/复制等按钮可用 → `images/preview-gif.png` |
 | 2026-11-14 | 同上 | 460×— | 录制结果窗口（MP4） | `--preview` 打开 MP4，MediaElement 播放首帧并显示暂停按钮 → `images/preview-mp4.png` |
+| 2026-11-14 | 同上 | — | 应用图标 | exe 文件图标为珊瑚色圆角方块取景框（`ExtractAssociatedIcon` 校验）→ `images/logo.png`；运行中任务栏按钮显示同一图标 → `images/logo-taskbar.png`；主窗口标题栏左上角同步 → `images/logo-titlebar.png` |
+| 2026-11-14 | 同上 | — | 托盘图标 | 反射调用 `TrayService.CreateIcon` 渲染校验，与 logo 同一几何（录制中为琥珀色）→ `images/logo-tray.png` |
 
 > 本机工作区高度仅 652 DIP，无法覆盖「≥760 内容区高度」的完整档位与「≥1280 宽度」的展开档（最近记录侧栏），这两档仍待高分辨率设备验证。
 
