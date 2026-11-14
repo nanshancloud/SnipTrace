@@ -14,6 +14,8 @@ internal static class Program
         RecordingTests();
         SettingsTests();
         OutputTests();
+        OutputFileTests();
+        ShellLayoutTests();
 
         Console.WriteLine();
         Console.WriteLine($"通过 {_passed}，失败 {_failed}");
@@ -162,6 +164,76 @@ internal static class Program
         Check("窗口尺寸收敛", layout.Width == 860 && layout.Height == 4000 && !double.IsNaN(layout.Left));
     }
 
+    private static void OutputFileTests()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "snipTrace_tests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            string source = Path.Combine(root, "temp.mp4");
+            File.WriteAllText(source, "data");
+            string target = Path.Combine(root, "out", "clip.mp4");
+
+            OutputFile.MoveIntoPlace(source, target);
+            Check("落盘后临时文件被移除", !File.Exists(source));
+            Check("落盘创建目标目录并写入", File.Exists(target) && new FileInfo(target).Length == 4);
+
+            File.WriteAllText(source, "next");
+            OutputFile.MoveIntoPlace(source, target);
+            Check("落盘覆盖同名目标", new FileInfo(target).Length == 4 && !File.Exists(source));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, true);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        var gif = new GifOptions { MaxFrames = 1, MaxDurationSeconds = 0 };
+        Check("GIF 帧数越界被拦截", gif.Validate() is not null);
+        gif.Normalize();
+        Check("GIF 帧数与时长收敛", gif.MaxFrames == 10 && gif.MaxDurationSeconds == 1,
+            $"{gif.MaxFrames}/{gif.MaxDurationSeconds}");
+    }
+
+    private static void ShellLayoutTests()
+    {
+        var def = ShellLayout.Resolve(1100, 720);
+        Check("默认窗口为标准档", def.Mode == ShellLayoutMode.Standard, def.Mode.ToString());
+        Check("默认窗口三列模式卡", !ShellLayout.UsesSingleColumn(def.Mode));
+        Check("默认窗口高度压缩标题区", def.HeightTier == ShellHeightTier.Compact, def.HeightTier.ToString());
+        Check("标准档宽导航", def.NavWidth == 220 && def.ContentWidth == 880, def.ToString());
+
+        var expanded = ShellLayout.Resolve(1500, 1000);
+        Check("展开档启用侧栏", expanded.Mode == ShellLayoutMode.Expanded
+            && ShellLayout.UsesRecentSidebar(expanded.Mode, expanded.HeightTier)
+            && expanded.HeightTier == ShellHeightTier.Full, expanded.ToString());
+
+        var compact = ShellLayout.Resolve(1000, 900);
+        Check("紧凑档窄导航单列", compact.Mode == ShellLayoutMode.Compact
+            && compact.NavWidth == 64 && ShellLayout.UsesSingleColumn(compact.Mode), compact.ToString());
+
+        var minimal = ShellLayout.Resolve(859, 560);
+        Check("极简档无左侧导航", minimal.Mode == ShellLayoutMode.Minimal
+            && minimal.NavWidth == 0 && minimal.ContentWidth == 859, minimal.ToString());
+        Check("极简档折叠最近记录", minimal.HeightTier == ShellHeightTier.Minimal
+            && !ShellLayout.UsesRecentSidebar(minimal.Mode, minimal.HeightTier));
+
+        Check("横向断点边界", ShellLayout.ResolveMode(1280) == ShellLayoutMode.Expanded
+            && ShellLayout.ResolveMode(1279.9) == ShellLayoutMode.Standard
+            && ShellLayout.ResolveMode(1040) == ShellLayoutMode.Standard
+            && ShellLayout.ResolveMode(1039.9) == ShellLayoutMode.Compact
+            && ShellLayout.ResolveMode(860) == ShellLayoutMode.Compact);
+        Check("高度断点边界", ShellLayout.ResolveHeightTier(760) == ShellHeightTier.Full
+            && ShellLayout.ResolveHeightTier(759.9) == ShellHeightTier.Compact
+            && ShellLayout.ResolveHeightTier(600) == ShellHeightTier.Compact
+            && ShellLayout.ResolveHeightTier(599.9) == ShellHeightTier.Minimal);
+    }
+
     private static void OutputTests()
     {
         var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"C:\out\shot.png", @"C:\out\shot (2).png" };
@@ -181,6 +253,13 @@ internal static class Program
 
         var free = AspectRatio.Free.FromDrag(new PixelPoint(0, 0), new PixelPoint(733, 419), new PixelRect(0, 0, 1000, 1000));
         Check("自由比例原样保留", free.Width == 733 && free.Height == 419, free.ToString());
+
+        Check("比例预设共八档且含原始",
+            AspectRatio.Presets.Count == 8 && AspectRatio.Presets.Any(r => r.Label == "原始"),
+            AspectRatio.Presets.Count.ToString());
+
+        var original = AspectRatio.ForOriginal(new PixelRect(0, 0, 800, 600));
+        Check("原始比例取自选区", Math.Abs(original.Value - 4.0 / 3) < 0.001, original.ToString());
     }
 
     private static NumberBadgeAnnotation Badge(AnnotationDocument doc, double x, double y)
