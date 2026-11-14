@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/SnipTrace.App/SnipTrace.App.csproj" />
+    <Project Path="src/SnipTrace/SnipTrace.csproj" />
     <Project Path="src/SnipTrace.Domain/SnipTrace.Domain.csproj" />
   </Folder>
   <Folder Name="/tests/">

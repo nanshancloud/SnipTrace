@@ -105,7 +105,7 @@ UI 按**窗口尺寸**自适应，保证在任意显示器分辨率下窗口不�
 SnipTrace.slnx
 src/
   SnipTrace.Domain/        领域层：文档、标注、编号、比例、录制会话、设置、布局断点
-  SnipTrace.App/           WPF 应用
+  SnipTrace/               WPF 应用
     Assets/app.ico         应用图标（exe 文件图标 / 任务栏 / 标题栏 / 托盘共用）
     Infrastructure/        捕获、GIF/MP4 编码、录制引擎、托盘、快捷键、存储
     Presentation/          主窗口、选区覆盖层、编辑器、录制控制、结果预览
@@ -125,14 +125,14 @@ docs/DESIGN.md             设计方案（唯一设计基线）
 ```powershell
 dotnet build SnipTrace.slnx -c Debug
 dotnet run --project tests/SnipTrace.Tests
-dotnet run --project src/SnipTrace.App          # 启动应用
-dotnet run --project src/SnipTrace.App -- --selftest   # GIF / MP4 / 导出管线自检
+dotnet run --project src/SnipTrace          # 启动应用
+dotnet run --project src/SnipTrace -- --selftest   # GIF / MP4 / 导出管线自检
 ```
 
 发布可执行版本：
 
 ```powershell
-dotnet publish src/SnipTrace.App -c Release -r win-x64 --self-contained false -o dist/win-x64
+dotnet publish src/SnipTrace -c Release -r win-x64 --self-contained false -o dist/win-x64
 ```
 
 产物在 `dist/win-x64/`（`dist/` 已被 git 忽略），直接运行 `SnipTrace.exe` 即可；该版本依赖 .NET 11 桌面运行时。

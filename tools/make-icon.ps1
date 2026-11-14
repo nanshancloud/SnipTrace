@@ -1,7 +1,7 @@
-# 生成 src/SnipTrace.App/Assets/app.ico（多尺寸 PNG 条目）
+# 生成 src/SnipTrace/Assets/app.ico（多尺寸 PNG 条目）
 # 用法：pwsh -File tools/make-icon.ps1 [-OutFile <路径>]
 param(
-    [string]$OutFile = (Join-Path $PSScriptRoot "..\src\SnipTrace.App\Assets\app.ico")
+    [string]$OutFile = (Join-Path $PSScriptRoot "..\src\SnipTrace\Assets\app.ico")
 )
 
 Add-Type -AssemblyName System.Drawing

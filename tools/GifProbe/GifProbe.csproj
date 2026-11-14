@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\SnipTrace.App\Infrastructure\Encoding\GifEncoder.cs" Link="GifEncoder.cs" />
+    <Compile Include="..\..\src\SnipTrace\Infrastructure\Encoding\GifEncoder.cs" Link="GifEncoder.cs" />
   </ItemGroup>
 
 </Project>
