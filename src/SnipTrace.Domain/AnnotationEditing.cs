@@ -54,6 +54,36 @@ public static class AnnotationEditing
         }
     }
 
+    /// <summary>
+    /// 橡皮：沿 from→to 的轨迹擦掉画笔 / 高亮笔画（文本、箭头、序号、图形不参与），
+    /// 返回被移除的标注。编辑器与覆盖层共用这一套规则。
+    /// </summary>
+    public static List<Annotation> EraseStrokes(AnnotationDocument? document, PointD from, PointD to, double radius = 3)
+    {
+        var removed = new List<Annotation>();
+        if (document is null) return removed;
+
+        double length = from.DistanceTo(to);
+        int steps = Math.Max(1, (int)(length / 5));
+
+        for (int i = 0; i <= steps; i++)
+        {
+            var point = new PointD(from.X + (to.X - from.X) * i / steps, from.Y + (to.Y - from.Y) * i / steps);
+            var hits = document.Annotations
+                .Where(a => a is ShapeAnnotation shape
+                            && shape.Kind is AnnotationKind.Pen or AnnotationKind.Highlight
+                            && shape.HitTest(point, radius))
+                .ToList();
+
+            foreach (var hit in hits)
+            {
+                if (document.RemoveWithoutHistory(hit)) removed.Add(hit);
+            }
+        }
+
+        return removed;
+    }
+
     /// <summary>围绕包围盒中心等比缩放；缩到 6 px 以下就停，避免把笔画缩没了。</summary>
     public static bool Scale(ShapeAnnotation shape, double factor)
     {

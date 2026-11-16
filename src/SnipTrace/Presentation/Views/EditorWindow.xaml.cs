@@ -38,6 +38,8 @@ public partial class EditorWindow : Window
     private bool? _topBarIcons;
     private ArrowHead _arrowHead = ArrowHead.End;
     private bool _arrowElbow;
+    private BadgeShape _badgeShape = BadgeShape.Circle;
+    private BadgeFillMode _badgeFill = BadgeFillMode.Fill;
 
     public EditorWindow(BitmapSource image, string baseName, AnnotationDocument? initialAnnotations = null)
     {
@@ -58,6 +60,8 @@ public partial class EditorWindow : Window
         Canvas.Image = image;
         Canvas.Document = _document;
         Canvas.CurrentStyle = _style;
+        Canvas.BadgeShape = _badgeShape;
+        Canvas.BadgeFillMode = _badgeFill;
         Canvas.ZoomChanged += (_, _) => UpdateStatus();
         Canvas.SelectionChanged += (_, _) => SyncFromSelection();
         Canvas.TextEditRequested += BeginTextEdit;
@@ -245,8 +249,8 @@ public partial class EditorWindow : Window
 
             BadgePanel.Children.Clear();
             var selectedBadge = Canvas.Selection.OfType<NumberBadgeAnnotation>().FirstOrDefault();
-            var badgeShape = selectedBadge?.Shape ?? BadgeShape.Circle;
-            var badgeFill = selectedBadge?.FillMode ?? BadgeFillMode.Fill;
+            var badgeShape = selectedBadge?.Shape ?? _badgeShape;
+            var badgeFill = selectedBadge?.FillMode ?? _badgeFill;
             foreach (var (shape, label) in new[]
             {
                 (BadgeShape.Circle, "圆形"), (BadgeShape.Triangle, "三角"), (BadgeShape.Square, "方形"),
@@ -333,7 +337,10 @@ public partial class EditorWindow : Window
         RefreshPanels();
     }
 
-    /// <summary>箭头模式：单向 / 双向 / 无头 / 直角折线；已有选中的箭头一并改。</summary>
+    /// <summary>
+    /// 箭头模式：单向 / 双向 / 无头 / 直角折线；已有选中的箭头一并改。
+    /// 右侧选完顺手把左侧切到「箭头」，接着就能直接画。
+    /// </summary>
     private void SetArrowMode(ArrowHead head, bool elbow)
     {
         _arrowHead = head;
@@ -348,12 +355,30 @@ public partial class EditorWindow : Window
                 arrow.Elbow = elbow;
             }
         });
+
+        if (Canvas.Tool != EditorTool.Arrow) SelectTool(EditorTool.Arrow);
         RefreshPanels();
     }
 
-    private void SetBadgeShape(BadgeShape shape) => ApplyBadgeStyle(badge => badge.Shape = shape);
+    /// <summary>序号形状：选中的号标即时改，同时记住给下一个号标；左侧自动切到「序号」。</summary>
+    private void SetBadgeShape(BadgeShape shape)
+    {
+        _badgeShape = shape;
+        Canvas.BadgeShape = shape;
+        ApplyBadgeStyle(badge => badge.Shape = shape);
+        if (Canvas.Tool != EditorTool.Number) SelectTool(EditorTool.Number);
+        RefreshPanels();
+    }
 
-    private void SetBadgeFillMode(BadgeFillMode mode) => ApplyBadgeStyle(badge => badge.FillMode = mode);
+    /// <summary>填充方式：同上，改选中号标并作为新建号标的默认值。</summary>
+    private void SetBadgeFillMode(BadgeFillMode mode)
+    {
+        _badgeFill = mode;
+        Canvas.BadgeFillMode = mode;
+        ApplyBadgeStyle(badge => badge.FillMode = mode);
+        if (Canvas.Tool != EditorTool.Number) SelectTool(EditorTool.Number);
+        RefreshPanels();
+    }
 
     /// <summary>
     /// 改形状 / 填充：一次编辑会话内改完；「改样式后重新计数」打开时同一步里按阅读顺序重排 1..n，

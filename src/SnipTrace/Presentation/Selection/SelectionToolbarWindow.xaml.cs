@@ -129,6 +129,11 @@ public partial class SelectionToolbarWindow : Window
                     "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
                 break;
 
+            case SelectionToolbarItems.Eraser:
+                AddAnnotateToggle(OverlayAnnotateTool.Eraser, StrokeIcon("M3.6,9.2 L8.2,4.6 L11.8,8.2 L7.2,12.8 Z M2,13.8 L9.4,13.8"),
+                    "橡皮：按住拖动擦掉画笔 / 高亮笔画（文本、箭头、序号、图形不受影响）；再点一次退出");
+                break;
+
             case SelectionToolbarItems.Rectangle:
                 AddAnnotateToggle(OverlayAnnotateTool.Rectangle, StrokeIcon("M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z"),
                     "矩形标注：在选区内拖出矩形；再点一次退出标注模式");

@@ -14,6 +14,7 @@ public static class SelectionToolbarCatalog
         SelectionToolbarItems.Select => "选择",
         SelectionToolbarItems.Arrow => "箭头",
         SelectionToolbarItems.Pen => "画笔",
+        SelectionToolbarItems.Eraser => "橡皮",
         SelectionToolbarItems.Rectangle => "矩形",
         SelectionToolbarItems.Ellipse => "椭圆",
         SelectionToolbarItems.Text => "文字",

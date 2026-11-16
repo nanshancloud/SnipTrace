@@ -202,11 +202,62 @@ internal static class SelfTest
         CheckWindowLayouts(root, Check);
         CheckSettingsLiveApply(Check);
         CheckEditorInteractions(Check);
+        CheckEditorPanelSync(Check);
         CheckSelectionMaskRender(Check);
         CheckSelectionToolbar(root, Check);
 
         writer.WriteLine($"失败 {failures}");
         return failures;
+    }
+
+    /// <summary>编辑器右侧面板与左侧工具联动；只有「选择」工具才显示调整框。</summary>
+    private static void CheckEditorPanelSync(Action<string, bool, string?> check)
+    {
+        EditorWindow? window = null;
+        try
+        {
+            using var source = new Bitmap(420, 300);
+            using (var graphics = Graphics.FromImage(source)) graphics.Clear(Color.FromArgb(28, 34, 44));
+            window = new EditorWindow(ImageUtil.ToBitmapSource(source), "panel-sync");
+
+            var both = window.ArrowModePanel.Children.OfType<ToggleButton>().FirstOrDefault(chip => Equals(chip.Content, "双向"));
+            both?.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check("右侧箭头模式自动切工具",
+                both is not null && window.Canvas.Tool == EditorTool.Arrow, window.Canvas.Tool.ToString());
+
+            var heart = window.BadgePanel.Children.OfType<ToggleButton>().FirstOrDefault(chip => Equals(chip.Content, "心形"));
+            heart?.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check("右侧序号形状自动切工具",
+                heart is not null && window.Canvas.Tool == EditorTool.Number && window.Canvas.BadgeShape == BadgeShape.Heart,
+                window.Canvas.Tool + "/" + window.Canvas.BadgeShape);
+
+            var document = window.Canvas.Document;
+            if (document is null) return;
+
+            var badge = new NumberBadgeAnnotation { Number = 1, Center = new PointD(100, 80) };
+            document.Add(badge);
+            window.Canvas.SelectAnnotation(badge);
+            bool whileDrawing = window.Canvas.ShowsSelectionBox;
+
+            window.SelectToolButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            bool whileSelecting = window.Canvas.ShowsSelectionBox;
+            check("仅选择工具显示调整框", !whileDrawing && whileSelecting,
+                $"drawing={whileDrawing} selecting={whileSelecting}");
+        }
+        catch (Exception ex)
+        {
+            check("右侧面板与工具联动", false, ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                window?.Close();
+            }
+            catch (Exception)
+            {
+            }
+        }
     }
 
     /// <summary>遮罩渲染回归：选区完全落在别的显示器上时不能抛「宽度和高度必须为非负值」。</summary>
@@ -268,13 +319,17 @@ internal static class SelfTest
 
             var labels = new List<string>();
             bool hasSelect = false;
+            bool hasEraser = false;
             WalkVisuals(content, node =>
             {
                 if (node is TextBlock text) labels.Add(text.Text);
-                if (node is ToggleButton toggle && Equals(toggle.Tag, OverlayAnnotateTool.Select)) hasSelect = true;
+                if (node is not ToggleButton toggle) return;
+                if (Equals(toggle.Tag, OverlayAnnotateTool.Select)) hasSelect = true;
+                if (Equals(toggle.Tag, OverlayAnnotateTool.Eraser)) hasEraser = true;
             });
 
             check("工具条有选择按钮", hasSelect, null);
+            check("工具条有橡皮按钮", hasEraser, null);
             check("复制与精标有文字标签", labels.Contains("复制") && labels.Contains("精标"),
                 string.Join("/", labels.Where(t => t is "复制" or "精标")));
 

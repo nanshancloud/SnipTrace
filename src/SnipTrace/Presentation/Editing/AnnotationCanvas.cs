@@ -83,12 +83,21 @@ public sealed class AnnotationCanvas : FrameworkElement
     /// <summary>新建箭头是否按正交方向吸附（直角折线）。</summary>
     public bool ArrowElbow { get; set; }
 
+    /// <summary>新建序号使用的形状（右侧「序号形状」选中后跟随）。</summary>
+    public BadgeShape BadgeShape { get; set; } = BadgeShape.Circle;
+
+    /// <summary>新建序号使用的填充方式（填充 / 边框）。</summary>
+    public BadgeFillMode BadgeFillMode { get; set; } = BadgeFillMode.Fill;
+
     /// <summary>是否存在尚未结束的多段箭头。</summary>
     public bool HasArrowDraft => _arrowDraft is not null;
 
     public double Zoom => _zoom;
 
     public IReadOnlyList<Annotation> Selection => _selection;
+
+    /// <summary>是否显示虚线选框与调整手柄：只有「选择」工具且有选中对象时才显示。</summary>
+    public bool ShowsSelectionBox => Tool == EditorTool.Select && _selection.Count > 0;
 
     public AnnotationDocument? Document
     {
@@ -206,6 +215,9 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private void DrawSelections(DrawingContext dc)
     {
+        // 只有「选择」工具才画虚线选框与调整手柄；画笔 / 箭头 / 橡皮绘制时不显示调整框。
+        if (!ShowsSelectionBox) return;
+
         var pen = new Pen(new SolidColorBrush(Color.FromArgb(255, 255, 107, 95)), 1) { DashStyle = DashStyles.Dash };
         pen.Freeze();
         var handleFill = Brushes.White;
@@ -406,6 +418,8 @@ public sealed class AnnotationCanvas : FrameworkElement
                 Number = _document.NextNumber,
                 Center = image,
                 FontSize = CurrentStyle.StrokeWidth > 6 ? 24 : 16,
+                Shape = BadgeShape,
+                FillMode = BadgeFillMode,
                 Style = CurrentStyle
             };
             _document.Add(badge);
@@ -697,6 +711,13 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private void UpdateCursor(Point screen)
     {
+        // 非选择工具没有选框手柄，不要给出缩放手势的误导。
+        if (Tool != EditorTool.Select)
+        {
+            Cursor = Cursors.Cross;
+            return;
+        }
+
         int handle = HitHandle(screen);
         if (handle >= 0)
         {
@@ -707,12 +728,6 @@ public sealed class AnnotationCanvas : FrameworkElement
                 1 or 5 => Cursors.SizeNS,
                 _ => Cursors.SizeWE
             };
-            return;
-        }
-
-        if (Tool != EditorTool.Select)
-        {
-            Cursor = Cursors.Cross;
             return;
         }
 
@@ -841,28 +856,10 @@ public sealed class AnnotationCanvas : FrameworkElement
     {
         if (_document is null) return;
 
-        double length = from.DistanceTo(to);
-        int steps = Math.Max(1, (int)(length / 5));
-        bool changed = false;
+        var removed = AnnotationEditing.EraseStrokes(_document, from, to);
+        if (removed.Count == 0) return;
 
-        for (int i = 0; i <= steps; i++)
-        {
-            var point = new PointD(from.X + (to.X - from.X) * i / steps, from.Y + (to.Y - from.Y) * i / steps);
-            var hits = _document.Annotations
-                .Where(a => a is ShapeAnnotation shape && shape.Kind is (AnnotationKind.Pen or AnnotationKind.Highlight) && shape.HitTest(point, 3))
-                .ToList();
-
-            foreach (var hit in hits)
-            {
-                if (_document.RemoveWithoutHistory(hit))
-                {
-                    _selection.Remove(hit);
-                    changed = true;
-                }
-            }
-        }
-
-        if (!changed) return;
+        foreach (var hit in removed) _selection.Remove(hit);
         _eraseChanged = true;
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();

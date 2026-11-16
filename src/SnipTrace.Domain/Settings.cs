@@ -244,6 +244,7 @@ public static class SelectionToolbarItems
     public const string Select = "select";
     public const string Arrow = "arrow";
     public const string Pen = "pen";
+    public const string Eraser = "eraser";
     public const string Rectangle = "rectangle";
     public const string Ellipse = "ellipse";
     public const string Text = "text";
@@ -260,7 +261,7 @@ public static class SelectionToolbarItems
     /// <summary>全部按钮，数组顺序即默认顺序。</summary>
     public static readonly string[] All =
     {
-        Ratio, Select, Arrow, Pen, Rectangle, Ellipse, Text, Number, Color,
+        Ratio, Select, Arrow, Pen, Eraser, Rectangle, Ellipse, Text, Number, Color,
         Copy, Save, Pin, Gif, Video, Cancel, Refine
     };
 
@@ -291,9 +292,23 @@ public static class SelectionToolbarItems
             }
         }
 
+        // 缺失的按钮（含版本升级后新增的）按默认相对位置插回去，而不是一律追加到末尾。
         foreach (string id in All)
         {
-            if (seen.Add(id)) result.Add(new ToolbarItemSetting { Id = id, Visible = true });
+            if (seen.Contains(id)) continue;
+            int defaultIndex = Array.IndexOf(All, id);
+            int insertAt = result.Count;
+            for (int i = 0; i < result.Count; i++)
+            {
+                if (Array.IndexOf(All, result[i].Id) > defaultIndex)
+                {
+                    insertAt = i;
+                    break;
+                }
+            }
+
+            result.Insert(insertAt, new ToolbarItemSetting { Id = id, Visible = true });
+            seen.Add(id);
         }
 
         return result;

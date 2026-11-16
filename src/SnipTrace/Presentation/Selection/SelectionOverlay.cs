@@ -40,6 +40,7 @@ public enum OverlayAnnotateTool
     Select,
     Arrow,
     Pen,
+    Eraser,
     Rectangle,
     Ellipse,
     Text,
@@ -89,6 +90,9 @@ public sealed class SelectionOverlay : IDisposable
     private Annotation? _selectedAnnotation;
     private Annotation? _dragAnnotation;
     private PointD _dragLast;
+    private bool _erasing;
+    private bool _eraseChanged;
+    private PointD _lastErasePoint;
     private BadgeShape _badgeShape = BadgeShape.Circle;
     private BadgeFillMode _badgeFillMode = BadgeFillMode.Fill;
 
@@ -150,13 +154,23 @@ public sealed class SelectionOverlay : IDisposable
             return;
         }
 
-        // 标注模式下在选区内按下：开始绘制 / 开始拖动已选标注，不改变选区。
+        // 标注模式下在选区内按下：开始绘制 / 拖动已选标注 / 擦除，不改变选区。
         if (_annotateTool != OverlayAnnotateTool.None && !_selection.IsEmpty)
         {
             if (_selection.Contains(_cursor))
             {
-                if (_annotateTool == OverlayAnnotateTool.Select) BeginSelectDrag();
-                else BeginAnnotation();
+                switch (_annotateTool)
+                {
+                    case OverlayAnnotateTool.Select:
+                        BeginSelectDrag();
+                        break;
+                    case OverlayAnnotateTool.Eraser:
+                        BeginErase();
+                        break;
+                    default:
+                        BeginAnnotation();
+                        break;
+                }
             }
 
             return;
@@ -198,6 +212,12 @@ public sealed class SelectionOverlay : IDisposable
         if (_resizeCorner != RectCorner.None)
         {
             ApplyResize();
+            return;
+        }
+
+        if (_erasing)
+        {
+            UpdateErase();
             return;
         }
 
@@ -255,6 +275,12 @@ public sealed class SelectionOverlay : IDisposable
             UpdateViews();
             UpdateResizeCursor();
             UpdateToolbar(forceMagnifier: true);
+            return;
+        }
+
+        if (_erasing)
+        {
+            EndErase();
             return;
         }
 
@@ -504,6 +530,47 @@ public sealed class SelectionOverlay : IDisposable
 
     /// <summary>自上而下（后画的优先）命中标注。</summary>
     private Annotation? FindAnnotation(PointD point) => AnnotationEditing.HitTest(_overlayAnnotations, point);
+
+    /// <summary>橡皮：按住拖动擦掉画笔 / 高亮笔画，规则与编辑器一致（文本、箭头、序号、图形不参与）。</summary>
+    private void BeginErase()
+    {
+        if (_overlayAnnotations is null) return;
+
+        _erasing = true;
+        _eraseChanged = false;
+        _lastErasePoint = DocPoint(_cursor);
+        _overlayAnnotations.BeginEdit();
+        EraseBetween(_lastErasePoint, _lastErasePoint);
+    }
+
+    private void UpdateErase()
+    {
+        var point = DocPoint(_cursor);
+        EraseBetween(_lastErasePoint, point);
+        _lastErasePoint = point;
+    }
+
+    private void EndErase()
+    {
+        if (!_erasing) return;
+
+        _erasing = false;
+        _overlayAnnotations?.EndEdit(_eraseChanged);
+        _eraseChanged = false;
+        RefreshAnnotations();
+    }
+
+    private void EraseBetween(PointD from, PointD to)
+    {
+        if (_overlayAnnotations is null) return;
+
+        var removed = AnnotationEditing.EraseStrokes(_overlayAnnotations, from, to);
+        if (removed.Count == 0) return;
+
+        if (_selectedAnnotation is not null && removed.Contains(_selectedAnnotation)) _selectedAnnotation = null;
+        _eraseChanged = true;
+        RefreshAnnotations();
+    }
 
     private void DeleteSelectedAnnotation()
     {

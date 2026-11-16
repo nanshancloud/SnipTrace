@@ -315,6 +315,8 @@ internal static class Program
     /// <summary>选区工具条配置（增删 / 排序）与标注画布尺寸同步。</summary>
     private static void ToolbarAndCanvasTests()
     {
+        static int Index(List<ToolbarItemSetting> list, string id) => list.FindIndex(item => item.Id == id);
+
         var defaults = SelectionToolbarItems.CreateDefault();
         Check("工具条默认按钮数", defaults.Count == SelectionToolbarItems.All.Length, defaults.Count.ToString());
         Check("工具条默认全显示", defaults.All(item => item.Visible));
@@ -330,11 +332,13 @@ internal static class Program
         };
         var normalized = SelectionToolbarItems.Normalize(custom);
         Check("工具条去重并忽略未知项",
-            normalized[0].Id == SelectionToolbarItems.Refine
-            && normalized[1].Id == SelectionToolbarItems.Copy
-            && normalized[2].Id == SelectionToolbarItems.Select,
-            string.Join(",", normalized.Take(3).Select(i => i.Id)));
-        Check("工具条保留隐藏状态", !normalized[1].Visible);
+            normalized.Count == SelectionToolbarItems.All.Length
+            && normalized.Count(item => item.Id == SelectionToolbarItems.Refine) == 1
+            && normalized.All(item => item.Id != "不存在的按钮")
+            && Index(normalized, SelectionToolbarItems.Refine) < Index(normalized, SelectionToolbarItems.Copy)
+            && Index(normalized, SelectionToolbarItems.Copy) < Index(normalized, SelectionToolbarItems.Select),
+            string.Join(",", normalized.Select(i => i.Id).Take(4)));
+        Check("工具条保留隐藏状态", !normalized[Index(normalized, SelectionToolbarItems.Copy)].Visible);
         Check("工具条补齐缺失按钮", normalized.Count == SelectionToolbarItems.All.Length, normalized.Count.ToString());
 
         // 往返持久化：camelCase JSON 能读回顺序与隐藏状态。
@@ -354,11 +358,45 @@ internal static class Program
         restored?.Normalize(Path.GetTempPath(), Path.GetTempPath());
         Check("工具条配置往返持久化",
             restored is not null
-            && restored.SelectionToolbar[0].Id == SelectionToolbarItems.Refine
-            && !restored.SelectionToolbar[1].Visible
-            && restored.SelectionToolbar[2].Id == SelectionToolbarItems.Select
-            && restored.SelectionToolbar.Count == SelectionToolbarItems.All.Length,
-            restored is null ? "反序列化为空" : string.Join(",", restored.SelectionToolbar.Take(3).Select(i => i.Id + (i.Visible ? "+" : "-"))));
+            && restored.SelectionToolbar.Count == SelectionToolbarItems.All.Length
+            && Index(restored.SelectionToolbar, SelectionToolbarItems.Refine) < Index(restored.SelectionToolbar, SelectionToolbarItems.Copy)
+            && Index(restored.SelectionToolbar, SelectionToolbarItems.Copy) < Index(restored.SelectionToolbar, SelectionToolbarItems.Select)
+            && !restored.SelectionToolbar[Index(restored.SelectionToolbar, SelectionToolbarItems.Copy)].Visible,
+            restored is null ? "反序列化为空" : string.Join(",", restored.SelectionToolbar.Select(i => i.Id + (i.Visible ? "+" : "-")).Take(4)));
+
+        // 缺失按钮按默认相对位置插回（而非追加末尾）。
+        var partial = new List<ToolbarItemSetting>
+        {
+            new() { Id = SelectionToolbarItems.Copy },
+            new() { Id = SelectionToolbarItems.Select }
+        };
+        var filled = SelectionToolbarItems.Normalize(partial);
+        Check("缺失按钮按默认位置插回",
+            filled[0].Id == SelectionToolbarItems.Ratio
+            && Index(filled, SelectionToolbarItems.Eraser) > Index(filled, SelectionToolbarItems.Pen)
+            && Index(filled, SelectionToolbarItems.Eraser) < Index(filled, SelectionToolbarItems.Copy)
+            && filled.Count == SelectionToolbarItems.All.Length,
+            string.Join(",", filled.Select(i => i.Id).Take(6)));
+
+        // 橡皮：只擦画笔 / 高亮，文本、箭头、图形不动。
+        var eraseDoc = new AnnotationDocument(300, 200);
+        var penStroke = eraseDoc.Add(new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(20, 50), new PointD(200, 50) }));
+        var highlightStroke = eraseDoc.Add(new ShapeAnnotation(AnnotationKind.Highlight, new[] { new PointD(20, 120), new PointD(200, 120) }));
+        var keepText = eraseDoc.Add(new TextAnnotation { Origin = new PointD(20, 160), Text = "保留" });
+        var keepArrow = eraseDoc.Add(new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(20, 20), new PointD(120, 20) }));
+        var keepRect = eraseDoc.Add(new ShapeAnnotation(AnnotationKind.Rectangle, new[] { new PointD(240, 20), new PointD(290, 80) }));
+
+        var erased = AnnotationEditing.EraseStrokes(eraseDoc, new PointD(60, 40), new PointD(60, 130));
+        Check("橡皮擦掉画笔与高亮",
+            erased.Count == 2 && !eraseDoc.Annotations.Contains(penStroke) && !eraseDoc.Annotations.Contains(highlightStroke),
+            erased.Count.ToString());
+        Check("橡皮不动文本/箭头/图形",
+            eraseDoc.Annotations.Contains(keepText) && eraseDoc.Annotations.Contains(keepArrow) && eraseDoc.Annotations.Contains(keepRect),
+            eraseDoc.Annotations.Count.ToString());
+
+        var erasedNothing = AnnotationEditing.EraseStrokes(eraseDoc, new PointD(60, 190), new PointD(90, 190));
+        Check("橡皮空拖不改文档", erasedNothing.Count == 0 && eraseDoc.Annotations.Count == 3,
+            erasedNothing.Count.ToString());
 
         var canvas = new AnnotationDocument(200, 120);
         var badge = canvas.Add(new NumberBadgeAnnotation { Number = 1, Center = new PointD(50, 40) });
