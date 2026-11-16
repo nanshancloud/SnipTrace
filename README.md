@@ -60,7 +60,7 @@ dotnet publish src/SnipTrace -c Release -r win-x64 --self-contained false -o dis
 验证构建可用：
 
 ```powershell
-.\dist\win-x64\SnipTrace.exe --selftest                   # 自检：GIF/MP4/导出管线 + UI 冒烟 + 设置即时生效 + 画布交互 + 覆盖层与设置页，期望 41 行 PASS
+.\dist\win-x64\SnipTrace.exe --selftest                   # 自检：GIF/MP4/导出管线 + UI 冒烟 + 设置即时生效 + 画布交互 + 覆盖层与设置页，期望 45 行 PASS
 .\dist\win-x64\SnipTrace.exe --preview 文件.gif|.mp4      # 打开录制预览窗口
 .\dist\win-x64\SnipTrace.exe --page settings              # 直接打开指定页面
 ```

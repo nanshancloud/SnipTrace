@@ -81,8 +81,12 @@
             </StackPanel>
 
             <TextBlock Text="选区工具条" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,6" />
-            <TextBlock Text="勾选要显示的按钮，用 ↑ ↓ 调整顺序；保存后下一次截图生效。"
-                       Style="{StaticResource CaptionText}" Margin="0,0,0,10" />
+            <TextBlock Text="在预览条上按住拖动即可调整顺序（也可用列表里的 ↑ ↓）；勾选控制是否显示，改动立即生效。"
+                       Style="{StaticResource CaptionText}" Margin="0,0,0,10" TextWrapping="Wrap" />
+            <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="6,4" HorizontalAlignment="Left" Margin="0,0,0,10">
+                <WrapPanel x:Name="ToolbarPreviewPanel" />
+            </Border>
             <StackPanel x:Name="ToolbarListPanel" />
             <Button Content="恢复默认工具条" Style="{StaticResource SecondaryButton}" Margin="0,6,0,0"
                     Click="ResetToolbar_Click" ToolTip="恢复全部按钮并按默认顺序排列" />
@@ -137,6 +141,65 @@
                 <TextBlock x:Name="StatusText" Style="{StaticResource CaptionText}" VerticalAlignment="Center" Margin="12,0,0,0"
                            Text="修改即生效，无需保存" />
             </StackPanel>
+
+            <TextBlock Text="关于" FontSize="15" FontWeight="SemiBold" Margin="0,28,0,10" />
+            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,0,0,16">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="34" Height="34" CornerRadius="9" Background="{DynamicResource AccentBrush}" />
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="屏迹 SnipTrace" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock x:Name="AboutVersionText" Text="版本 1.0.0" Style="{StaticResource CaptionText}"
+                                       Margin="0,3,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Text="轻量截图、贴图与录屏工具：选区标注、钉图置顶、GIF / MP4 录制。完全本地处理，不联网、不上传、不收集遥测。"
+                               Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,12,0,0" />
+
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="项目地址" Style="{StaticResource CaptionText}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource CaptionText}" TextTrimming="CharacterEllipsis">
+                            <Hyperlink Click="RepositoryLink_Click" Foreground="{DynamicResource AccentBrush}"
+                                       ToolTip="在浏览器中打开 GitHub 仓库">
+                                <Run Text="github.com/nanshancloud/SnipTrace" />
+                            </Hyperlink>
+                        </TextBlock>
+                    </Grid>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="作者" Style="{StaticResource CaptionText}" />
+                        <TextBlock Grid.Column="1" Text="EricYeung" Style="{StaticResource CaptionText}" />
+                    </Grid>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="技术栈" Style="{StaticResource CaptionText}" />
+                        <TextBlock Grid.Column="1" Text=".NET · WPF · Win32 互操作" Style="{StaticResource CaptionText}" />
+                    </Grid>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="开源协议" Style="{StaticResource CaptionText}" />
+                        <TextBlock Grid.Column="1" Text="MIT License" Style="{StaticResource CaptionText}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

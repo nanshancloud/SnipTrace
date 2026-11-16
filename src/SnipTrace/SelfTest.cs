@@ -405,6 +405,19 @@ internal static class SelfTest
             var restored = document.Annotations.OfType<NumberBadgeAnnotation>().FirstOrDefault();
             check("改样式后可重做", restored is not null && restored.Shape == BadgeShape.Heart,
                 restored is null ? "号标丢失" : restored.Shape.ToString());
+
+            // 清除全部：一次清空画布，可撤销回来，清空后按钮自己置灰。
+            int beforeClear = document.Annotations.Count;
+            bool clearEnabledBefore = window.ClearAllButton.IsEnabled;
+            window.ClearAllButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            int afterClear = document.Annotations.Count;
+            bool clearEnabledAfter = window.ClearAllButton.IsEnabled;
+            window.UndoButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            int afterClearUndo = document.Annotations.Count;
+            check("清除全部标记",
+                beforeClear > 0 && afterClear == 0 && afterClearUndo == beforeClear
+                && clearEnabledBefore && !clearEnabledAfter,
+                $"{beforeClear}→{afterClear}→撤销{afterClearUndo} 可用={clearEnabledBefore}→{clearEnabledAfter}");
         }
         catch (Exception ex)
         {
@@ -674,6 +687,19 @@ internal static class SelfTest
 
             int rows = view.ToolbarListPanel.Children.Count;
             check("设置页可增删排序工具条按钮", rows == SelectionToolbarItems.All.Length, rows.ToString());
+
+            int previewItems = view.ToolbarPreviewPanel.Children.OfType<Border>().Count(b => b.Tag is ToolbarItemSetting);
+            check("工具条预览显示全部按钮", previewItems == SelectionToolbarItems.All.Length, previewItems.ToString());
+
+            // 拖动排序与真实拖动共用 MoveToolbarItemTo：顺序要变、数量不变。
+            string firstId = settings.SelectionToolbar[0].Id;
+            view.MoveToolbarItemTo(0, 3);
+            bool moved = settings.SelectionToolbar[3].Id == firstId
+                         && settings.SelectionToolbar.Count == SelectionToolbarItems.All.Length;
+            check("工具条预览拖动排序", moved, $"{firstId} → {settings.SelectionToolbar[3].Id}");
+
+            check("设置页关于信息", view.AboutVersionText.Text.StartsWith("版本 ", StringComparison.Ordinal),
+                view.AboutVersionText.Text);
 
             // 离屏渲染整页（带深色底，方便看清浅色文字），便于人工核对「选区工具条」区块的排版。
             var backdrop = new Border

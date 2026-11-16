@@ -69,16 +69,16 @@ public partial class EditorWindow : Window
         _document.Changed += (_, _) =>
         {
             UpdateStatus();
-            SyncUndoButtons();
+            SyncHistoryButtons();
         };
 
         FileNameText.Text = baseName + ".png";
         InitializeTools();
         RenumberStyleCheck.IsChecked = AppServices.Current?.Settings.RenumberBadgesOnStyleChange == true;
         RefreshPanels();
-        // 打开窗口时就按历史栈给出按钮状态：没有可撤销 / 可重做的操作时直接置灰，
+        // 打开窗口时就按历史栈给出按钮状态：没有可撤销 / 可重做 / 可清除的标记时直接置灰，
         // 避免刚进编辑器点「重做」没有任何反应被当成按钮坏了。
-        SyncUndoButtons();
+        SyncHistoryButtons();
         ApplyInitialSize();
 
         Loaded += (_, _) =>
@@ -151,6 +151,7 @@ public partial class EditorWindow : Window
         {
             (UndoButton, "撤销", "\uE7A7"),
             (RedoButton, "重做", "\uE7A6"),
+            (ClearAllButton, "清除全部", "\uE894"),
             (CopyButton, "复制", "\uE8C8"),
             (SaveButton, "保存", "\uE74E"),
             (PinButton, "钉图", "\uE840"),
@@ -544,7 +545,7 @@ public partial class EditorWindow : Window
         Canvas.Refresh();
         RefreshPanels();
         UpdateStatus();
-        SyncUndoButtons();
+        SyncHistoryButtons();
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e) => CopyToClipboard();
@@ -722,15 +723,31 @@ public partial class EditorWindow : Window
     }
 
     /// <summary>
-    /// 撤销 / 重做按钮跟着历史栈状态走：没得撤销就没得点，避免「点了没反应」被当成坏了。
+    /// 撤销 / 重做 / 清除全部按钮跟着历史栈与标注数量走：没得操作就没得点，
+    /// 避免「点了没反应」被当成坏了。
     /// </summary>
-    private void SyncUndoButtons()
+    private void SyncHistoryButtons()
     {
+        bool hasAnnotations = _document.Annotations.Count > 0;
         UndoButton.IsEnabled = _document.CanUndo;
         RedoButton.IsEnabled = _document.CanRedo;
+        ClearAllButton.IsEnabled = hasAnnotations;
         UndoButton.ToolTip = _document.CanUndo ? "撤销（Ctrl+Z）" : "没有可撤销的操作";
         RedoButton.ToolTip = _document.CanRedo ? "重做（Ctrl+Shift+Z / Ctrl+Y）" : "没有可重做的操作";
+        ClearAllButton.ToolTip = hasAnnotations ? "清除全部标记（可撤销）" : "没有可清除的标记";
         UpdateStatus();
+    }
+
+    /// <summary>清除全部标记：一次编辑会话，可被撤销回来。</summary>
+    private void ClearAll_Click(object sender, RoutedEventArgs e)
+    {
+        CommitText();
+        Canvas.FinishArrowDraft(false);
+        if (_document.Annotations.Count == 0) return;
+
+        _document.Clear();
+        AfterHistoryChanged();
+        AppServices.Current?.Toasts.Info("已清除全部标记", "可撤销（Ctrl+Z）");
     }
 
     private void UpdateStatus()

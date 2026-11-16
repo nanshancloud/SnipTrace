@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -17,6 +18,8 @@ namespace SnipTrace.App.Presentation.Views;
 /// </summary>
 public partial class SettingsView : UserControl
 {
+    private const string RepositoryUrl = "https://github.com/nanshancloud/SnipTrace";
+
     private readonly AppSettings _settings;
     private readonly PathService _paths;
     private readonly DispatcherTimer _debounce;
@@ -24,11 +27,16 @@ public partial class SettingsView : UserControl
     /// <summary>正在把设置回填到控件，忽略控件事件。</summary>
     private bool _loading;
 
+    /// <summary>预览条上按下但还没开始拖动的按钮，以及按下时的屏幕位置。</summary>
+    private ToolbarItemSetting? _draggingItem;
+    private Point _dragStartPoint;
+
     public SettingsView(AppSettings settings, PathService paths)
     {
         InitializeComponent();
         _settings = settings;
         _paths = paths;
+        AboutVersionText.Text = "版本 " + AppVersion;
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         _debounce.Tick += (_, _) =>
@@ -75,6 +83,7 @@ public partial class SettingsView : UserControl
             RefreshHighlightSwatch();
             RefreshHotkeyModeUi();
             BuildToolbarList();
+            BuildToolbarPreview();
         }
         finally
         {
@@ -150,19 +159,30 @@ public partial class SettingsView : UserControl
         if (index < 0 || index >= items.Count) return;
         items[index].Visible = visible;
         SettingsSaved?.Invoke();
+        BuildToolbarPreview();
         StatusText.Text = "选区工具条已更新";
     }
 
-    private void MoveToolbarItem(int index, int delta)
+    private void MoveToolbarItem(int index, int delta) => MoveToolbarItemTo(index, index + delta);
+
+    /// <summary>把第 from 个按钮移动到 to（列表内索引）：列表、预览条同步刷新。</summary>
+    internal void MoveToolbarItemTo(int from, int to)
     {
         if (_loading) return;
         var items = _settings.SelectionToolbar;
-        int target = index + delta;
-        if (target < 0 || target >= items.Count) return;
+        if (items is null || items.Count == 0) return;
+        if (from < 0 || from >= items.Count) return;
 
-        (items[index], items[target]) = (items[target], items[index]);
+        to = Math.Clamp(to, 0, items.Count - 1);
+        if (to == from) return;
+
+        var item = items[from];
+        items.RemoveAt(from);
+        items.Insert(to, item);
+
         SettingsSaved?.Invoke();
         BuildToolbarList();
+        BuildToolbarPreview();
         StatusText.Text = "选区工具条已更新";
     }
 
@@ -171,7 +191,175 @@ public partial class SettingsView : UserControl
         _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
         SettingsSaved?.Invoke();
         BuildToolbarList();
+        BuildToolbarPreview();
         StatusText.Text = "选区工具条已恢复默认";
+    }
+
+    /// <summary>
+    /// 工具条预览：按当前顺序横向排出全部按钮（隐藏项半透明），与真实工具条一样按分组插分隔线。
+    /// 按住任意项拖动即可调整顺序。
+    /// </summary>
+    private void BuildToolbarPreview()
+    {
+        if (ToolbarPreviewPanel is null) return;
+        ToolbarPreviewPanel.Children.Clear();
+
+        var items = _settings.SelectionToolbar;
+        if (items is null || items.Count == 0) items = _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
+
+        string? previousGroup = null;
+        foreach (var item in items)
+        {
+            string group = SelectionToolbarCatalog.GroupOf(item.Id);
+            if (previousGroup is not null && !string.Equals(previousGroup, group, StringComparison.Ordinal))
+            {
+                ToolbarPreviewPanel.Children.Add(new Border
+                {
+                    Width = 1,
+                    Height = 18,
+                    Margin = new Thickness(5, 5, 5, 5),
+                    Background = (Brush)FindResource("BorderBrush")
+                });
+            }
+
+            previousGroup = group;
+
+            var chip = new Border
+            {
+                Tag = item,
+                Margin = new Thickness(0, 2, 0, 2),
+                Padding = new Thickness(9, 4, 9, 4),
+                CornerRadius = new CornerRadius(6),
+                BorderThickness = new Thickness(1),
+                Cursor = Cursors.SizeAll,
+                Opacity = item.Visible ? 1.0 : 0.45,
+                AllowDrop = true,
+                Child = new TextBlock
+                {
+                    Text = SelectionToolbarCatalog.DisplayName(item.Id),
+                    FontSize = 12,
+                    Foreground = (Brush)FindResource(item.Visible ? "TextPrimaryBrush" : "TextSecondaryBrush")
+                },
+                ToolTip = item.Visible
+                    ? $"{SelectionToolbarCatalog.DisplayName(item.Id)}：按住拖动调整顺序"
+                    : $"{SelectionToolbarCatalog.DisplayName(item.Id)}：当前隐藏（勾选后显示），仍可拖动调整位置"
+            };
+            ResetPreviewChipLook(chip);
+
+            chip.MouseLeftButtonDown += PreviewChip_MouseDown;
+            chip.MouseMove += PreviewChip_MouseMove;
+            chip.MouseLeftButtonUp += (_, _) =>
+            {
+                _draggingItem = null;
+                if (chip.IsMouseCaptured) chip.ReleaseMouseCapture();
+            };
+            chip.DragEnter += PreviewChip_DragEnter;
+            chip.DragOver += PreviewChip_DragEnter;
+            chip.DragLeave += (_, _) => ResetPreviewChipLook(chip);
+            chip.Drop += PreviewChip_Drop;
+            ToolbarPreviewPanel.Children.Add(chip);
+        }
+    }
+
+    /// <summary>恢复预览项的正常外观（按当前可见性）。</summary>
+    private void ResetPreviewChipLook(Border chip)
+    {
+        if (chip.Tag is not ToolbarItemSetting item) return;
+        chip.BorderThickness = new Thickness(1);
+        chip.Background = (Brush)FindResource(item.Visible ? "SurfaceBrush" : "PanelBrush");
+        chip.BorderBrush = (Brush)FindResource(item.Visible ? "BorderBrush" : "SurfaceHoverBrush");
+    }
+
+    private void PreviewChip_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_loading) return;
+        if (sender is FrameworkElement element && element.Tag is ToolbarItemSetting item)
+        {
+            _draggingItem = item;
+            _dragStartPoint = e.GetPosition(this);
+            // 捕获鼠标，快速拖动时也不会在移出预览项后丢掉 MouseMove。
+            element.CaptureMouse();
+        }
+    }
+
+    private void PreviewChip_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_draggingItem is null || e.LeftButton != MouseButtonState.Pressed) return;
+
+        Point position = e.GetPosition(this);
+        if (Math.Abs(position.X - _dragStartPoint.X) < 4 && Math.Abs(position.Y - _dragStartPoint.Y) < 4) return;
+
+        var item = _draggingItem;
+        _draggingItem = null;
+        if (sender is UIElement source)
+        {
+            if (source.IsMouseCaptured) source.ReleaseMouseCapture();
+            DragDrop.DoDragDrop(source, new DataObject(typeof(ToolbarItemSetting), item), DragDropEffects.Move);
+        }
+    }
+
+    private void PreviewChip_DragEnter(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(typeof(ToolbarItemSetting)) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+
+        if (sender is Border chip)
+        {
+            chip.BorderThickness = new Thickness(2);
+            chip.BorderBrush = (Brush)FindResource("AccentBrush");
+        }
+    }
+
+    private void PreviewChip_Drop(object sender, DragEventArgs e)
+    {
+        if (sender is not Border chip || chip.Tag is not ToolbarItemSetting target) return;
+        if (e.Data.GetData(typeof(ToolbarItemSetting)) is not ToolbarItemSetting dragged) return;
+
+        ResetPreviewChipLook(chip);
+
+        var items = _settings.SelectionToolbar;
+        if (items is null) return;
+
+        // 设置写回时列表会被整体替换，按 Id 兜底查找更稳。
+        int from = items.IndexOf(dragged);
+        if (from < 0) from = items.FindIndex(i => string.Equals(i.Id, dragged.Id, StringComparison.Ordinal));
+        int to = items.IndexOf(target);
+        if (to < 0) to = items.FindIndex(i => string.Equals(i.Id, target.Id, StringComparison.Ordinal));
+        if (from < 0 || to < 0) return;
+
+        // 落在目标右半边就插到它后面，左半边插到它前面。
+        if (e.GetPosition(chip).X > chip.ActualWidth / 2) to++;
+        if (to > from) to--;
+        e.Handled = true;
+        MoveToolbarItemTo(from, to);
+    }
+
+    /// <summary>关于：当前程序集版本（csproj 的 Version 字段）。</summary>
+    private static string AppVersion
+    {
+        get
+        {
+            var version = typeof(SettingsView).Assembly.GetName().Version;
+            return version is null
+                ? "1.0.0"
+                : $"{version.Major}.{version.Minor}.{version.Build}";
+        }
+    }
+
+    private void RepositoryLink_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(RepositoryUrl)
+            {
+                UseShellExecute = true
+            });
+            StatusText.Text = "已在浏览器中打开项目地址";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "无法打开浏览器：" + ex.Message;
+        }
     }
 
     private static void SetText(TextBox box, string value)

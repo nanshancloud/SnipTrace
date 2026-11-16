@@ -30,6 +30,8 @@
                         ToolTip="Ctrl+Z" ToolTipService.ShowOnDisabled="True" />
                 <Button x:Name="RedoButton" Content="重做" Style="{StaticResource GhostButton}" Click="Redo_Click"
                         ToolTip="Ctrl+Shift+Z" ToolTipService.ShowOnDisabled="True" />
+                <Button x:Name="ClearAllButton" Content="清除全部" Style="{StaticResource GhostButton}" Click="ClearAll_Click"
+                        ToolTip="清除全部标记（可撤销）" ToolTipService.ShowOnDisabled="True" />
                 <Border Width="1" Background="{DynamicResource BorderBrush}" Margin="8,10" />
                 <Button x:Name="CopyButton" Content="复制" Style="{StaticResource GhostButton}" Click="Copy_Click" ToolTip="Ctrl+C" />
                 <Button x:Name="SaveButton" Content="保存" Style="{StaticResource PrimaryButton}" Padding="14,6" MinHeight="30" Margin="6,0"
