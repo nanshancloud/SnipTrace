@@ -11,6 +11,7 @@ internal static class Program
     {
         NumberingTests();
         AnnotationTests();
+        AnnotationEditingTests();
         BadgeShapeTests();
         RecordingTests();
         SettingsTests();
@@ -308,6 +309,50 @@ internal static class Program
 
         var straight = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
         Check("默认箭头仅末端有头", straight.ArrowHead == ArrowHead.End);
+    }
+
+    /// <summary>覆盖层「选择 + 滚轮」的纯逻辑：命中优先级、线宽 / 字号微调、缩放下限。</summary>
+    private static void AnnotationEditingTests()
+    {
+        var document = new AnnotationDocument(200, 200);
+        var below = document.Add(new ShapeAnnotation(AnnotationKind.Rectangle,
+            new[] { new PointD(20, 20), new PointD(100, 100) }));
+        var above = document.Add(new ShapeAnnotation(AnnotationKind.Rectangle,
+            new[] { new PointD(20, 20), new PointD(100, 100) }));
+
+        Check("后画的标注优先命中", ReferenceEquals(AnnotationEditing.HitTest(document, new PointD(20, 60)), above));
+        Check("空白处不命中", AnnotationEditing.HitTest(document, new PointD(60, 60)) is null);
+        Check("命中外框时命中内框", ReferenceEquals(AnnotationEditing.HitTest(document, new PointD(100, 60)), above),
+            below.Id == above.Id ? "同一对象" : "外框边线");
+
+        var rect = new ShapeAnnotation(AnnotationKind.Rectangle, new[] { new PointD(0, 0), new PointD(50, 50) });
+        AnnotationEditing.AdjustOnWheel(rect, true);
+        Check("图形滚轮加粗一线", Math.Abs(rect.Style.Width - 4) < 0.001, rect.Style.Width.ToString("0.##"));
+
+        for (int i = 0; i < 40; i++) AnnotationEditing.AdjustOnWheel(rect, true);
+        Check("线宽上限 16", Math.Abs(rect.Style.Width - AnnotationEditing.MaxStrokeWidth) < 0.001, rect.Style.Width.ToString("0.##"));
+
+        for (int i = 0; i < 40; i++) AnnotationEditing.AdjustOnWheel(rect, false);
+        Check("线宽下限 1", Math.Abs(rect.Style.Width - AnnotationEditing.MinStrokeWidth) < 0.001, rect.Style.Width.ToString("0.##"));
+
+        var arrow = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
+        double before = arrow.Style.Width;
+        AnnotationEditing.AdjustOnWheel(arrow, true);
+        Check("箭头滚轮改线宽而非缩放",
+            Math.Abs(arrow.Style.Width - (before + 1)) < 0.001 && Math.Abs(arrow.Points[1].X - 80) < 0.001,
+            arrow.Style.Width.ToString("0.##"));
+
+        var text = new TextAnnotation { Text = "abc", FontSize = 20 };
+        AnnotationEditing.AdjustOnWheel(text, true);
+        Check("文字滚轮改字号", text.FontSize > 20, text.FontSize.ToString("0.##"));
+
+        var pen = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(0, 0), new PointD(100, 0) });
+        AnnotationEditing.AdjustOnWheel(pen, false);
+        Check("画笔滚轮仍是缩放", pen.Points[1].X < 100, pen.Points[1].X.ToString("0.##"));
+
+        var tiny = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(0, 0), new PointD(5, 0) });
+        AnnotationEditing.AdjustOnWheel(tiny, false);
+        Check("缩小到 6 px 以下即停止", Math.Abs(tiny.Points[1].X - 5) < 0.001, tiny.Points[1].X.ToString("0.##"));
     }
 
     private static NumberBadgeAnnotation Badge(AnnotationDocument doc, double x, double y)

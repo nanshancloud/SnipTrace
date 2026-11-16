@@ -5,11 +5,16 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using PixelFormats = System.Windows.Media.PixelFormats;
 using SnipTrace.App.Infrastructure.Capture;
 using SnipTrace.App.Infrastructure.Encoding;
 using SnipTrace.App.Presentation.Editing;
 using SnipTrace.App.Presentation.Recording;
+using SnipTrace.App.Presentation.Selection;
 using SnipTrace.App.Presentation.Views;
 using SnipTrace.Domain;
 using Color = System.Drawing.Color;
@@ -197,9 +202,112 @@ internal static class SelfTest
         CheckWindowLayouts(root, Check);
         CheckSettingsLiveApply(Check);
         CheckEditorInteractions(Check);
+        CheckSelectionMaskRender(Check);
+        CheckSelectionToolbar(root, Check);
 
         writer.WriteLine($"失败 {failures}");
         return failures;
+    }
+
+    /// <summary>遮罩渲染回归：选区完全落在别的显示器上时不能抛「宽度和高度必须为非负值」。</summary>
+    private static void CheckSelectionMaskRender(Action<string, bool, string?> check)
+    {
+        try
+        {
+            var mask = new SelectionMask
+            {
+                MonitorBounds = new PixelRect(0, 0, 320, 200),
+                Scale = 1,
+                Selection = new PixelRect(900, 640, 120, 60)
+            };
+            RenderElement(mask, 320, 200);
+
+            mask.Selection = new PixelRect(120, 60, 150, 90);
+            mask.Hover = new PixelRect(-50, -40, 80, 60);
+            mask.Scale = 1.25;
+            RenderElement(mask, 320, 200);
+
+            mask.Selection = PixelRect.Empty;
+            RenderElement(mask, 320, 200);
+
+            check("跨屏选区遮罩不崩溃", true, null);
+        }
+        catch (Exception ex)
+        {
+            check("跨屏选区遮罩不崩溃", false, ex.Message);
+        }
+    }
+
+    private static void RenderElement(FrameworkElement element, int width, int height)
+    {
+        element.Measure(new System.Windows.Size(width, height));
+        element.Arrange(new System.Windows.Rect(0, 0, width, height));
+        var target = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        target.Render(element);
+    }
+
+    /// <summary>覆盖层工具条：选择按钮存在，复制与精标用文字标签区分，整条工具条可渲染。</summary>
+    private static void CheckSelectionToolbar(string root, Action<string, bool, string?> check)
+    {
+        try
+        {
+            using var snapshot = DesktopSnapshot.Capture(false);
+            var overlay = new SelectionOverlay(snapshot);
+            var toolbar = new SelectionToolbarWindow();
+            toolbar.Attach(overlay);
+
+            if (toolbar.Content is not FrameworkElement content)
+            {
+                check("覆盖层工具条渲染", false, "无内容");
+                return;
+            }
+
+            content.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            content.Arrange(new System.Windows.Rect(new System.Windows.Point(), content.DesiredSize));
+            content.UpdateLayout();
+
+            var labels = new List<string>();
+            bool hasSelect = false;
+            WalkVisuals(content, node =>
+            {
+                if (node is TextBlock text) labels.Add(text.Text);
+                if (node is ToggleButton toggle && Equals(toggle.Tag, OverlayAnnotateTool.Select)) hasSelect = true;
+            });
+
+            check("工具条有选择按钮", hasSelect, null);
+            check("复制与精标有文字标签", labels.Contains("复制") && labels.Contains("精标"),
+                string.Join("/", labels.Where(t => t is "复制" or "精标")));
+
+            int width = (int)Math.Ceiling(content.ActualWidth);
+            int height = (int)Math.Ceiling(content.ActualHeight);
+            if (width <= 0 || height <= 0)
+            {
+                check("覆盖层工具条渲染", false, "布局尺寸为 0");
+                return;
+            }
+
+            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(content);
+            string path = Path.Combine(root, "selection-toolbar.png");
+            ImageUtil.SavePng(bitmap, path);
+            check("覆盖层工具条渲染", File.Exists(path) && new FileInfo(path).Length > 800, $"{width}×{height}");
+
+            overlay.Dispose();
+        }
+        catch (Exception ex)
+        {
+            check("覆盖层工具条渲染", false, ex.Message);
+        }
+    }
+
+    private static void WalkVisuals(DependencyObject node, Action<DependencyObject> visit)
+    {
+        visit(node);
+        int count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+        for (int i = 0; i < count; i++)
+        {
+            WalkVisuals(System.Windows.Media.VisualTreeHelper.GetChild(node, i), visit);
+        }
     }
 
     /// <summary>画布交互冒烟：多段箭头、双击结束、直角吸附、橡皮只擦画笔。</summary>

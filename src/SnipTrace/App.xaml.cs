@@ -91,6 +91,14 @@ public partial class App : Application
         string? startPage = ReadArgument(e.Args, "--page");
         if (startPage is not null) _shell.ShowPage(startPage);
 
+        // 排查/验收用：启动后立刻进入区域截图 --capture
+        foreach (string argument in e.Args)
+        {
+            if (!argument.Equals("--capture", StringComparison.OrdinalIgnoreCase)) continue;
+            Dispatcher.BeginInvoke(new Action(() => _ = _services.Capture.CaptureAsync()));
+            break;
+        }
+
         WireTray();
         DispatcherUnhandledException += OnUnhandledException;
 
@@ -159,8 +167,13 @@ public partial class App : Application
         try
         {
             string directory = _services?.Paths.RootDirectory ?? System.IO.Path.GetTempPath();
-            System.IO.File.AppendAllText(System.IO.Path.Combine(directory, "error.log"),
-                $"[{DateTime.Now:HH:mm:ss}] {e.Exception}{Environment.NewLine}");
+            string logPath = System.IO.Path.Combine(directory, "error.log");
+
+            // 同一异常可能每帧触发一次：超过 2 MB 就换新文件，避免日志无限膨胀。
+            var log = new System.IO.FileInfo(logPath);
+            if (log.Exists && log.Length > 2 * 1024 * 1024) log.Delete();
+
+            System.IO.File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] {e.Exception}{Environment.NewLine}");
         }
         catch (Exception)
         {

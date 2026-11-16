@@ -17,6 +17,9 @@ public sealed class SelectionMask : FrameworkElement
     private static readonly Pen HoverPen = Freeze(
         new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x5F)), 1) { DashStyle = new DashStyle(new double[] { 4, 3 }, 0) });
 
+    private static readonly Pen SelectionPen = Freeze(
+        new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x5F)), 1.2) { DashStyle = new DashStyle(new double[] { 5, 3 }, 0) });
+
     private BitmapSource? _image;
     private PixelRect _monitorBounds;
     private PixelRect _selection;
@@ -24,6 +27,7 @@ public sealed class SelectionMask : FrameworkElement
     private double _scale = 1;
     private AnnotationDocument? _annotations;
     private PixelRect _annotationArea;
+    private Annotation? _selected;
 
     public BitmapSource? Image
     {
@@ -99,9 +103,26 @@ public sealed class SelectionMask : FrameworkElement
         }
     }
 
+    /// <summary>「选择」工具下当前选中的标注：画一圈虚线框提示可拖动。</summary>
+    public Annotation? Selected
+    {
+        get => _selected;
+        set
+        {
+            if (ReferenceEquals(_selected, value)) return;
+            _selected = value;
+            InvalidateVisual();
+        }
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
-        var full = new Rect(RenderSize);
+        // 布局尚未完成（或窗口尺寸异常）时不绘制，避免 Rect/Size 收到负值抛异常。
+        double width = RenderSize.Width;
+        double height = RenderSize.Height;
+        if (!(width > 0) || !(height > 0)) return;
+
+        var full = new Rect(0, 0, width, height);
         if (_image is not null)
         {
             dc.DrawImage(_image, full);
@@ -118,10 +139,9 @@ public sealed class SelectionMask : FrameworkElement
             // Snipaste 式窗口吸附：光标悬停在窗口上时用虚线框提示可整选的范围。
             if (!_hover.IsEmpty)
             {
-                var hoverLocal = ToLocal(_hover);
-                if (!hoverLocal.IsEmpty)
+                var hoverRect = ToLocal(_hover);
+                if (!hoverRect.IsEmpty && hoverRect.Width > 0 && hoverRect.Height > 0)
                 {
-                    var hoverRect = new Rect(hoverLocal.X, hoverLocal.Y, hoverLocal.Width, hoverLocal.Height);
                     dc.DrawRectangle(HoverFillBrush, null, hoverRect);
                     dc.DrawRectangle(null, HoverPen, hoverRect);
                 }
@@ -130,8 +150,14 @@ public sealed class SelectionMask : FrameworkElement
             return;
         }
 
-        var local = ToLocal(_selection);
-        var selectionRect = new Rect(local.X, local.Y, local.Width, local.Height);
+        // 选区可能完全落在别的显示器上：此时本屏整屏遮罩即可。
+        var selectionRect = ToLocal(_selection);
+        if (selectionRect.IsEmpty || selectionRect.Width <= 0 || selectionRect.Height <= 0)
+        {
+            dc.DrawRectangle(MaskBrush, null, full);
+            return;
+        }
+
         var geometry = new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(full), new RectangleGeometry(selectionRect));
         dc.DrawGeometry(MaskBrush, null, geometry);
 
@@ -174,19 +200,32 @@ public sealed class SelectionMask : FrameworkElement
             AnnotationRenderer.Draw(dc, annotation);
         }
 
+        if (_selected is not null)
+        {
+            var bounds = _selected.Bounds;
+            if (!bounds.IsEmpty)
+            {
+                var box = new Rect(bounds.X - 2, bounds.Y - 2, bounds.Width + 4, bounds.Height + 4);
+                dc.DrawRectangle(null, SelectionPen, box);
+            }
+        }
+
         dc.Pop();
         dc.Pop();
     }
 
     private Rect ToLocal(PixelRect rect)
     {
+        double scale = _scale > 0.01 ? _scale : 1;
         var clipped = PixelRect.Intersect(rect, _monitorBounds);
         if (clipped.IsEmpty) return Rect.Empty;
+
+        // Rect 的宽高必须非负：坐标一律钳到 0 以上，避免 DPI 取整后出现负值。
         return new Rect(
-            (clipped.Left - _monitorBounds.Left) / _scale,
-            (clipped.Top - _monitorBounds.Top) / _scale,
-            clipped.Width / _scale,
-            clipped.Height / _scale);
+            Math.Max(0, (clipped.Left - _monitorBounds.Left) / scale),
+            Math.Max(0, (clipped.Top - _monitorBounds.Top) / scale),
+            Math.Max(0, clipped.Width / scale),
+            Math.Max(0, clipped.Height / scale));
     }
 
     private static T Freeze<T>(T freezable) where T : Freezable

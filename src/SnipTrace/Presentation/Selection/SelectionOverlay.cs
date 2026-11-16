@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -36,6 +37,7 @@ public sealed class SelectionResult
 public enum OverlayAnnotateTool
 {
     None,
+    Select,
     Arrow,
     Pen,
     Rectangle,
@@ -82,7 +84,11 @@ public sealed class SelectionOverlay : IDisposable
     private ShapeAnnotation? _pendingShape;
     private AnnotationTextPopup? _textPopup;
     private int _paletteIndex;
+    private double _strokeWidth = 3;
     private bool _annotating;
+    private Annotation? _selectedAnnotation;
+    private Annotation? _dragAnnotation;
+    private PointD _dragLast;
     private BadgeShape _badgeShape = BadgeShape.Circle;
     private BadgeFillMode _badgeFillMode = BadgeFillMode.Fill;
 
@@ -138,12 +144,13 @@ public sealed class SelectionOverlay : IDisposable
             return;
         }
 
-        // 标注模式下在选区内按下：开始绘制，不改变选区。
+        // 标注模式下在选区内按下：开始绘制 / 开始拖动已选标注，不改变选区。
         if (_annotateTool != OverlayAnnotateTool.None && !_selection.IsEmpty)
         {
             if (_selection.Contains(_cursor))
             {
-                BeginAnnotation();
+                if (_annotateTool == OverlayAnnotateTool.Select) BeginSelectDrag();
+                else BeginAnnotation();
             }
 
             return;
@@ -151,6 +158,8 @@ public sealed class SelectionOverlay : IDisposable
 
         // 普通模式重新框选会改变选区，覆盖层标注随之作废。
         _overlayAnnotations = null;
+        _selectedAnnotation = null;
+        _dragAnnotation = null;
         RefreshAnnotations();
 
         _anchor = _cursor;
@@ -179,6 +188,12 @@ public sealed class SelectionOverlay : IDisposable
     {
         if (_completed) return;
         _cursor = MonitorService.GetCursorPosition();
+
+        if (_dragAnnotation is not null)
+        {
+            UpdateAnnotationDrag();
+            return;
+        }
 
         if (_annotating)
         {
@@ -234,6 +249,13 @@ public sealed class SelectionOverlay : IDisposable
     public void OnMouseUp()
     {
         if (_completed) return;
+        if (_dragAnnotation is not null)
+        {
+            _dragAnnotation = null;
+            RefreshAnnotations();
+            return;
+        }
+
         if (_annotating)
         {
             CommitPendingAnnotation();
@@ -354,7 +376,9 @@ public sealed class SelectionOverlay : IDisposable
     public void SetAnnotateTool(OverlayAnnotateTool tool)
     {
         if (_annotateTool == tool && tool != OverlayAnnotateTool.None) tool = OverlayAnnotateTool.None;
+        if (_annotateTool == OverlayAnnotateTool.Select) _selectedAnnotation = null;
         _annotateTool = tool;
+        RefreshAnnotations();
         _toolbar.RefreshAnnotateState(_annotateTool, AnnotatePalette[_paletteIndex]);
     }
 
@@ -365,7 +389,7 @@ public sealed class SelectionOverlay : IDisposable
         _toolbar.RefreshAnnotateState(_annotateTool, AnnotatePalette[_paletteIndex]);
     }
 
-    private AnnotationStyle CurrentAnnotateStyle() => new(AnnotatePalette[_paletteIndex], 3, 1);
+    private AnnotationStyle CurrentAnnotateStyle() => new(AnnotatePalette[_paletteIndex], _strokeWidth, 1);
 
     private PointD DocPoint(PixelPoint point) => new(point.X - _selection.Left, point.Y - _selection.Top);
 
@@ -377,6 +401,48 @@ public sealed class SelectionOverlay : IDisposable
         {
             _overlayAnnotations = new AnnotationDocument(_selection.Width, _selection.Height);
         }
+    }
+
+    /// <summary>「选择」工具：点中图形 / 文字 / 笔迹即选中，并在拖动时整体平移。</summary>
+    private void BeginSelectDrag()
+    {
+        if (_overlayAnnotations is null || _overlayAnnotations.Annotations.Count == 0)
+        {
+            _selectedAnnotation = null;
+            RefreshAnnotations();
+            return;
+        }
+
+        var point = DocPoint(_cursor);
+        _selectedAnnotation = FindAnnotation(point);
+        _dragAnnotation = _selectedAnnotation;
+        _dragLast = point;
+        RefreshAnnotations();
+    }
+
+    private void UpdateAnnotationDrag()
+    {
+        if (_dragAnnotation is null) return;
+        var point = DocPoint(_cursor);
+        double dx = point.X - _dragLast.X;
+        double dy = point.Y - _dragLast.Y;
+        if (dx == 0 && dy == 0) return;
+
+        _dragAnnotation.Move(dx, dy);
+        _dragLast = point;
+        RefreshAnnotations();
+    }
+
+    /// <summary>自上而下（后画的优先）命中标注。</summary>
+    private Annotation? FindAnnotation(PointD point) => AnnotationEditing.HitTest(_overlayAnnotations, point);
+
+    private void DeleteSelectedAnnotation()
+    {
+        if (_selectedAnnotation is null) return;
+        _overlayAnnotations?.Remove(_selectedAnnotation);
+        _selectedAnnotation = null;
+        _dragAnnotation = null;
+        RefreshAnnotations();
     }
 
     private void BeginAnnotation()
@@ -446,8 +512,8 @@ public sealed class SelectionOverlay : IDisposable
     }
 
     /// <summary>
-    /// 滚轮缩放标注：默认只作用于上一个操作产生的标注（文字 / 图形 / 画笔 / 序号），
-    /// 且光标需位于选区内；每格 10% 步进，缩放围绕图形中心进行。
+    /// 滚轮微调最后一个标注（选择工具下优先取选中的 / 光标下的标注）：
+    /// 矩形、椭圆、箭头改「线宽」；文字、序号改字号；画笔、高亮仍按 10% 缩放。
     /// </summary>
     public void OnMouseWheel(int delta)
     {
@@ -458,50 +524,20 @@ public sealed class SelectionOverlay : IDisposable
         var annotations = _overlayAnnotations;
         if (annotations is null || annotations.Annotations.Count == 0) return;
 
-        double factor = delta > 0 ? 1.1 : 1 / 1.1;
-        switch (annotations.Annotations[^1])
+        var target = _annotateTool == OverlayAnnotateTool.Select ? FindAnnotation(DocPoint(_cursor)) : null;
+        target ??= _selectedAnnotation;
+        if (target is null || !annotations.Annotations.Contains(target)) target = annotations.Annotations[^1];
+
+        // 矩形 / 椭圆 / 箭头改线宽（箭头端头随线宽缩放），文字 / 序号改字号，画笔 / 高亮等比缩放。
+        if (!AnnotationEditing.AdjustOnWheel(target, delta > 0)) return;
+
+        // 线宽记住下来，后续新画的图形 / 箭头沿用。
+        if (target is ShapeAnnotation { Kind: AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Arrow } shape)
         {
-            case TextAnnotation text:
-                text.FontSize = Math.Clamp(text.FontSize * factor, 10, 200);
-                break;
-            case NumberBadgeAnnotation badge:
-                badge.FontSize = Math.Clamp(badge.FontSize * factor, 10, 160);
-                break;
-            case ShapeAnnotation shape:
-                ScaleShape(shape, factor);
-                break;
-            default:
-                return;
+            _strokeWidth = shape.Style.Width;
         }
 
         RefreshAnnotations();
-    }
-
-    private static void ScaleShape(ShapeAnnotation shape, double factor)
-    {
-        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
-        foreach (var point in shape.Points)
-        {
-            minX = Math.Min(minX, point.X);
-            minY = Math.Min(minY, point.Y);
-            maxX = Math.Max(maxX, point.X);
-            maxY = Math.Max(maxY, point.Y);
-        }
-
-        if (minX > maxX) return;
-
-        // 缩小后不足 6 px 时停止，避免缩没了。
-        if (factor < 1 && (maxX - minX) * factor < 6 && (maxY - minY) * factor < 6 && shape.Points.Count > 1) return;
-
-        double centerX = (minX + maxX) / 2;
-        double centerY = (minY + maxY) / 2;
-        for (int i = 0; i < shape.Points.Count; i++)
-        {
-            var point = shape.Points[i];
-            shape.Points[i] = new PointD(
-                centerX + (point.X - centerX) * factor,
-                centerY + (point.Y - centerY) * factor);
-        }
     }
 
     private void ShowTextPopup(PointD point)
@@ -532,9 +568,14 @@ public sealed class SelectionOverlay : IDisposable
 
     private void RefreshAnnotations()
     {
+        var selected = _selectedAnnotation is not null && _overlayAnnotations is not null
+            && _overlayAnnotations.Annotations.Contains(_selectedAnnotation)
+                ? _selectedAnnotation
+                : null;
+
         foreach (var window in _windows)
         {
-            window.UpdateAnnotations(_overlayAnnotations, _selection);
+            window.UpdateAnnotations(_overlayAnnotations, _selection, selected);
         }
     }
 
@@ -585,6 +626,9 @@ public sealed class SelectionOverlay : IDisposable
                 return;
             case Key.S when (modifiers & ModifierKeys.Control) != 0:
                 if (!_selection.IsEmpty) Complete(SelectionAction.Save);
+                return;
+            case Key.Delete or Key.Back when _selectedAnnotation is not null:
+                DeleteSelectedAnnotation();
                 return;
         }
 

@@ -155,7 +155,8 @@ public static class AnnotationRenderer
         double length = Math.Sqrt(dx * dx + dy * dy);
         if (length < 0.5) return;
 
-        double headLength = Math.Min(Math.Max(9, pen.Thickness * 3.8), length);
+        // 端头随线宽同步缩放：细线不至于过大，粗线也不会显得像个小疙瘩。
+        double headLength = Math.Min(Math.Clamp(pen.Thickness * 4.2, 8, 44), length);
         double headWidth = headLength * 0.55;
         double ux = dx / length;
         double uy = dy / length;

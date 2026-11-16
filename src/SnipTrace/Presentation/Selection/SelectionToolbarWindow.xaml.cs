@@ -88,7 +88,7 @@ public partial class SelectionToolbarWindow : Window
         AddSeparator();
         AddAnnotateButtons();
         AddSeparator();
-        AddAction("\uE8C8", "复制到剪贴板（Ctrl+C）", SelectionAction.Copy);
+        AddAction("\uE8C8", "复制到剪贴板（Ctrl+C）：连同标注直接复制，不进入编辑器", SelectionAction.Copy, label: "复制");
         AddAction("\uE74E", "保存为 PNG（Ctrl+S）", SelectionAction.Save);
         AddAction("\uE840", "钉图置顶，截图贴在屏幕上", SelectionAction.Pin);
         AddSeparator();
@@ -96,14 +96,16 @@ public partial class SelectionToolbarWindow : Window
         AddAction("\uE714", "录制 MP4 视频（Ctrl+Shift+R）", SelectionAction.Video);
         AddSeparator();
         AddAction("\uE711", "取消本次截图（Esc / 右键）", SelectionAction.Cancel);
-        AddAction("\uE73E", "完成并进入编辑器精标（Enter）", SelectionAction.Edit, primary: true);
+        AddAction("\uE70F", "精标：完成截图并进入标注编辑器继续调整（Enter）", SelectionAction.Edit, primary: true, label: "精标");
     }
 
     /// <summary>标注工具组：选中任一工具进入覆盖层标注模式，再点一次回到框选模式。</summary>
     private void AddAnnotateButtons()
     {
+        AddAnnotateToggle(OverlayAnnotateTool.Select, StrokeIcon("M3,2 L3,11.4 L5.5,9 L7.2,12.8 L9.1,12 L7.4,8.2 L10.6,8 Z"),
+            "选择：点选图形 / 文字 / 序号 / 笔迹后拖动移动，滚轮改线宽（矩形 / 椭圆 / 箭头）或字号，Delete 删除");
         AddAnnotateToggle(OverlayAnnotateTool.Arrow, StrokeIcon("M2,12 L11,3 M11,3 L7.5,3.5 M11,3 L10.5,6.5"),
-            "箭头标注：在选区内拖动绘制；滚轮缩放上一个标注");
+            "箭头标注：在选区内拖动绘制；滚轮改线宽（箭头端头同步放大 / 缩小）");
         AddAnnotateToggle(OverlayAnnotateTool.Pen, StrokeIcon("M2.5,11.5 L10,4 L12,2 M2.5,11.5 L2,13 L3.5,12.5"),
             "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
         AddAnnotateToggle(OverlayAnnotateTool.Rectangle, StrokeIcon("M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z"),
@@ -349,13 +351,22 @@ public partial class SelectionToolbarWindow : Window
         return new PixelRect(left, top, width, height);
     }
 
-    private void AddAction(string glyph, string hint, SelectionAction action, bool primary = false)
+    private void AddAction(string glyph, string hint, SelectionAction action, bool primary = false, string? label = null)
     {
         var button = new Button
         {
-            Content = IconContent.Create(glyph),
+            Content = BuildActionContent(glyph, label),
             Style = (Style)FindResource(primary ? "ToolIconPrimaryButton" : "ToolIconButton")
         };
+
+        // 带文字的按钮（复制 / 精标）宽度自适应，避免固定 30 px 把文字裁掉。
+        if (label is not null)
+        {
+            button.Width = double.NaN;
+            button.MinWidth = 0;
+            button.Padding = new Thickness(8, 0, 9, 0);
+        }
+
         button.Click += (_, _) =>
         {
             ClosePopups();
@@ -364,6 +375,30 @@ public partial class SelectionToolbarWindow : Window
         };
         AttachHint(button, hint);
         ButtonRow.Children.Add(button);
+    }
+
+    /// <summary>图标 + 文字（可选）：复制与精标用文字标签区分，避免两个「确认感」图标混淆。</summary>
+    private static FrameworkElement BuildActionContent(string glyph, string? label)
+    {
+        if (label is null) return IconContent.Create(glyph);
+
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        panel.Children.Add(IconContent.Create(glyph, 12));
+
+        var text = new TextBlock
+        {
+            Text = label,
+            FontSize = 11,
+            FontFamily = new FontFamily("Microsoft YaHei UI"),
+            Margin = new Thickness(5, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        text.SetBinding(TextBlock.ForegroundProperty, new Binding(nameof(Control.Foreground))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(Button), 1)
+        });
+        panel.Children.Add(text);
+        return panel;
     }
 
     private void AddSeparator()
