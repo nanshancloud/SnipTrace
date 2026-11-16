@@ -14,7 +14,8 @@ public static class AnnotationRenderer
     {
         if (annotation is TextAnnotation { Text.Length: 0 }) return;
 
-        var color = ToColor(annotation.Style.Argb, annotation.Style.Opacity);
+        // 高亮按荧光笔处理：始终半透明，底下文字 / 线条仍然看得见。
+        var color = ToColor(annotation.Style.Argb, AnnotationEditing.RenderOpacity(annotation));
         var brush = Freeze(new SolidColorBrush(color));
         var pen = new Pen(brush, annotation.Style.Width)
         {

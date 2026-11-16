@@ -203,11 +203,141 @@ internal static class SelfTest
         CheckSettingsLiveApply(Check);
         CheckEditorInteractions(Check);
         CheckEditorPanelSync(Check);
+        CheckEditorUndoRedo(Check);
+        CheckHighlightRender(Check);
         CheckSelectionMaskRender(Check);
         CheckSelectionToolbar(root, Check);
 
         writer.WriteLine($"失败 {failures}");
         return failures;
+    }
+
+    /// <summary>高亮渲染半透明：同色画笔不透明作对照，保证覆盖层 / 编辑器 / 导出一致。</summary>
+    private static void CheckHighlightRender(Action<string, bool, string?> check)
+    {
+        try
+        {
+            using var source = new Bitmap(160, 80);
+            using (var graphics = Graphics.FromImage(source)) graphics.Clear(Color.White);
+            var white = ImageUtil.ToBitmapSource(source);
+
+            var highlight = new AnnotationDocument(160, 80);
+            highlight.Add(new ShapeAnnotation(AnnotationKind.Highlight, new[] { new PointD(20, 40), new PointD(140, 40) })
+            {
+                Style = new AnnotationStyle(0xFFFF6B5F, 14, 1)
+            });
+            var rendered = AnnotationRenderer.Render(white, highlight);
+
+            var sample = new byte[4];
+            rendered.CopyPixels(new Int32Rect(80, 40, 1, 1), sample, 4, 0);
+            int highlightGreen = sample[1];
+
+            // 同色画笔（不透明）作对照。
+            var pen = new AnnotationDocument(160, 80);
+            pen.Add(new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(20, 40), new PointD(140, 40) })
+            {
+                Style = new AnnotationStyle(0xFFFF6B5F, 14, 1)
+            });
+            var penRendered = AnnotationRenderer.Render(white, pen);
+            var penSample = new byte[4];
+            penRendered.CopyPixels(new Int32Rect(80, 40, 1, 1), penSample, 4, 0);
+            int penGreen = penSample[1];
+
+            // 半透明会被白底提亮（G 明显高于纯色的 107），不透明则保持原色。
+            check("高亮半透明渲染", highlightGreen > 150 && highlightGreen < 250, $"G={highlightGreen}");
+            check("画笔仍不透明", penGreen < 130, $"G={penGreen}");
+
+            // 存一张对比图：同一段文字上，高亮仍能看见文字，同色画笔则盖住文字。
+            using var demo = new Bitmap(320, 120);
+            using (var graphics = Graphics.FromImage(demo))
+            {
+                graphics.Clear(Color.White);
+                using var font = new Font("Segoe UI", 13);
+                using var textBrush = new SolidBrush(Color.FromArgb(40, 50, 60));
+                graphics.DrawString("Highlight: text still visible", font, textBrush, 12, 48);
+                graphics.DrawString("Pen: text covered", font, textBrush, 12, 88);
+            }
+
+            var demoDocument = new AnnotationDocument(320, 120);
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Highlight,
+                new[] { new PointD(8, 58), new PointD(312, 58) }) { Style = new AnnotationStyle(0xFFFF6B5F, 18, 1) });
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Pen,
+                new[] { new PointD(8, 98), new PointD(312, 98) }) { Style = new AnnotationStyle(0xFFFF6B5F, 6, 1) });
+
+            string folder = Path.Combine(AppContext.BaseDirectory, "selftest");
+            Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, "highlight-transparency.png");
+            ImageUtil.SavePng(AnnotationRenderer.Render(ImageUtil.ToBitmapSource(demo), demoDocument), path);
+            check("高亮对比图输出", File.Exists(path) && new FileInfo(path).Length > 500, "已生成对比图");
+        }
+        catch (Exception ex)
+        {
+            check("高亮半透明渲染", false, ex.Message);
+        }
+    }
+
+    /// <summary>编辑器撤销 / 重做：按钮与快捷键都要能把状态倒回去再拿回来。</summary>
+    private static void CheckEditorUndoRedo(Action<string, bool, string?> check)
+    {
+        EditorWindow? window = null;
+        try
+        {
+            using var source = new Bitmap(420, 300);
+            using (var graphics = Graphics.FromImage(source)) graphics.Clear(Color.FromArgb(28, 34, 44));
+            window = new EditorWindow(ImageUtil.ToBitmapSource(source), "undo-redo");
+
+            var document = window.Canvas.Document;
+            if (document is null)
+            {
+                check("编辑器撤销重做", false, "文档为空");
+                return;
+            }
+
+            var rect = document.Add(new ShapeAnnotation(AnnotationKind.Rectangle,
+                new[] { new PointD(20, 20), new PointD(120, 80) }));
+            window.Canvas.SelectAnnotation(rect);
+            window.Canvas.Refresh();
+            int afterDraw = document.Annotations.Count;
+
+            window.UndoButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            int afterUndo = document.Annotations.Count;
+            bool canRedoAfterUndo = document.CanRedo;
+
+            window.RedoButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            int afterRedo = document.Annotations.Count;
+
+            check("撤销按钮生效", afterDraw == 1 && afterUndo == 0, $"{afterDraw}→{afterUndo}");
+            check("撤销后可重做", canRedoAfterUndo, null);
+            check("重做按钮生效", afterRedo == 1, $"undo={afterUndo} redo={afterRedo}");
+
+            // 文本类编辑（改样式）也要能重做，避免 EndEdit 把 redo 栈清掉。
+            var badge = new NumberBadgeAnnotation { Number = 1, Center = new PointD(200, 120) };
+            document.Add(badge);
+            window.Canvas.SelectAnnotation(badge);
+            window.Canvas.ApplyToSelection(annotation =>
+            {
+                if (annotation is NumberBadgeAnnotation b) b.Shape = BadgeShape.Heart;
+            });
+            window.UndoButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            window.RedoButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            var restored = document.Annotations.OfType<NumberBadgeAnnotation>().FirstOrDefault();
+            check("改样式后可重做", restored is not null && restored.Shape == BadgeShape.Heart,
+                restored is null ? "号标丢失" : restored.Shape.ToString());
+        }
+        catch (Exception ex)
+        {
+            check("编辑器撤销重做", false, ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                window?.Close();
+            }
+            catch (Exception)
+            {
+            }
+        }
     }
 
     /// <summary>编辑器右侧面板与左侧工具联动；只有「选择」工具才显示调整框。</summary>

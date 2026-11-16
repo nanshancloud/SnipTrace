@@ -11,6 +11,21 @@ public static class AnnotationEditing
     public const double MaxTextFontSize = 200;
     public const double MaxBadgeFontSize = 160;
 
+    /// <summary>高亮的固定不透明度：荧光笔效果，保证底下的文字 / 线条看得见。</summary>
+    public const double HighlightOpacity = 0.38;
+
+    /// <summary>
+    /// 渲染时实际使用的不透明度：高亮（Highlight）在样式不透明度之上再压一档，
+    /// 其它标注沿用样式值。覆盖层直标、编辑器与导出共用，保证三处一致。
+    /// </summary>
+    public static double RenderOpacity(Annotation annotation)
+    {
+        double opacity = Math.Clamp(annotation.Style.Opacity, 0, 1);
+        return annotation is ShapeAnnotation { Kind: AnnotationKind.Highlight }
+            ? opacity * HighlightOpacity
+            : opacity;
+    }
+
     /// <summary>自上而下（后画的优先）命中标注；命中不到返回 null。</summary>
     public static Annotation? HitTest(AnnotationDocument? document, PointD point, double extraTolerance = 3)
     {

@@ -178,7 +178,31 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         _document.BeginEdit();
         foreach (var annotation in _selection) action(annotation);
+        _document.MarkChanged();
         _document.EndEdit();
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 撤销 / 重做之后同步画布状态：丢掉已经不在文档里的选中项（否则会留下过期的虚线框），
+    /// 并清理未完成的多段箭头草稿。
+    /// </summary>
+    public void SyncAfterHistory()
+    {
+        _arrowDraft = null;
+        _creating = null;
+        _dragTarget = null;
+        _dragMode = DragMode.None;
+
+        if (_document is null)
+        {
+            _selection.Clear();
+            InvalidateVisual();
+            return;
+        }
+
+        int removed = _selection.RemoveAll(item => !_document.Annotations.Contains(item));
+        if (removed > 0) SelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
     }
 
@@ -580,6 +604,9 @@ public sealed class AnnotationCanvas : FrameworkElement
                 UpdateCursor(screen);
                 break;
         }
+
+        // 拖动改变了标注（移动 / 缩放 / 重定向）：告诉文档这一步有变化，撤销栈才会记录。
+        if (_interactionChanged && _document is not null) _document.MarkChanged();
 
         if (_marquee)
         {

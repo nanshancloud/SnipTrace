@@ -391,6 +391,7 @@ public partial class EditorWindow : Window
 
         _document.BeginEdit();
         foreach (var badge in badges) apply(badge);
+        _document.MarkChanged();
         if (AppServices.Current?.Settings.RenumberBadgesOnStyleChange == true) _document.RenumberByReadingOrder();
         _document.EndEdit();
 
@@ -463,6 +464,7 @@ public partial class EditorWindow : Window
         {
             bool changed = annotation.Text != text;
             annotation.Text = text;
+            if (changed) _document.MarkChanged();
             _document.EndEdit(changed);
         }
 
@@ -522,17 +524,29 @@ public partial class EditorWindow : Window
     private void DoUndo()
     {
         CommitText();
+        if (!_document.CanUndo) return;
+
         _document.Undo();
-        Canvas.Refresh();
-        UpdateStatus();
+        AfterHistoryChanged();
     }
 
     private void DoRedo()
     {
         CommitText();
+        if (!_document.CanRedo) return;
+
         _document.Redo();
+        AfterHistoryChanged();
+    }
+
+    /// <summary>撤销 / 重做之后统一收尾：丢掉已不在文档里的选中项、重画面板与按钮状态。</summary>
+    private void AfterHistoryChanged()
+    {
+        Canvas.SyncAfterHistory();
         Canvas.Refresh();
+        RefreshPanels();
         UpdateStatus();
+        SyncUndoButtons();
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e) => CopyToClipboard();
@@ -709,9 +723,15 @@ public partial class EditorWindow : Window
         }
     }
 
+    /// <summary>
+    /// 撤销 / 重做按钮跟着历史栈状态走：没得撤销就没得点，避免「点了没反应」被当成坏了。
+    /// </summary>
     private void SyncUndoButtons()
     {
-        // 撤销/重做按钮状态由命令可用性体现，这里仅刷新状态栏。
+        UndoButton.IsEnabled = _document.CanUndo;
+        RedoButton.IsEnabled = _document.CanRedo;
+        UndoButton.ToolTip = _document.CanUndo ? "撤销（Ctrl+Z）" : "没有可撤销的操作";
+        RedoButton.ToolTip = _document.CanRedo ? "重做（Ctrl+Shift+Z / Ctrl+Y）" : "没有可重做的操作";
         UpdateStatus();
     }
 

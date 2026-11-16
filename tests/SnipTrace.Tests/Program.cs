@@ -10,6 +10,8 @@ internal static class Program
     private static int Main()
     {
         NumberingTests();
+        HistoryTests();
+        HighlightOpacityTests();
         AnnotationTests();
         AnnotationEditingTests();
         ToolbarAndCanvasTests();
@@ -54,6 +56,91 @@ internal static class Program
         doc2.ResetNumbering();
         Check("重置编号从 1 开始", doc2.NextNumber == 1);
         Check("重置不影响已有标签", doc2.Annotations.OfType<NumberBadgeAnnotation>().Count() == 2);
+    }
+
+    /// <summary>撤销 / 重做的入栈规则：空操作不动历史，「重做」不会莫名其妙失效。</summary>
+    private static void HistoryTests()
+    {
+        var doc = new AnnotationDocument(300, 200);
+        doc.Add(new ShapeAnnotation(AnnotationKind.Rectangle, new[] { new PointD(10, 10), new PointD(90, 60) }));
+        Check("新增后可撤销不可重做", doc.CanUndo && !doc.CanRedo);
+
+        doc.Undo();
+        Check("撤销回到空文档", doc.Annotations.Count == 0 && doc.CanRedo);
+
+        // 选中、点空白、切工具等空会话不能动历史栈，否则「重做」会瞬间失效。
+        doc.BeginEdit();
+        doc.EndEdit();
+        Check("空编辑不清空重做栈", doc.CanRedo, "空 EndEdit 把 redo 清掉了");
+
+        doc.Redo();
+        Check("空操作后仍能重做", doc.Annotations.Count == 1, doc.Annotations.Count.ToString());
+
+        // 真有改动才入栈。
+        doc.BeginEdit();
+        doc.MarkChanged();
+        doc.EndEdit();
+        Check("有变化即清空重做栈", !doc.CanRedo);
+
+        doc.Undo();
+        Check("有变化的一步可撤销", doc.Annotations.Count == 1);
+
+        // 就地修改（移动 / 改样式）不 MarkChanged 就不该留下撤销记录。
+        var inline = new AnnotationDocument(300, 200);
+        var rect = inline.Add(new ShapeAnnotation(AnnotationKind.Rectangle, new[] { new PointD(0, 0), new PointD(40, 40) }));
+        inline.BeginEdit();
+        rect.Move(20, 20);
+        inline.EndEdit();
+        inline.Undo();
+        Check("未标记变化的拖动不入栈", inline.Annotations.Count == 0, "拖动被记成了撤销步骤");
+
+        var moved = new AnnotationDocument(300, 200);
+        moved.Add(new ShapeAnnotation(AnnotationKind.Rectangle, new[] { new PointD(0, 0), new PointD(40, 40) }));
+        var target = moved.Annotations.OfType<ShapeAnnotation>().First();
+        double originalLeft = target.Bounds.Left;
+        moved.BeginEdit();
+        target.Move(20, 20);
+        moved.MarkChanged();
+        moved.EndEdit();
+        moved.Undo();
+        var restored = moved.Annotations.OfType<ShapeAnnotation>().First();
+        Check("撤销移动恢复原位", Math.Abs(restored.Bounds.Left - originalLeft) < 0.001,
+            $"{originalLeft:0.##}→{restored.Bounds.Left:0.##}");
+
+        // 编号没变化时「重排 / 重置」不写历史。
+        var numbering = new AnnotationDocument(300, 200);
+        Badge(numbering, 40, 40);
+        numbering.Undo();          // 回到空
+        numbering.Redo();          // 1 个标签，NextNumber=2
+        bool canRedoBefore = numbering.CanRedo;
+        numbering.RenumberByReadingOrder();
+        Check("编号已就绪时重排不写历史", !numbering.CanRedo && !canRedoBefore);
+    }
+
+    /// <summary>高亮永远是半透明：底下文字看得见，与画笔 / 矩形区分开。</summary>
+    private static void HighlightOpacityTests()
+    {
+        var highlight = new ShapeAnnotation(AnnotationKind.Highlight, new[] { new PointD(0, 0), new PointD(80, 0) })
+        {
+            Style = new AnnotationStyle(0xFFFF6B5F, 12, 1)
+        };
+        var pen = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(0, 0), new PointD(80, 0) })
+        {
+            Style = new AnnotationStyle(0xFFFF6B5F, 3, 1)
+        };
+
+        double highlightOpacity = AnnotationEditing.RenderOpacity(highlight);
+        Check("高亮渲染半透明", Math.Abs(highlightOpacity - AnnotationEditing.HighlightOpacity) < 0.001,
+            highlightOpacity.ToString("0.##"));
+        Check("画笔保持不透明", Math.Abs(AnnotationEditing.RenderOpacity(pen) - 1) < 0.001);
+
+        highlight.Style = highlight.Style.WithOpacity(0.5);
+        Check("高亮透明度叠加样式值",
+            Math.Abs(AnnotationEditing.RenderOpacity(highlight) - AnnotationEditing.HighlightOpacity * 0.5) < 0.001,
+            AnnotationEditing.RenderOpacity(highlight).ToString("0.###"));
+
+        var text = new TextAnnotation { Text = "hi" };
+        Check("文字不受高亮规则影响", Math.Abs(AnnotationEditing.RenderOpacity(text) - text.Style.Opacity) < 0.001);
     }
 
     private static void AnnotationTests()

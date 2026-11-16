@@ -10,6 +10,9 @@ public sealed class AnnotationDocument
     private readonly List<Annotation> _annotations = new();
     private readonly List<State> _undo = new();
     private readonly List<State> _redo = new();
+    private int _version;
+    private int _pendingVersion;
+    private int _editDepth;
     private State? _pending;
     private int _nextNumber = 1;
     private int _zCounter;
@@ -32,6 +35,7 @@ public sealed class AnnotationDocument
         if (newWidth == ImageWidth && newHeight == ImageHeight) return;
         ImageWidth = newWidth;
         ImageHeight = newHeight;
+        _version++;
         RaiseChanged();
     }
 
@@ -50,13 +54,26 @@ public sealed class AnnotationDocument
 
     public void BeginEdit()
     {
-        _pending ??= Capture();
+        // 允许嵌套：内层 BeginEdit 不覆盖外层快照，内层 EndEdit 也不提交。
+        if (_editDepth++ > 0) return;
+        _pending = Capture();
+        _pendingVersion = _version;
     }
 
     public void EndEdit(bool commit = true)
     {
+        if (_editDepth == 0) return;
+        if (--_editDepth > 0)
+        {
+            RaiseChanged();
+            return;
+        }
+
         if (_pending is null) return;
-        if (commit)
+
+        // 这一步确实改了才入栈；没有变化就丢弃，避免「空操作」把重做栈清掉。
+        bool changed = commit && _version != _pendingVersion;
+        if (changed)
         {
             _undo.Add(_pending);
             if (_undo.Count > UndoCapacity) _undo.RemoveAt(0);
@@ -73,9 +90,16 @@ public sealed class AnnotationDocument
         annotation.ZIndex = ++_zCounter;
         _annotations.Add(annotation);
         if (annotation is NumberBadgeAnnotation badge) _nextNumber = Math.Max(_nextNumber, badge.Number + 1);
+        _version++;
         EndEdit();
         return annotation;
     }
+
+    /// <summary>
+    /// 外部就地修改（移动 / 缩放 / 改样式）后调用，让外层 EndEdit 知道这一步确实变了。
+    /// 不变的话不会写入撤销栈，也不会清空重做栈。
+    /// </summary>
+    public void MarkChanged() => _version++;
 
     /// <summary>交互过程中插入标注，不单独产生撤销记录（由外层 BeginEdit/EndEdit 统一提交）。</summary>
     public void InsertWithoutHistory(Annotation annotation)
@@ -83,6 +107,7 @@ public sealed class AnnotationDocument
         annotation.ZIndex = ++_zCounter;
         _annotations.Add(annotation);
         if (annotation is NumberBadgeAnnotation badge) _nextNumber = Math.Max(_nextNumber, badge.Number + 1);
+        _version++;
         RaiseChanged();
     }
 
@@ -94,6 +119,7 @@ public sealed class AnnotationDocument
         {
             SyncSequence();
             _zCounter = _annotations.Count == 0 ? 0 : _annotations.Max(a => a.ZIndex);
+            _version++;
             RaiseChanged();
         }
 
@@ -107,6 +133,7 @@ public sealed class AnnotationDocument
         _annotations.Remove(annotation);
         SyncSequence();
         _zCounter = _annotations.Count == 0 ? 0 : _annotations.Max(a => a.ZIndex);
+        _version++;
         EndEdit();
         return true;
     }
@@ -119,6 +146,7 @@ public sealed class AnnotationDocument
         foreach (var item in items) _annotations.Remove(item);
         SyncSequence();
         _zCounter = _annotations.Count == 0 ? 0 : _annotations.Max(a => a.ZIndex);
+        _version++;
         EndEdit();
         return true;
     }
@@ -130,14 +158,18 @@ public sealed class AnnotationDocument
         _annotations.Clear();
         _nextNumber = 1;
         _zCounter = 0;
+        _version++;
         EndEdit();
     }
 
     /// <summary>从 1 重新开始编号，不影响已有标签。</summary>
     public void ResetNumbering()
     {
+        if (_nextNumber == 1) return;
+
         BeginEdit();
         _nextNumber = 1;
+        _version++;
         EndEdit();
     }
 
@@ -154,9 +186,18 @@ public sealed class AnnotationDocument
             return;
         }
 
+        bool dirty = _nextNumber != badges.Count + 1;
+        for (int i = 0; i < badges.Count && !dirty; i++)
+        {
+            if (badges[i].Number != i + 1) dirty = true;
+        }
+
+        if (!dirty) return;
+
         BeginEdit();
         for (int i = 0; i < badges.Count; i++) badges[i].Number = i + 1;
         _nextNumber = badges.Count + 1;
+        _version++;
         EndEdit();
     }
 
