@@ -65,6 +65,25 @@ dotnet publish src/SnipTrace -c Release -r win-x64 --self-contained false -o dis
 .\dist\win-x64\SnipTrace.exe --page settings              # 直接打开指定页面
 ```
 
+## 分发包
+
+`tools/package.ps1` 一次产出四个包（版本取 `SnipTrace.csproj` 的 `Version`，文件名带版本与处理器架构），输出到 `dist/packages`：
+
+| 类型 | 文件 | 运行时 |
+|---|---|---|
+| 压缩包 | `SnipTrace-<版本>-win-x64-selfcontained.zip` | 内置 .NET 11 桌面运行时，解压即用 |
+| 安装包 | `SnipTrace-<版本>-win-x64-selfcontained-setup.msi` | 同上，装到 `Program Files\SnipTrace` |
+| 压缩包 | `SnipTrace-<版本>-win-x64-fx-dependent.zip` | 需系统安装 .NET 11 桌面运行时 |
+| 安装包 | `SnipTrace-<版本>-win-x64-fx-dependent-setup.msi` | 同上 |
+
+```powershell
+dotnet tool install --global wix --version 5.*   # 首次生成 MSI 需要 WiX v5
+pwsh -File tools/package.ps1                     # 可选 -Runtime win-x64 -Arch x64 -OutputDir <目录>
+```
+
+压缩包内顶层目录固定为 `SnipTrace`；MSI 为 per-machine 安装，附带开始菜单与桌面快捷方式。
+两种分发共用同一 UpgradeCode，可互相升级、二选一安装。发布文件不含 `.pdb`。
+
 ## 工程结构
 
 ```

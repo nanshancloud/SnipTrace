@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  屏迹 SnipTrace 安装包定义（WiX v5）。
+  由 tools/package.ps1 调用：
+    wix build SnipTrace.wxs -arch x64 -d Version=1.0.0 -bindpath publish=<发布目录> -o <输出.msi>
+  两种分发方式（内置运行时 / 框架依赖）共用 UpgradeCode，二选一安装并互相升级。
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="屏迹 SnipTrace"
+           Manufacturer="EricYeung"
+           Version="$(var.Version)"
+           UpgradeCode="6E1C7A4B-9D2F-4C58-9B3A-71D5E8C24F60"
+           Scope="perMachine"
+           Compressed="yes"
+           InstallerVersion="500">
+
+    <MajorUpgrade DowngradeErrorMessage="已安装更新版本的屏迹 SnipTrace，请先卸载当前版本。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="SnipTrace" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramMenuDir" Name="屏迹 SnipTrace">
+        <Component Id="MenuShortcut" Guid="*">
+          <Shortcut Id="MenuShortcut"
+                    Name="屏迹 SnipTrace"
+                    Description="截图、标注、钉图与录屏"
+                    Target="[INSTALLFOLDER]SnipTrace.exe"
+                    WorkingDirectory="INSTALLFOLDER" />
+          <RemoveFolder Id="MenuDirRemove" On="uninstall" />
+          <RegistryValue Root="HKCU" Key="Software\SnipTrace" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="*">
+        <Shortcut Id="DesktopShortcut"
+                  Name="屏迹 SnipTrace"
+                  Description="截图、标注、钉图与录屏"
+                  Target="[INSTALLFOLDER]SnipTrace.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\SnipTrace" Name="desktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="屏迹 SnipTrace" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="MenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <!-- 发布目录下的所有文件与子目录一并收进安装目录 -->
+    <ComponentGroup Id="ProductComponents">
+      <Files Include="!(bindpath.publish)\**" Directory="INSTALLFOLDER" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>
