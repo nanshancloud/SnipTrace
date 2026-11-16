@@ -80,7 +80,14 @@
                              Style="{StaticResource FormatRadio}" ToolTip="浅色界面，选中即生效" />
             </StackPanel>
 
-            <TextBlock Text="截图与录制" FontSize="15" FontWeight="SemiBold" Margin="0,14,0,10" />
+            <TextBlock Text="选区工具条" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,6" />
+            <TextBlock Text="勾选要显示的按钮，用 ↑ ↓ 调整顺序；保存后下一次截图生效。"
+                       Style="{StaticResource CaptionText}" Margin="0,0,0,10" />
+            <StackPanel x:Name="ToolbarListPanel" />
+            <Button Content="恢复默认工具条" Style="{StaticResource SecondaryButton}" Margin="0,6,0,0"
+                    Click="ResetToolbar_Click" ToolTip="恢复全部按钮并按默认顺序排列" />
+
+            <TextBlock Text="截图与录制" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,10" />
             <CheckBox x:Name="CursorInCaptureCheck" Content="截图包含鼠标指针" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10" />
             <CheckBox x:Name="CopyAfterCaptureCheck" Content="截图完成后自动复制到剪贴板" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10" />
             <CheckBox x:Name="AutoSaveCheck" Content="截图后自动保存到截图目录（复制、钉图、进编辑器时静默保存 PNG）"

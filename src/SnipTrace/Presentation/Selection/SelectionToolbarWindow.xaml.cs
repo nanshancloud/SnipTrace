@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -24,6 +25,7 @@ public partial class SelectionToolbarWindow : Window
     private readonly SelectionRatioWindow _ratioPopup = new();
     private readonly SelectionBadgeWindow _badgePopup = new();
     private readonly List<ToggleButton> _annotateButtons = new();
+    private List<ToolbarItemSetting> _items = SelectionToolbarItems.CreateDefault();
     private SelectionOverlay? _overlay;
     private ToggleButton? _ratioButton;
     private TextBlock? _ratioLabel;
@@ -34,9 +36,10 @@ public partial class SelectionToolbarWindow : Window
         InitializeComponent();
     }
 
-    public void Attach(SelectionOverlay overlay)
+    public void Attach(SelectionOverlay overlay, IReadOnlyList<ToolbarItemSetting>? items = null)
     {
         _overlay = overlay;
+        _items = SelectionToolbarItems.Normalize(items?.ToList());
         _ratioPopup.Attach(overlay);
         _badgePopup.Attach(overlay);
         BuildActions();
@@ -82,40 +85,104 @@ public partial class SelectionToolbarWindow : Window
         if (_ratioButton is not null) _ratioButton.IsChecked = false;
     }
 
+    /// <summary>按设置里的顺序与显示状态构建工具条；跨分组时自动插分隔线。</summary>
     private void BuildActions()
     {
-        AddRatioButton();
-        AddSeparator();
-        AddAnnotateButtons();
-        AddSeparator();
-        AddAction("\uE8C8", "复制到剪贴板（Ctrl+C）：连同标注直接复制，不进入编辑器", SelectionAction.Copy, label: "复制");
-        AddAction("\uE74E", "保存为 PNG（Ctrl+S）", SelectionAction.Save);
-        AddAction("\uE840", "钉图置顶，截图贴在屏幕上", SelectionAction.Pin);
-        AddSeparator();
-        AddAction("\uE91B", "录制 GIF 动图（Ctrl+Shift+G）", SelectionAction.Gif);
-        AddAction("\uE714", "录制 MP4 视频（Ctrl+Shift+R）", SelectionAction.Video);
-        AddSeparator();
-        AddAction("\uE711", "取消本次截图（Esc / 右键）", SelectionAction.Cancel);
-        AddAction("\uE70F", "精标：完成截图并进入标注编辑器继续调整（Enter）", SelectionAction.Edit, primary: true, label: "精标");
+        ButtonRow.Children.Clear();
+        _annotateButtons.Clear();
+        _ratioButton = null;
+        _ratioLabel = null;
+        _colorSwatch = null;
+
+        string? previousGroup = null;
+        foreach (var item in _items)
+        {
+            if (!item.Visible) continue;
+            string group = SelectionToolbarCatalog.GroupOf(item.Id);
+            if (previousGroup is not null && !string.Equals(previousGroup, group, StringComparison.Ordinal)) AddSeparator();
+            previousGroup = group;
+            AddItem(item.Id);
+        }
     }
 
-    /// <summary>标注工具组：选中任一工具进入覆盖层标注模式，再点一次回到框选模式。</summary>
-    private void AddAnnotateButtons()
+    /// <summary>单个按钮：按 Id 生成对应控件（图标、提示与动作集中在 AddItem 里，便于配置顺序）。</summary>
+    private void AddItem(string id)
     {
-        AddAnnotateToggle(OverlayAnnotateTool.Select, StrokeIcon("M3,2 L3,11.4 L5.5,9 L7.2,12.8 L9.1,12 L7.4,8.2 L10.6,8 Z"),
-            "选择：点选图形 / 文字 / 序号 / 笔迹后拖动移动，滚轮改线宽（矩形 / 椭圆 / 箭头）或字号，Delete 删除");
-        AddAnnotateToggle(OverlayAnnotateTool.Arrow, StrokeIcon("M2,12 L11,3 M11,3 L7.5,3.5 M11,3 L10.5,6.5"),
-            "箭头标注：在选区内拖动绘制；滚轮改线宽（箭头端头同步放大 / 缩小）");
-        AddAnnotateToggle(OverlayAnnotateTool.Pen, StrokeIcon("M2.5,11.5 L10,4 L12,2 M2.5,11.5 L2,13 L3.5,12.5"),
-            "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
-        AddAnnotateToggle(OverlayAnnotateTool.Rectangle, StrokeIcon("M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z"),
-            "矩形标注：在选区内拖出矩形；再点一次退出标注模式");
-        AddAnnotateToggle(OverlayAnnotateTool.Ellipse, StrokeIcon("M7,3 C10.3,3 12,4.6 12,7 C12,9.4 10.3,11 7,11 C3.7,11 2,9.4 2,7 C2,4.6 3.7,3 7,3 Z"),
-            "椭圆标注：在选区内拖出椭圆；再点一次退出标注模式");
-        AddAnnotateToggle(OverlayAnnotateTool.Text, TextIcon(),
-            "文字标注：在选区内点击后输入，Enter 确认、Esc 取消；滚轮缩放上一个标注");
-        AddBadgeButton();
-        AddColorButton();
+        switch (id)
+        {
+            case SelectionToolbarItems.Ratio:
+                AddRatioButton();
+                break;
+
+            case SelectionToolbarItems.Select:
+                AddAnnotateToggle(OverlayAnnotateTool.Select, StrokeIcon("M3,2 L3,11.4 L5.5,9 L7.2,12.8 L9.1,12 L7.4,8.2 L10.6,8 Z"),
+                    "选择：点选图形 / 文字 / 序号 / 笔迹后拖动移动，滚轮改线宽（矩形 / 椭圆 / 箭头）或字号，Delete 删除");
+                break;
+
+            case SelectionToolbarItems.Arrow:
+                AddAnnotateToggle(OverlayAnnotateTool.Arrow, StrokeIcon("M2,12 L11,3 M11,3 L7.5,3.5 M11,3 L10.5,6.5"),
+                    "箭头标注：在选区内拖动绘制；滚轮改线宽（箭头端头同步放大 / 缩小）");
+                break;
+
+            case SelectionToolbarItems.Pen:
+                AddAnnotateToggle(OverlayAnnotateTool.Pen, StrokeIcon("M2.5,11.5 L10,4 L12,2 M2.5,11.5 L2,13 L3.5,12.5"),
+                    "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
+                break;
+
+            case SelectionToolbarItems.Rectangle:
+                AddAnnotateToggle(OverlayAnnotateTool.Rectangle, StrokeIcon("M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z"),
+                    "矩形标注：在选区内拖出矩形；再点一次退出标注模式");
+                break;
+
+            case SelectionToolbarItems.Ellipse:
+                AddAnnotateToggle(OverlayAnnotateTool.Ellipse,
+                    StrokeIcon("M7,3 C10.3,3 12,4.6 12,7 C12,9.4 10.3,11 7,11 C3.7,11 2,9.4 2,7 C2,4.6 3.7,3 7,3 Z"),
+                    "椭圆标注：在选区内拖出椭圆；再点一次退出标注模式");
+                break;
+
+            case SelectionToolbarItems.Text:
+                AddAnnotateToggle(OverlayAnnotateTool.Text, TextIcon(),
+                    "文字标注：在选区内点击后输入，Enter 确认、Esc 取消；滚轮改字号");
+                break;
+
+            case SelectionToolbarItems.Number:
+                AddBadgeButton();
+                break;
+
+            case SelectionToolbarItems.Color:
+                AddColorButton();
+                break;
+
+            case SelectionToolbarItems.Copy:
+                AddAction("\uE8C8", "复制到剪贴板（Ctrl+C）：连同标注直接复制，不进入编辑器",
+                    SelectionAction.Copy, label: "复制");
+                break;
+
+            case SelectionToolbarItems.Save:
+                AddAction("\uE74E", "保存为 PNG（Ctrl+S）", SelectionAction.Save);
+                break;
+
+            case SelectionToolbarItems.Pin:
+                AddAction("\uE840", "钉图置顶，截图贴在屏幕上", SelectionAction.Pin);
+                break;
+
+            case SelectionToolbarItems.Gif:
+                AddAction("\uE91B", "录制 GIF 动图（Ctrl+Shift+G）", SelectionAction.Gif);
+                break;
+
+            case SelectionToolbarItems.Video:
+                AddAction("\uE714", "录制 MP4 视频（Ctrl+Shift+R）", SelectionAction.Video);
+                break;
+
+            case SelectionToolbarItems.Cancel:
+                AddAction("\uE711", "取消本次截图（Esc / 右键）", SelectionAction.Cancel);
+                break;
+
+            case SelectionToolbarItems.Refine:
+                AddAction("\uE70F", "精标：完成截图并进入标注编辑器继续调整（Enter）",
+                    SelectionAction.Edit, primary: true, label: "精标");
+                break;
+        }
     }
 
     /// <summary>序号标记：点击选区放置自增序号；弹出层选择形状（圆/三角/方/五边/六边/心形/圆角）与填充方式。</summary>

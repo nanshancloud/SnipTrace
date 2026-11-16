@@ -55,7 +55,6 @@ public sealed class SelectionOverlay : IDisposable
     private readonly List<SelectionOverlayWindow> _windows = new();
     private readonly SelectionToolbarWindow _toolbar = new();
     private readonly SelectionMagnifierWindow _magnifier = new();
-    private readonly SelectionContextMenu _contextMenu = new();
     private readonly TaskCompletionSource<SelectionResult?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly PixelRect _virtualBounds;
 
@@ -74,8 +73,9 @@ public sealed class SelectionOverlay : IDisposable
     private DateTime _lastHoverProbe = DateTime.MinValue;
     private bool _dragging;
     private bool _dragStarted;
-    private bool _menuOpen;
     private bool _completed;
+    private RectCorner _resizeCorner;
+    private PixelRect _resizeStart;
 
     // 覆盖层标注（Snipaste 式）：选区内直接绘制，进编辑器可继续精标。
     private static readonly uint[] AnnotatePalette = { 0xFFFF6B5F, 0xFFFFCC00, 0xFF59E0BE, 0xFF4C8DFF, 0xFFF2F6FC, 0xFF1F2733 };
@@ -92,13 +92,12 @@ public sealed class SelectionOverlay : IDisposable
     private BadgeShape _badgeShape = BadgeShape.Circle;
     private BadgeFillMode _badgeFillMode = BadgeFillMode.Fill;
 
-    public SelectionOverlay(DesktopSnapshot snapshot)
+    public SelectionOverlay(DesktopSnapshot snapshot, IReadOnlyList<ToolbarItemSetting>? toolbarItems = null)
     {
         _snapshot = snapshot;
         _virtualBounds = snapshot.Bounds;
         _cursor = MonitorService.GetCursorPosition();
-        _toolbar.Attach(this);
-        _contextMenu.Attach(this);
+        _toolbar.Attach(this, toolbarItems);
     }
 
     public PixelRect Selection => _selection;
@@ -135,12 +134,19 @@ public sealed class SelectionOverlay : IDisposable
     {
         if (_completed) return;
         _cursor = MonitorService.GetCursorPosition();
-        HideContextMenu();
         _toolbar.ClosePopups();
 
         if (doubleClick && !_selection.IsEmpty)
         {
             Complete(SelectionAction.Copy);
+            return;
+        }
+
+        // 选区四角：无论是否已经标注，拖角都能继续调整选区大小（标注随选区一起对齐）。
+        if (!_selection.IsEmpty
+            && _annotateTool is OverlayAnnotateTool.None or OverlayAnnotateTool.Select
+            && TryBeginResize())
+        {
             return;
         }
 
@@ -189,6 +195,12 @@ public sealed class SelectionOverlay : IDisposable
         if (_completed) return;
         _cursor = MonitorService.GetCursorPosition();
 
+        if (_resizeCorner != RectCorner.None)
+        {
+            ApplyResize();
+            return;
+        }
+
         if (_dragAnnotation is not null)
         {
             UpdateAnnotationDrag();
@@ -199,20 +211,6 @@ public sealed class SelectionOverlay : IDisposable
         {
             UpdatePendingAnnotation();
             return;
-        }
-
-        if (_menuOpen)
-        {
-            // 光标离开菜单即收起；在菜单上移动时不刷新放大镜，保持让位状态。
-            var menuBounds = _contextMenu.GetBounds();
-            if (menuBounds.IsEmpty || !menuBounds.Inflate(4).Contains(_cursor))
-            {
-                HideContextMenu();
-            }
-            else
-            {
-                return;
-            }
         }
 
         if (_dragging)
@@ -241,6 +239,7 @@ public sealed class SelectionOverlay : IDisposable
         else
         {
             UpdateHoverWindow();
+            UpdateResizeCursor();
         }
 
         UpdateToolbar();
@@ -249,6 +248,16 @@ public sealed class SelectionOverlay : IDisposable
     public void OnMouseUp()
     {
         if (_completed) return;
+        if (_resizeCorner != RectCorner.None)
+        {
+            _resizeCorner = RectCorner.None;
+            _cursor = MonitorService.GetCursorPosition();
+            UpdateViews();
+            UpdateResizeCursor();
+            UpdateToolbar(forceMagnifier: true);
+            return;
+        }
+
         if (_dragAnnotation is not null)
         {
             _dragAnnotation = null;
@@ -291,6 +300,70 @@ public sealed class SelectionOverlay : IDisposable
         UpdateViews();
     }
 
+    /// <summary>光标落在选区四角时开始拖角调整大小（普通模式与「选择」工具下可用）。</summary>
+    private bool TryBeginResize()
+    {
+        var corner = RectResize.HitCorner(_selection, _cursor);
+        if (corner == RectCorner.None) return false;
+
+        _resizeCorner = corner;
+        _resizeStart = _selection;
+        SetCursor(corner is RectCorner.TopLeft or RectCorner.BottomRight ? Cursors.SizeNWSE : Cursors.SizeNESW);
+        return true;
+    }
+
+    /// <summary>拖角调整选区：对角固定，选区与标注一起对齐；小于 8 px 的中间态不落地。</summary>
+    private void ApplyResize()
+    {
+        var before = _selection;
+        var rect = RectResize.FromCorner(_resizeStart, _resizeCorner, _cursor, _virtualBounds);
+        if (rect.Equals(before)) return;
+
+        _selection = rect;
+        SyncAnnotations(before);
+        UpdateViews();
+        UpdateToolbar();
+    }
+
+    /// <summary>选区尺寸 / 位置变化后，让已画标注继续贴在原来的屏幕位置上。</summary>
+    private void SyncAnnotations(PixelRect before)
+    {
+        if (_overlayAnnotations is null) return;
+
+        int dx = _selection.Left - before.Left;
+        int dy = _selection.Top - before.Top;
+        if (dx != 0 || dy != 0)
+        {
+            foreach (var annotation in _overlayAnnotations.Annotations) annotation.Move(-dx, -dy);
+        }
+
+        _overlayAnnotations.ResizeCanvas(_selection.Width, _selection.Height);
+        RefreshAnnotations();
+    }
+
+    /// <summary>光标反馈：四角显示斜向双箭头，其余位置保持十字。</summary>
+    private void UpdateResizeCursor()
+    {
+        var corner = _annotateTool is OverlayAnnotateTool.None or OverlayAnnotateTool.Select
+            ? RectResize.HitCorner(_selection, _cursor)
+            : RectCorner.None;
+
+        SetCursor(corner switch
+        {
+            RectCorner.TopLeft or RectCorner.BottomRight => Cursors.SizeNWSE,
+            RectCorner.TopRight or RectCorner.BottomLeft => Cursors.SizeNESW,
+            _ => Cursors.Cross
+        });
+    }
+
+    private void SetCursor(Cursor cursor)
+    {
+        foreach (var window in _windows)
+        {
+            if (!ReferenceEquals(window.Cursor, cursor)) window.Cursor = cursor;
+        }
+    }
+
     /// <summary>
     /// 拖动中按住 Shift 时，以按下 Shift 那一刻的形状比例临时锁定，
     /// 松开后恢复自由比例；已有预设比例时始终以预设为准。
@@ -314,8 +387,8 @@ public sealed class SelectionOverlay : IDisposable
     }
 
     /// <summary>
-    /// 右键（参考 Snipaste）：拖动中中断本次拖拽；无选区退出截图；
-    /// 有选区弹出快捷操作菜单。
+    /// 右键：拖动中只中断本次拖拽；其余情况直接取消本次截图（选区界面不再弹菜单，
+    /// 右键菜单只保留在钉图窗口里）。
     /// </summary>
     public void OnRightClick()
     {
@@ -331,12 +404,6 @@ public sealed class SelectionOverlay : IDisposable
             _selection = PixelRect.Empty;
             UpdateViews();
             UpdateToolbar(forceMagnifier: true);
-            return;
-        }
-
-        if (!_selection.IsEmpty)
-        {
-            ShowContextMenu();
             return;
         }
 
@@ -393,14 +460,16 @@ public sealed class SelectionOverlay : IDisposable
 
     private PointD DocPoint(PixelPoint point) => new(point.X - _selection.Left, point.Y - _selection.Top);
 
+    /// <summary>标注文档跟随当前选区：没有就新建，已有则只同步画布尺寸（不再丢标注）。</summary>
     private void EnsureAnnotations()
     {
-        if (_overlayAnnotations is null
-            || _overlayAnnotations.ImageWidth != _selection.Width
-            || _overlayAnnotations.ImageHeight != _selection.Height)
+        if (_overlayAnnotations is null)
         {
             _overlayAnnotations = new AnnotationDocument(_selection.Width, _selection.Height);
+            return;
         }
+
+        _overlayAnnotations.ResizeCanvas(_selection.Width, _selection.Height);
     }
 
     /// <summary>「选择」工具：点中图形 / 文字 / 笔迹即选中，并在拖动时整体平移。</summary>
@@ -579,24 +648,6 @@ public sealed class SelectionOverlay : IDisposable
         }
     }
 
-    private void ShowContextMenu()
-    {
-        _menuOpen = true;
-        _magnifier.SetShown(false);
-        _contextMenu.ShowMenu(_cursor);
-
-        // 新建的置顶窗口会把同层窗口挤到覆盖层后面，重新提回置顶层。
-        if (_toolbar.IsVisible) WindowPlacement.Raise(_toolbar);
-        WindowPlacement.Raise(_contextMenu);
-    }
-
-    private void HideContextMenu()
-    {
-        if (!_menuOpen) return;
-        _menuOpen = false;
-        _contextMenu.HideMenu();
-    }
-
     public void OnKeyDown(Key key, ModifierKeys modifiers)
     {
         if (_completed) return;
@@ -604,12 +655,6 @@ public sealed class SelectionOverlay : IDisposable
         switch (key)
         {
             case Key.Escape:
-                if (_menuOpen)
-                {
-                    HideContextMenu();
-                    return;
-                }
-
                 if (_annotateTool != OverlayAnnotateTool.None)
                 {
                     SetAnnotateTool(OverlayAnnotateTool.None);
@@ -653,7 +698,9 @@ public sealed class SelectionOverlay : IDisposable
                 return;
         }
 
+        var before = _selection;
         _selection = moved.ClampTo(_virtualBounds);
+        SyncAnnotations(before);
         UpdateViews();
         UpdateToolbar();
     }
@@ -667,7 +714,9 @@ public sealed class SelectionOverlay : IDisposable
 
         if (!_selection.IsEmpty && !_effectiveRatio.IsFree)
         {
+            var before = _selection;
             _selection = _effectiveRatio.FitCentered(_selection, _virtualBounds);
+            SyncAnnotations(before);
         }
 
         UpdateViews();
@@ -716,12 +765,11 @@ public sealed class SelectionOverlay : IDisposable
         _completion.TrySetResult(result);
     }
 
-    /// <summary>收起覆盖层上的浮动窗口（工具条 / 菜单 / 放大镜 / 文字输入框），保留选区与标注画面。</summary>
+    /// <summary>收起覆盖层上的浮动窗口（工具条 / 放大镜 / 文字输入框），保留选区与标注画面。</summary>
     private void SuspendFloaters()
     {
         try
         {
-            HideContextMenu();
             _toolbar.SetShown(false);
             _magnifier.SetShown(false);
             _textPopup?.Close();
@@ -745,7 +793,6 @@ public sealed class SelectionOverlay : IDisposable
     {
         try
         {
-            HideContextMenu();
             _toolbar.Hide();
             _magnifier.SetShown(false);
             _textPopup?.Close();

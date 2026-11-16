@@ -20,9 +20,20 @@ public sealed class AnnotationDocument
         ImageHeight = Math.Max(1, imageHeight);
     }
 
-    public int ImageWidth { get; }
+    public int ImageWidth { get; private set; }
 
-    public int ImageHeight { get; }
+    public int ImageHeight { get; private set; }
+
+    /// <summary>调整画布尺寸（覆盖层改选区大小时同步），已有标注坐标不变。</summary>
+    public void ResizeCanvas(int width, int height)
+    {
+        int newWidth = Math.Max(1, width);
+        int newHeight = Math.Max(1, height);
+        if (newWidth == ImageWidth && newHeight == ImageHeight) return;
+        ImageWidth = newWidth;
+        ImageHeight = newHeight;
+        RaiseChanged();
+    }
 
     public IReadOnlyList<Annotation> Annotations => _annotations;
 

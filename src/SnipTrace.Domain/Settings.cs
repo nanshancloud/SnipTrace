@@ -229,6 +229,77 @@ public sealed class HighlightOptions
     }
 }
 
+/// <summary>选区工具条上的一个按钮：Id 见 <see cref="SelectionToolbarItems"/>，Visible=false 即隐藏。</summary>
+public sealed class ToolbarItemSetting
+{
+    public string Id { get; set; } = string.Empty;
+
+    public bool Visible { get; set; } = true;
+}
+
+/// <summary>选区工具条按钮 Id 与默认排列（列表顺序就是显示顺序，可增删）。</summary>
+public static class SelectionToolbarItems
+{
+    public const string Ratio = "ratio";
+    public const string Select = "select";
+    public const string Arrow = "arrow";
+    public const string Pen = "pen";
+    public const string Rectangle = "rectangle";
+    public const string Ellipse = "ellipse";
+    public const string Text = "text";
+    public const string Number = "number";
+    public const string Color = "color";
+    public const string Copy = "copy";
+    public const string Save = "save";
+    public const string Pin = "pin";
+    public const string Gif = "gif";
+    public const string Video = "video";
+    public const string Cancel = "cancel";
+    public const string Refine = "refine";
+
+    /// <summary>全部按钮，数组顺序即默认顺序。</summary>
+    public static readonly string[] All =
+    {
+        Ratio, Select, Arrow, Pen, Rectangle, Ellipse, Text, Number, Color,
+        Copy, Save, Pin, Gif, Video, Cancel, Refine
+    };
+
+    public static bool IsKnown(string? id) => id is not null && Array.IndexOf(All, id) >= 0;
+
+    public static List<ToolbarItemSetting> CreateDefault()
+        => All.Select(id => new ToolbarItemSetting { Id = id, Visible = true }).ToList();
+
+    public static List<ToolbarItemSetting> Clone(List<ToolbarItemSetting>? items)
+        => items is null
+            ? CreateDefault()
+            : items.Select(item => new ToolbarItemSetting { Id = item.Id, Visible = item.Visible }).ToList();
+
+    /// <summary>去掉未知 / 重复项并补齐缺失按钮，避免手改配置把工具条弄坏。</summary>
+    public static List<ToolbarItemSetting> Normalize(List<ToolbarItemSetting>? items)
+    {
+        var result = new List<ToolbarItemSetting>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (items is not null)
+        {
+            foreach (var item in items)
+            {
+                if (item is null || string.IsNullOrWhiteSpace(item.Id)) continue;
+                string id = item.Id.Trim();
+                if (!IsKnown(id) || !seen.Add(id)) continue;
+                result.Add(new ToolbarItemSetting { Id = id, Visible = item.Visible });
+            }
+        }
+
+        foreach (string id in All)
+        {
+            if (seen.Add(id)) result.Add(new ToolbarItemSetting { Id = id, Visible = true });
+        }
+
+        return result;
+    }
+}
+
 public sealed class AppSettings
 {
     public const string DefaultCaptureHotkey = "F1";
@@ -259,6 +330,9 @@ public sealed class AppSettings
 
     /// <summary>序号标记改样式（形状 / 填充）后是否按阅读顺序重新计数。</summary>
     public bool RenumberBadgesOnStyleChange { get; set; }
+
+    /// <summary>选区工具条按钮的顺序与显示状态。</summary>
+    public List<ToolbarItemSetting> SelectionToolbar { get; set; } = SelectionToolbarItems.CreateDefault();
 
     public HighlightOptions Highlight { get; set; } = new();
 
@@ -291,6 +365,7 @@ public sealed class AppSettings
         Video ??= new VideoOptions();
         Gif.Normalize();
         Video.Normalize();
+        SelectionToolbar = SelectionToolbarItems.Normalize(SelectionToolbar);
         Highlight ??= new HighlightOptions();
         Highlight.Normalize();
         Theme = ThemeModes.Normalize(Theme);

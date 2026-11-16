@@ -12,6 +12,7 @@ internal static class Program
         NumberingTests();
         AnnotationTests();
         AnnotationEditingTests();
+        ToolbarAndCanvasTests();
         BadgeShapeTests();
         RecordingTests();
         SettingsTests();
@@ -309,6 +310,89 @@ internal static class Program
 
         var straight = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
         Check("默认箭头仅末端有头", straight.ArrowHead == ArrowHead.End);
+    }
+
+    /// <summary>选区工具条配置（增删 / 排序）与标注画布尺寸同步。</summary>
+    private static void ToolbarAndCanvasTests()
+    {
+        var defaults = SelectionToolbarItems.CreateDefault();
+        Check("工具条默认按钮数", defaults.Count == SelectionToolbarItems.All.Length, defaults.Count.ToString());
+        Check("工具条默认全显示", defaults.All(item => item.Visible));
+        Check("工具条默认顺序", defaults.Select(item => item.Id).SequenceEqual(SelectionToolbarItems.All));
+
+        var custom = new List<ToolbarItemSetting>
+        {
+            new() { Id = SelectionToolbarItems.Refine },
+            new() { Id = SelectionToolbarItems.Copy, Visible = false },
+            new() { Id = "不存在的按钮" },
+            new() { Id = SelectionToolbarItems.Refine },
+            new() { Id = SelectionToolbarItems.Select }
+        };
+        var normalized = SelectionToolbarItems.Normalize(custom);
+        Check("工具条去重并忽略未知项",
+            normalized[0].Id == SelectionToolbarItems.Refine
+            && normalized[1].Id == SelectionToolbarItems.Copy
+            && normalized[2].Id == SelectionToolbarItems.Select,
+            string.Join(",", normalized.Take(3).Select(i => i.Id)));
+        Check("工具条保留隐藏状态", !normalized[1].Visible);
+        Check("工具条补齐缺失按钮", normalized.Count == SelectionToolbarItems.All.Length, normalized.Count.ToString());
+
+        // 往返持久化：camelCase JSON 能读回顺序与隐藏状态。
+        var options = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        var readOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var custom2 = new AppSettings
+        {
+            SelectionToolbar = new List<ToolbarItemSetting>
+            {
+                new() { Id = SelectionToolbarItems.Refine },
+                new() { Id = SelectionToolbarItems.Copy, Visible = false },
+                new() { Id = SelectionToolbarItems.Select }
+            }
+        };
+        var saved = System.Text.Json.JsonSerializer.Serialize(custom2, options);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(saved, readOptions);
+        restored?.Normalize(Path.GetTempPath(), Path.GetTempPath());
+        Check("工具条配置往返持久化",
+            restored is not null
+            && restored.SelectionToolbar[0].Id == SelectionToolbarItems.Refine
+            && !restored.SelectionToolbar[1].Visible
+            && restored.SelectionToolbar[2].Id == SelectionToolbarItems.Select
+            && restored.SelectionToolbar.Count == SelectionToolbarItems.All.Length,
+            restored is null ? "反序列化为空" : string.Join(",", restored.SelectionToolbar.Take(3).Select(i => i.Id + (i.Visible ? "+" : "-"))));
+
+        var canvas = new AnnotationDocument(200, 120);
+        var badge = canvas.Add(new NumberBadgeAnnotation { Number = 1, Center = new PointD(50, 40) });
+        canvas.ResizeCanvas(320, 240);
+        Check("画布尺寸随之调整", canvas.ImageWidth == 320 && canvas.ImageHeight == 240,
+            $"{canvas.ImageWidth}×{canvas.ImageHeight}");
+        Check("改画布不动标注坐标", badge.Center.X == 50 && badge.Center.Y == 40);
+        canvas.ResizeCanvas(0, -10);
+        Check("画布尺寸至少 1", canvas.ImageWidth >= 1 && canvas.ImageHeight >= 1);
+
+        // 拖角改选区：对角固定、越界裁剪、最小尺寸保护。
+        var selection = new PixelRect(100, 100, 200, 150);
+        var bounds = new PixelRect(0, 0, 500, 400);
+
+        Check("四角命中", RectResize.HitCorner(selection, new PixelPoint(102, 98)) == RectCorner.TopLeft
+            && RectResize.HitCorner(selection, new PixelPoint(299, 101)) == RectCorner.TopRight
+            && RectResize.HitCorner(selection, new PixelPoint(101, 249)) == RectCorner.BottomLeft
+            && RectResize.HitCorner(selection, new PixelPoint(298, 252)) == RectCorner.BottomRight);
+        Check("选区中间不命中角", RectResize.HitCorner(selection, new PixelPoint(200, 170)) == RectCorner.None);
+
+        var grown = RectResize.FromCorner(selection, RectCorner.BottomRight, new PixelPoint(380, 330), bounds);
+        Check("拖右下角向右下扩大", grown.Left == 100 && grown.Top == 100 && grown.Right == 380 && grown.Bottom == 330,
+            $"{grown.Left},{grown.Top},{grown.Right},{grown.Bottom}");
+
+        var shrunk = RectResize.FromCorner(selection, RectCorner.TopLeft, new PixelPoint(150, 130), bounds);
+        Check("拖左上角保持右下角不动", shrunk.Right == 300 && shrunk.Bottom == 250 && shrunk.Left == 150 && shrunk.Top == 130,
+            $"{shrunk.Left},{shrunk.Top},{shrunk.Right},{shrunk.Bottom}");
+
+        var clamped = RectResize.FromCorner(selection, RectCorner.BottomRight, new PixelPoint(900, 900), bounds);
+        Check("拖出屏幕被裁剪", clamped.Right == bounds.Right && clamped.Bottom == bounds.Bottom,
+            $"{clamped.Right},{clamped.Bottom}");
+
+        var tooSmall = RectResize.FromCorner(selection, RectCorner.BottomRight, new PixelPoint(103, 104), bounds);
+        Check("小于最小尺寸保持原样", tooSmall.Equals(selection), tooSmall.ToString());
     }
 
     /// <summary>覆盖层「选择 + 滚轮」的纯逻辑：命中优先级、线宽 / 字号微调、缩放下限。</summary>

@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using SnipTrace.App.Infrastructure.Platform;
 using SnipTrace.App.Infrastructure.Storage;
+using SnipTrace.App.Presentation.Selection;
 using SnipTrace.Domain;
 
 namespace SnipTrace.App.Presentation.Views;
@@ -73,11 +74,104 @@ public partial class SettingsView : UserControl
 
             RefreshHighlightSwatch();
             RefreshHotkeyModeUi();
+            BuildToolbarList();
         }
         finally
         {
             _loading = false;
         }
+    }
+
+    /// <summary>选区工具条配置：每行一个按钮，勾选控制显示、↑ ↓ 调顺序。</summary>
+    private void BuildToolbarList()
+    {
+        if (ToolbarListPanel is null) return;
+        ToolbarListPanel.Children.Clear();
+
+        var items = _settings.SelectionToolbar;
+        if (items is null || items.Count == 0) items = _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
+        for (int i = 0; i < items.Count; i++)
+        {
+            int index = i;
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var check = new CheckBox
+            {
+                Content = SelectionToolbarCatalog.DisplayName(items[i].Id),
+                Style = (Style)FindResource("AppCheckBox"),
+                IsChecked = items[i].Visible,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            check.Checked += (_, _) => SetToolbarVisible(index, true);
+            check.Unchecked += (_, _) => SetToolbarVisible(index, false);
+            Grid.SetColumn(check, 0);
+            row.Children.Add(check);
+
+            var up = new Button
+            {
+                Content = "↑",
+                Style = (Style)FindResource("SecondaryButton"),
+                Width = 34,
+                Height = 26,
+                Padding = new Thickness(0),
+                Margin = new Thickness(0, 0, 6, 0),
+                IsEnabled = index > 0,
+                ToolTip = "上移"
+            };
+            up.Click += (_, _) => MoveToolbarItem(index, -1);
+            Grid.SetColumn(up, 1);
+            row.Children.Add(up);
+
+            var down = new Button
+            {
+                Content = "↓",
+                Style = (Style)FindResource("SecondaryButton"),
+                Width = 34,
+                Height = 26,
+                Padding = new Thickness(0),
+                IsEnabled = index < items.Count - 1,
+                ToolTip = "下移"
+            };
+            down.Click += (_, _) => MoveToolbarItem(index, 1);
+            Grid.SetColumn(down, 2);
+            row.Children.Add(down);
+
+            ToolbarListPanel.Children.Add(row);
+        }
+    }
+
+    private void SetToolbarVisible(int index, bool visible)
+    {
+        if (_loading) return;
+        var items = _settings.SelectionToolbar;
+        if (index < 0 || index >= items.Count) return;
+        items[index].Visible = visible;
+        SettingsSaved?.Invoke();
+        StatusText.Text = "选区工具条已更新";
+    }
+
+    private void MoveToolbarItem(int index, int delta)
+    {
+        if (_loading) return;
+        var items = _settings.SelectionToolbar;
+        int target = index + delta;
+        if (target < 0 || target >= items.Count) return;
+
+        (items[index], items[target]) = (items[target], items[index]);
+        SettingsSaved?.Invoke();
+        BuildToolbarList();
+        StatusText.Text = "选区工具条已更新";
+    }
+
+    private void ResetToolbar_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
+        SettingsSaved?.Invoke();
+        BuildToolbarList();
+        StatusText.Text = "选区工具条已恢复默认";
     }
 
     private static void SetText(TextBox box, string value)
@@ -171,6 +265,8 @@ public partial class SettingsView : UserControl
             VideoHotkey = VideoHotkeyBox.Text.Trim(),
             FullScreenHotkey = FullScreenHotkeyBox.Text.Trim(),
             AllScreensHotkey = AllScreensHotkeyBox.Text.Trim(),
+            RenumberBadgesOnStyleChange = _settings.RenumberBadgesOnStyleChange,
+            SelectionToolbar = SelectionToolbarItems.Clone(_settings.SelectionToolbar),
             Gif = _settings.Gif,
             Video = _settings.Video,
             MainWindow = _settings.MainWindow
@@ -262,6 +358,8 @@ public partial class SettingsView : UserControl
         target.VideoHotkey = source.VideoHotkey;
         target.FullScreenHotkey = source.FullScreenHotkey;
         target.AllScreensHotkey = source.AllScreensHotkey;
+        target.RenumberBadgesOnStyleChange = source.RenumberBadgesOnStyleChange;
+        target.SelectionToolbar = SelectionToolbarItems.Clone(source.SelectionToolbar);
         target.Gif = source.Gif;
         target.Video = source.Video;
         target.MainWindow = source.MainWindow;

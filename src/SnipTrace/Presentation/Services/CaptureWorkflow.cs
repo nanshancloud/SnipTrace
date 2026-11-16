@@ -48,7 +48,7 @@ public sealed class CaptureWorkflow
                 _services.Toasts.Warn("部分显示器捕获失败", "失败区域已填充黑色，可尝试重新截图。");
             }
 
-            using var overlay = new SelectionOverlay(snapshot);
+            using var overlay = new SelectionOverlay(snapshot, _services.Settings.SelectionToolbar);
             var result = await overlay.ShowAsync();
             if (result is null) return;
 

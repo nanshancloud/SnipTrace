@@ -278,6 +278,20 @@ internal static class SelfTest
             check("复制与精标有文字标签", labels.Contains("复制") && labels.Contains("精标"),
                 string.Join("/", labels.Where(t => t is "复制" or "精标")));
 
+            // 增删 + 排序：只留 选择 / 复制 / 精标，三组各一个按钮 + 两条分隔线。
+            var custom = SelectionToolbarItems.CreateDefault();
+            foreach (var item in custom)
+            {
+                item.Visible = item.Id is SelectionToolbarItems.Copy or SelectionToolbarItems.Select or SelectionToolbarItems.Refine;
+            }
+
+            var customOverlay = new SelectionOverlay(snapshot, custom);
+            var customBar = new SelectionToolbarWindow();
+            customBar.Attach(customOverlay, custom);
+            int customCount = customBar.ButtonRow.Children.Count;
+            check("工具条按配置增删排序", customCount == 5, customCount.ToString());
+            customOverlay.Dispose();
+
             int width = (int)Math.Ceiling(content.ActualWidth);
             int height = (int)Math.Ceiling(content.ActualHeight);
             if (width <= 0 || height <= 0)
@@ -390,6 +404,31 @@ internal static class SelfTest
 
             bool ok = string.Equals(settings.ScreenshotDirectory, target, StringComparison.OrdinalIgnoreCase);
             check("设置改动即时生效", ok, ok ? target : "仍为 " + settings.ScreenshotDirectory);
+
+            int rows = view.ToolbarListPanel.Children.Count;
+            check("设置页可增删排序工具条按钮", rows == SelectionToolbarItems.All.Length, rows.ToString());
+
+            // 离屏渲染整页（带深色底，方便看清浅色文字），便于人工核对「选区工具条」区块的排版。
+            var backdrop = new Border
+            {
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x0B, 0x0F, 0x14)),
+                Child = view
+            };
+            backdrop.Measure(new System.Windows.Size(840, double.PositiveInfinity));
+            backdrop.Arrange(new System.Windows.Rect(0, 0, 840, Math.Max(1, backdrop.DesiredSize.Height)));
+            backdrop.UpdateLayout();
+
+            int width = (int)Math.Ceiling(backdrop.ActualWidth);
+            int height = (int)Math.Ceiling(backdrop.ActualHeight);
+            if (width > 0 && height > 0)
+            {
+                var target2 = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+                target2.Render(backdrop);
+                string pagePath = Path.Combine(AppContext.BaseDirectory, "selftest", "settings-page.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(pagePath)!);
+                ImageUtil.SavePng(target2, pagePath);
+                check("设置页渲染", new FileInfo(pagePath).Length > 2000, $"{width}×{height}");
+            }
         }
         catch (Exception ex)
         {
