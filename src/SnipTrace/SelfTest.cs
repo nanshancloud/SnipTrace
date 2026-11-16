@@ -201,6 +201,7 @@ internal static class SelfTest
 
         CheckWindowLayouts(root, Check);
         CheckSettingsLiveApply(Check);
+        CheckAboutPage(root, Check);
         CheckEditorInteractions(Check);
         CheckEditorPanelSync(Check);
         CheckEditorUndoRedo(Check);
@@ -698,9 +699,6 @@ internal static class SelfTest
                          && settings.SelectionToolbar.Count == SelectionToolbarItems.All.Length;
             check("工具条预览拖动排序", moved, $"{firstId} → {settings.SelectionToolbar[3].Id}");
 
-            check("设置页关于信息", view.AboutVersionText.Text.StartsWith("版本 ", StringComparison.Ordinal),
-                view.AboutVersionText.Text);
-
             // 离屏渲染整页（带深色底，方便看清浅色文字），便于人工核对「选区工具条」区块的排版。
             var backdrop = new Border
             {
@@ -726,6 +724,40 @@ internal static class SelfTest
         catch (Exception ex)
         {
             check("设置改动即时生效", false, ex.Message);
+        }
+    }
+
+    /// <summary>关于页：版本号来自程序集，并渲染一张整页图便于人工核对排版。</summary>
+    private static void CheckAboutPage(string root, Action<string, bool, string?> check)
+    {
+        try
+        {
+            var view = new AboutView();
+            check("关于页版本信息", view.VersionText.Text.StartsWith("版本 ", StringComparison.Ordinal),
+                view.VersionText.Text);
+
+            var backdrop = new Border
+            {
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x0B, 0x0F, 0x14)),
+                Child = view
+            };
+            backdrop.Measure(new System.Windows.Size(780, double.PositiveInfinity));
+            backdrop.Arrange(new System.Windows.Rect(0, 0, 780, Math.Max(1, backdrop.DesiredSize.Height)));
+            backdrop.UpdateLayout();
+
+            int width = (int)Math.Ceiling(backdrop.ActualWidth);
+            int height = (int)Math.Ceiling(backdrop.ActualHeight);
+            if (width <= 0 || height <= 0) return;
+
+            var target = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            target.Render(backdrop);
+            string path = Path.Combine(root, "about-page.png");
+            ImageUtil.SavePng(target, path);
+            check("关于页渲染", File.Exists(path) && new FileInfo(path).Length > 2000, $"{width}×{height}");
+        }
+        catch (Exception ex)
+        {
+            check("关于页渲染", false, ex.Message);
         }
     }
 

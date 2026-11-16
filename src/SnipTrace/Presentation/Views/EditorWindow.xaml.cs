@@ -151,7 +151,7 @@ public partial class EditorWindow : Window
         {
             (UndoButton, "撤销", "\uE7A7"),
             (RedoButton, "重做", "\uE7A6"),
-            (ClearAllButton, "清除全部", "\uE894"),
+            (ClearAllButton, "清除全部", "\uE74D"),
             (CopyButton, "复制", "\uE8C8"),
             (SaveButton, "保存", "\uE74E"),
             (PinButton, "钉图", "\uE840"),

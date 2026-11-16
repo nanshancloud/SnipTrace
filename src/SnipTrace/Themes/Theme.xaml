@@ -386,10 +386,12 @@
         </Setter>
     </Style>
 
+    <!-- 编辑器左侧工具：常驻底色让每个按钮成块，选中配强调色底 + 左侧指示条 -->
     <Style x:Key="ToolButton" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
         <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Width" Value="46" />
         <Setter Property="Height" Value="42" />
@@ -397,17 +399,26 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Root" CornerRadius="8" Background="Transparent">
+                    <Grid>
+                        <Border x:Name="Root" CornerRadius="8" Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
+                        <Border x:Name="Marker" Width="3" Height="16" CornerRadius="2" HorizontalAlignment="Left"
+                                Margin="3,0,0,0" Background="{DynamicResource AccentBrush}" Visibility="Collapsed" />
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
                             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

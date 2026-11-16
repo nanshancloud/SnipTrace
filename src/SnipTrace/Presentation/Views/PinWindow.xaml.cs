@@ -164,6 +164,24 @@ public partial class PinWindow : Window
 
     private void SaveToDirectory_Click(object sender, RoutedEventArgs e) => SaveToDirectory();
 
+    /// <summary>精修：把钉图丢进标注编辑器继续编辑；钉图临时取消置顶，避免压住编辑器。</summary>
+    private void Refine_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            bool wasTopmost = Topmost;
+            Topmost = false;
+            var editor = new EditorWindow(_image, _baseName);
+            editor.Closed += (_, _) => Topmost = wasTopmost;
+            editor.Show();
+            editor.Activate();
+        }
+        catch (Exception ex)
+        {
+            Services.Toasts.Warn("无法打开精修", ex.Message);
+        }
+    }
+
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private void Copy()

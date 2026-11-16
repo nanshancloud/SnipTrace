@@ -23,7 +23,8 @@ public partial class ShellWindow : Window
         ("gif", "GIF", "◉"),
         ("video", "录屏", "▶"),
         ("recent", "最近", "☰"),
-        ("settings", "设置", "⚙")
+        ("settings", "设置", "⚙"),
+        ("about", "关于", "◎")
     };
 
     private readonly List<(RadioButton Button, TextBlock Label)> _navButtons = new();
@@ -32,6 +33,7 @@ public partial class ShellWindow : Window
     private ModeView? _videoPage;
     private RecentView? _recentPage;
     private SettingsView? _settingsPage;
+    private AboutView? _aboutPage;
     private string _currentKey = "home";
     private bool _restoringLayout;
 
@@ -201,6 +203,8 @@ public partial class ShellWindow : Window
                 return _recentPage ??= CreateRecentPage();
             case "settings":
                 return _settingsPage ??= CreateSettingsPage();
+            case "about":
+                return _aboutPage ??= new AboutView();
             default:
                 return _home ??= CreateHomePage();
         }

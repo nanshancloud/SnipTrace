@@ -18,8 +18,6 @@ namespace SnipTrace.App.Presentation.Views;
 /// </summary>
 public partial class SettingsView : UserControl
 {
-    private const string RepositoryUrl = "https://github.com/nanshancloud/SnipTrace";
-
     private readonly AppSettings _settings;
     private readonly PathService _paths;
     private readonly DispatcherTimer _debounce;
@@ -36,7 +34,6 @@ public partial class SettingsView : UserControl
         InitializeComponent();
         _settings = settings;
         _paths = paths;
-        AboutVersionText.Text = "版本 " + AppVersion;
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         _debounce.Tick += (_, _) =>
@@ -332,34 +329,6 @@ public partial class SettingsView : UserControl
         if (to > from) to--;
         e.Handled = true;
         MoveToolbarItemTo(from, to);
-    }
-
-    /// <summary>关于：当前程序集版本（csproj 的 Version 字段）。</summary>
-    private static string AppVersion
-    {
-        get
-        {
-            var version = typeof(SettingsView).Assembly.GetName().Version;
-            return version is null
-                ? "1.0.0"
-                : $"{version.Major}.{version.Minor}.{version.Build}";
-        }
-    }
-
-    private void RepositoryLink_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(RepositoryUrl)
-            {
-                UseShellExecute = true
-            });
-            StatusText.Text = "已在浏览器中打开项目地址";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = "无法打开浏览器：" + ex.Message;
-        }
     }
 
     private static void SetText(TextBox box, string value)
