@@ -386,14 +386,10 @@ public partial class EditorWindow : Window
     /// </summary>
     private void ApplyBadgeStyle(Action<NumberBadgeAnnotation> apply)
     {
-        var badges = Canvas.Selection.OfType<NumberBadgeAnnotation>().ToList();
-        if (badges.Count == 0) return;
-
-        _document.BeginEdit();
-        foreach (var badge in badges) apply(badge);
-        _document.MarkChanged();
-        if (AppServices.Current?.Settings.RenumberBadgesOnStyleChange == true) _document.RenumberByReadingOrder();
-        _document.EndEdit();
+        bool renumber = AppServices.Current?.Settings.RenumberBadgesOnStyleChange == true;
+        bool changed = AnnotationEditing.ApplyBadgeStyle(
+            _document, Canvas.Selection.OfType<NumberBadgeAnnotation>(), apply, renumber);
+        if (!changed) return;
 
         Canvas.Refresh();
         UpdateStatus();

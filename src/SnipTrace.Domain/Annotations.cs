@@ -122,6 +122,28 @@ public sealed class ShapeAnnotation : Annotation
     /// <summary>箭头折线是否按正交（横 / 竖）方向吸附。</summary>
     public bool Elbow { get; set; }
 
+    /// <summary>首点：折线起点（箭头尾端）。</summary>
+    public PointD StartPoint => Points[0];
+
+    /// <summary>末点：折线终点（箭头尖所在端）。</summary>
+    public PointD EndPoint => Points[^1];
+
+    /// <summary>线段数：两点箭头为 1，多段折线按实际段数。</summary>
+    public int SegmentCount => Math.Max(0, Points.Count - 1);
+
+    /// <summary>是否多段折线（三个及以上顶点）。</summary>
+    public bool IsMultiSegment => Points.Count > 2;
+
+    /// <summary>
+    /// 端头所在的那一段：尾部取最后一段、头部取第一段，用于确定端头朝向；
+    /// 顶点不足两个（退化）时返回 null。
+    /// </summary>
+    public (PointD From, PointD Tip)? HeadSegment(bool atEnd)
+    {
+        if (Points.Count < 2) return null;
+        return atEnd ? (Points[^2], Points[^1]) : (Points[1], Points[0]);
+    }
+
     private PixelRect RawBounds
     {
         get

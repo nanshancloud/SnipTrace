@@ -205,6 +205,7 @@ internal static class SelfTest
         CheckEditorPanelSync(Check);
         CheckEditorUndoRedo(Check);
         CheckHighlightRender(Check);
+        CheckArrowHeadRender(Check);
         CheckSelectionMaskRender(Check);
         CheckSelectionToolbar(root, Check);
 
@@ -273,6 +274,81 @@ internal static class SelfTest
         catch (Exception ex)
         {
             check("高亮半透明渲染", false, ex.Message);
+        }
+    }
+
+    /// <summary>箭头端头随线宽缩放：细线端头窄、粗线端头宽，同一位置取样可区分。</summary>
+    private static void CheckArrowHeadRender(Action<string, bool, string?> check)
+    {
+        try
+        {
+            using var source = new Bitmap(260, 160);
+            using (var graphics = Graphics.FromImage(source)) graphics.Clear(Color.White);
+            var white = ImageUtil.ToBitmapSource(source);
+
+            var document = new AnnotationDocument(260, 160);
+            document.Add(new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(20, 40), new PointD(220, 40) })
+            {
+                Style = new AnnotationStyle(0xFF1B2430, 1, 1)
+            });
+            document.Add(new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(20, 120), new PointD(220, 120) })
+            {
+                Style = new AnnotationStyle(0xFF1B2430, 16, 1)
+            });
+
+            var rendered = AnnotationRenderer.Render(white, document);
+
+            var thin = new byte[4];
+            var thick = new byte[4];
+            rendered.CopyPixels(new Int32Rect(190, 25, 1, 1), thin, 4, 0);   // 细箭头端头之外
+            rendered.CopyPixels(new Int32Rect(190, 105, 1, 1), thick, 4, 0); // 粗箭头端头之内
+
+            bool thinIsBlank = thin[0] > 240 && thin[1] > 240 && thin[2] > 240;
+            bool thickIsInk = thick[0] < 200 || thick[1] < 200 || thick[2] < 200;
+            check("细箭头端头窄", thinIsBlank, $"B={thin[0]},G={thin[1]},R={thin[2]}");
+            check("粗箭头端头宽", thickIsInk, $"B={thick[0]},G={thick[1]},R={thick[2]}");
+
+            // 存一张对照图：三种线宽的端头 + 三段折线 + 正心形号标。
+            using var demo = new Bitmap(560, 240);
+            using (var graphics = Graphics.FromImage(demo)) graphics.Clear(Color.White);
+            var demoDocument = new AnnotationDocument(560, 240);
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(30, 40), new PointD(240, 40) })
+            {
+                Style = new AnnotationStyle(0xFF1B2430, 1, 1)
+            });
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(30, 110), new PointD(240, 110) })
+            {
+                Style = new AnnotationStyle(0xFF1B2430, 6, 1)
+            });
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(30, 190), new PointD(240, 190) })
+            {
+                Style = new AnnotationStyle(0xFF1B2430, 16, 1)
+            });
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Arrow,
+                new[] { new PointD(300, 190), new PointD(420, 190), new PointD(420, 60) })
+            {
+                Style = new AnnotationStyle(0xFFFF6B5F, 5, 1),
+                ArrowHead = ArrowHead.Both
+            });
+            demoDocument.Add(new NumberBadgeAnnotation
+            {
+                Number = 3,
+                Center = new PointD(500, 90),
+                FontSize = 26,
+                Shape = BadgeShape.Heart,
+                FillMode = BadgeFillMode.Outline,
+                Style = new AnnotationStyle(0xFFFF6B5F, 16, 1)
+            });
+
+            string folder = Path.Combine(AppContext.BaseDirectory, "selftest");
+            Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, "arrow-head-widths.png");
+            ImageUtil.SavePng(AnnotationRenderer.Render(ImageUtil.ToBitmapSource(demo), demoDocument), path);
+            check("箭头端头对照图输出", File.Exists(path) && new FileInfo(path).Length > 500, "已生成对照图");
+        }
+        catch (Exception ex)
+        {
+            check("箭头端头随线宽缩放", false, ex.Message);
         }
     }
 

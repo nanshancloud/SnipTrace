@@ -22,6 +22,7 @@ Windows 桌面截图 / 标注 / GIF / 录屏工具。完全本地处理，无账
 | 标注编辑器 | 矩形 / 椭圆 / 箭头（多段折线、单向 / 双向 / 无头 / 直角）/ 画笔 / 高亮 / 文本 / 序号标签 / 橡皮，移动缩放多选、撤销重做、1:1 导出 PNG；虚线选框与调整手柄只在「选择」工具下出现 |
 | 面板与工具联动 | 点右侧「箭头模式」自动切到箭头工具；点「序号形状 / 填充方式」自动切到序号工具，并作为新建号标的默认样式 |
 | 高亮半透明 | 高亮按荧光笔渲染（固定 38% 不透明度，可再叠加「透明度」），底下文字与线条始终看得见；覆盖层 / 编辑器 / 导出一致 |
+| 领域层几何 | 正心形 ♥（`BadgeShapes`）、箭头端头与多段模型（`ArrowGeometry` + `ShapeAnnotation`）、改样式后重新计数（`AnnotationEditing.ApplyBadgeStyle`）全在不依赖 WPF 的领域层，由单测直接覆盖 |
 | 撤销重做 | 只记录真有变化的编辑：选中、点空白、重复点同一样式等空操作不会清空重做栈；撤销 / 重做后清掉过期选中框；按钮按可用状态置灰（`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`） |
 | 选择与编辑 | 「选择」工具点选后拖动移动、拉手柄缩放；双击文本改内容；箭头显示端点手柄，拖端点重新定向、拖中间点改折线 |
 | 橡皮 | 编辑器与截图界面的「橡皮」共用同一套规则：只擦画笔与高亮笔画，文本 / 箭头 / 序号 / 形状不受影响，一次拖动合并为一步撤销 |
@@ -59,7 +60,7 @@ dotnet publish src/SnipTrace -c Release -r win-x64 --self-contained false -o dis
 验证构建可用：
 
 ```powershell
-.\dist\win-x64\SnipTrace.exe --selftest                   # 自检：GIF/MP4/导出管线 + UI 冒烟 + 设置即时生效 + 画布交互 + 覆盖层与设置页，期望 36 行 PASS
+.\dist\win-x64\SnipTrace.exe --selftest                   # 自检：GIF/MP4/导出管线 + UI 冒烟 + 设置即时生效 + 画布交互 + 覆盖层与设置页，期望 40 行 PASS
 .\dist\win-x64\SnipTrace.exe --preview 文件.gif|.mp4      # 打开录制预览窗口
 .\dist\win-x64\SnipTrace.exe --page settings              # 直接打开指定页面
 ```

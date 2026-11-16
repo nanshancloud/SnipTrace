@@ -138,40 +138,31 @@ public static class AnnotationRenderer
             dc.DrawGeometry(null, pen, geometry);
         }
 
-        if (shape.ArrowHead is ArrowHead.End or ArrowHead.Both)
+        var (startHead, endHead) = ArrowGeometry.Ends(shape.ArrowHead);
+
+        if (endHead && shape.HeadSegment(true) is { } endSegment)
         {
-            DrawArrowHead(dc, points[^2], points[^1], pen, brush);
+            DrawArrowHead(dc, endSegment.From, endSegment.Tip, shape.Style.Width, brush);
         }
 
-        if (shape.ArrowHead is ArrowHead.Start or ArrowHead.Both)
+        if (startHead && shape.HeadSegment(false) is { } startSegment)
         {
-            DrawArrowHead(dc, points[1], points[0], pen, brush);
+            DrawArrowHead(dc, startSegment.From, startSegment.Tip, shape.Style.Width, brush);
         }
     }
 
-    private static void DrawArrowHead(DrawingContext dc, PointD from, PointD tip, Pen pen, Brush brush)
+    /// <summary>端头三角形由 <see cref="ArrowGeometry"/> 统一计算，这里只负责描到画布上。</summary>
+    private static void DrawArrowHead(DrawingContext dc, PointD from, PointD tip, double strokeWidth, Brush brush)
     {
-        double dx = tip.X - from.X;
-        double dy = tip.Y - from.Y;
-        double length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 0.5) return;
+        var triangle = ArrowGeometry.HeadTriangle(from, tip, strokeWidth);
+        if (triangle.Count < 3) return;
 
-        // 端头随线宽同步缩放：细线不至于过大，粗线也不会显得像个小疙瘩。
-        double headLength = Math.Min(Math.Clamp(pen.Thickness * 4.2, 8, 44), length);
-        double headWidth = headLength * 0.55;
-        double ux = dx / length;
-        double uy = dy / length;
-        double normalX = -uy;
-        double normalY = ux;
-
-        var end = ToPoint(tip);
-        var basePoint = new Point(tip.X - ux * headLength, tip.Y - uy * headLength);
         var head = new StreamGeometry();
         using (var ctx = head.Open())
         {
-            ctx.BeginFigure(end, true, true);
-            ctx.LineTo(new Point(basePoint.X + normalX * headWidth, basePoint.Y + normalY * headWidth), true, true);
-            ctx.LineTo(new Point(basePoint.X - normalX * headWidth, basePoint.Y - normalY * headWidth), true, true);
+            ctx.BeginFigure(ToPoint(triangle[0]), true, true);
+            ctx.LineTo(ToPoint(triangle[1]), true, true);
+            ctx.LineTo(ToPoint(triangle[2]), true, true);
         }
 
         head.Freeze();

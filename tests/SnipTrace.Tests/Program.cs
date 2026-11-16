@@ -12,6 +12,9 @@ internal static class Program
         NumberingTests();
         HistoryTests();
         HighlightOpacityTests();
+        ArrowGeometryTests();
+        ArrowModelTests();
+        BadgeStyleSwitchTests();
         AnnotationTests();
         AnnotationEditingTests();
         ToolbarAndCanvasTests();
@@ -397,6 +400,131 @@ internal static class Program
 
         var straight = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
         Check("默认箭头仅末端有头", straight.ArrowHead == ArrowHead.End);
+
+        // 心形额外几何约束：高度接近宽度（正心形而非瘦长）、尖点唯一。
+        double width = heart.Max(p => p.X) - heart.Min(p => p.X);
+        double height = bottom - top;
+        Check("心形高宽比接近 1", Math.Abs(height / width - 1) < 0.15, (height / width).ToString("0.###"));
+        Check("心形尖点唯一", heart.Count(p => Math.Abs(p.Y - bottom) < 0.001) == 1,
+            heart.Count(p => Math.Abs(p.Y - bottom) < 0.001).ToString());
+    }
+
+    /// <summary>箭头端头几何：长度随线宽缩放、受线段长度约束、三角形对称且朝向正确。</summary>
+    private static void ArrowGeometryTests()
+    {
+        Check("端头长度下限 8", Math.Abs(ArrowGeometry.HeadLength(1) - 8) < 0.001,
+            ArrowGeometry.HeadLength(1).ToString("0.##"));
+        Check("端头长度随线宽", Math.Abs(ArrowGeometry.HeadLength(3) - 3 * ArrowGeometry.HeadLengthFactor) < 0.001,
+            ArrowGeometry.HeadLength(3).ToString("0.##"));
+        Check("端头长度上限 44", Math.Abs(ArrowGeometry.HeadLength(16) - 44) < 0.001,
+            ArrowGeometry.HeadLength(16).ToString("0.##"));
+        Check("端头不超过线段长度", Math.Abs(ArrowGeometry.HeadLength(3, 5) - 5) < 0.001,
+            ArrowGeometry.HeadLength(3, 5).ToString("0.##"));
+
+        var none = ArrowGeometry.Ends(ArrowHead.None);
+        var start = ArrowGeometry.Ends(ArrowHead.Start);
+        var end = ArrowGeometry.Ends(ArrowHead.End);
+        var both = ArrowGeometry.Ends(ArrowHead.Both);
+        Check("端头位置映射正确",
+            !none.Start && !none.End && start.Start && !start.End && !end.Start && end.End && both.Start && both.End);
+
+        // 水平向右：尖点在末端，底边两点在尖点左侧（后方）且上下对称。
+        var triangle = ArrowGeometry.HeadTriangle(new PointD(0, 0), new PointD(100, 0), 3);
+        double headLength = ArrowGeometry.HeadLength(3);
+        Check("端头三角形三个顶点", triangle.Count == 3, triangle.Count.ToString());
+        Check("端头尖点落在末端",
+            Math.Abs(triangle[0].X - 100) < 0.001 && Math.Abs(triangle[0].Y) < 0.001,
+            $"{triangle[0].X:0.##},{triangle[0].Y:0.##}");
+        Check("端头底边在尖点后方", Math.Abs(triangle[1].X - (100 - headLength)) < 0.001,
+            triangle[1].X.ToString("0.##"));
+        Check("端头底边与线段垂直", Math.Abs(triangle[1].X - triangle[2].X) < 0.001);
+        Check("端头底边左右对称",
+            Math.Abs(triangle[1].Y + triangle[2].Y) < 0.001
+            && Math.Abs(Math.Abs(triangle[1].Y) - headLength * ArrowGeometry.HeadWidthRatio) < 0.001,
+            $"{triangle[1].Y:0.##}/{triangle[2].Y:0.##}");
+
+        // 斜向：两个底角到线段所在直线的距离必须相等。
+        var diagonal = ArrowGeometry.HeadTriangle(new PointD(10, 10), new PointD(40, 40), 2);
+        double axisLength = Math.Sqrt(30.0 * 30 + 30.0 * 30);
+        double Distance(PointD p) => Math.Abs((40 - 10) * (p.Y - 10) - (40 - 10) * (p.X - 10)) / axisLength;
+        Check("端头两侧等距", Math.Abs(Distance(diagonal[1]) - Distance(diagonal[2])) < 0.001,
+            $"{Distance(diagonal[1]):0.###}/{Distance(diagonal[2]):0.###}");
+
+        Check("退化线段不画端头", ArrowGeometry.HeadTriangle(new PointD(5, 5), new PointD(5, 5), 3).Count == 0);
+        Check("超短线段不画端头", ArrowGeometry.HeadTriangle(new PointD(0, 0), new PointD(0.2, 0), 3).Count == 0);
+    }
+
+    /// <summary>多段箭头模型：首末点、段数与端头所在段。</summary>
+    private static void ArrowModelTests()
+    {
+        var straight = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(10, 10), new PointD(110, 10) });
+        Check("两点箭头只有一段", straight.SegmentCount == 1 && !straight.IsMultiSegment,
+            straight.SegmentCount.ToString());
+        Check("首末点正确", straight.StartPoint.X == 10 && straight.EndPoint.X == 110);
+
+        var endSegment = straight.HeadSegment(true);
+        var startSegment = straight.HeadSegment(false);
+        Check("末端段方向朝外",
+            endSegment is not null && endSegment.Value.From.X == 10 && endSegment.Value.Tip.X == 110);
+        Check("首端段方向朝外",
+            startSegment is not null && startSegment.Value.From.X == 110 && startSegment.Value.Tip.X == 10);
+
+        var polyline = new ShapeAnnotation(AnnotationKind.Arrow,
+            new[] { new PointD(0, 0), new PointD(50, 0), new PointD(50, 60) });
+        Check("三段折线", polyline.SegmentCount == 2 && polyline.IsMultiSegment, polyline.SegmentCount.ToString());
+
+        var last = polyline.HeadSegment(true);
+        var first = polyline.HeadSegment(false);
+        Check("折线端头取首尾段",
+            last is not null && last.Value.Tip.Y == 60 && last.Value.From.Y == 0
+            && first is not null && first.Value.Tip.X == 0 && first.Value.From.X == 50);
+
+        var single = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(3, 3) });
+        Check("单点没有端头线段", single.SegmentCount == 0 && single.HeadSegment(true) is null);
+    }
+
+    /// <summary>改序号样式 + 「改样式后重新计数」开关：同一步撤销、开关关闭不重排、空改动不写历史。</summary>
+    private static void BadgeStyleSwitchTests()
+    {
+        var document = new AnnotationDocument(400, 400);
+        var top = document.Add(new NumberBadgeAnnotation { Number = 2, Center = new PointD(100, 60) });
+        var bottom = document.Add(new NumberBadgeAnnotation { Number = 1, Center = new PointD(100, 260) });
+
+        bool changedOff = AnnotationEditing.ApplyBadgeStyle(
+            document, new[] { top }, badge => badge.Shape = BadgeShape.Heart, renumberOnStyleChange: false);
+        Check("改样式立即生效", changedOff && top.Shape == BadgeShape.Heart, top.Shape.ToString());
+        Check("开关关闭不重排", top.Number == 2 && bottom.Number == 1, $"{top.Number},{bottom.Number}");
+
+        bool changedOn = AnnotationEditing.ApplyBadgeStyle(
+            document, new[] { bottom }, badge => badge.Shape = BadgeShape.Square, renumberOnStyleChange: true);
+        var ordered = document.Annotations.OfType<NumberBadgeAnnotation>()
+            .OrderBy(badge => badge.Bounds.Top).Select(badge => badge.Number).ToList();
+        Check("开关打开按阅读顺序重排",
+            changedOn && ordered.Count == 2 && ordered[0] == 1 && ordered[1] == 2,
+            string.Join(",", ordered));
+
+        document.Undo();
+        var restoredTop = document.Annotations.OfType<NumberBadgeAnnotation>()
+            .OrderBy(badge => badge.Bounds.Top).First();
+        var restoredBottom = document.Annotations.OfType<NumberBadgeAnnotation>()
+            .OrderBy(badge => badge.Bounds.Top).Last();
+        Check("改样式与重排是同一步撤销",
+            restoredTop.Number == 2 && restoredBottom.Number == 1,
+            $"{restoredTop.Number},{restoredBottom.Number}");
+
+        // 改成与当前相同的样式：既不产生撤销步骤，也不清空重做栈。
+        var idle = new AnnotationDocument(200, 200);
+        var badge = idle.Add(new NumberBadgeAnnotation { Number = 1, Center = new PointD(50, 50) });
+        bool noop = AnnotationEditing.ApplyBadgeStyle(
+            idle, new[] { badge }, target => target.Shape = BadgeShape.Circle, renumberOnStyleChange: true);
+        idle.Undo();
+        Check("样式没变不写历史", !noop && idle.Annotations.Count == 0,
+            $"changed={noop} count={idle.Annotations.Count}");
+
+        // 文档里没有的号标（已被撤销）不参与，避免空编辑。
+        bool missing = AnnotationEditing.ApplyBadgeStyle(
+            idle, new[] { badge }, target => target.Shape = BadgeShape.Heart, renumberOnStyleChange: true);
+        Check("不在文档里的号标被忽略", !missing);
     }
 
     /// <summary>选区工具条配置（增删 / 排序）与标注画布尺寸同步。</summary>

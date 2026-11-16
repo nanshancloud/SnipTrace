@@ -130,4 +130,42 @@ public static class AnnotationEditing
 
         return true;
     }
+
+    /// <summary>
+    /// 改序号样式（形状 / 填充 / 字号）：一次编辑会话内改完，
+    /// <paramref name="renumberOnStyleChange"/> 打开时同一步里按阅读顺序重排为 1..n，
+    /// 撤销一次即可回到改样式之前。
+    /// 样式没有实际变化时不写历史（不会清空重做栈），返回是否真的改了。
+    /// </summary>
+    public static bool ApplyBadgeStyle(
+        AnnotationDocument? document,
+        IEnumerable<NumberBadgeAnnotation> badges,
+        Action<NumberBadgeAnnotation> apply,
+        bool renumberOnStyleChange = false)
+    {
+        if (document is null || badges is null || apply is null) return false;
+
+        var targets = badges.Where(document.Annotations.Contains).Distinct().ToList();
+        if (targets.Count == 0) return false;
+
+        var before = targets.Select(badge => (badge.Shape, badge.FillMode, badge.FontSize)).ToList();
+
+        document.BeginEdit();
+        foreach (var badge in targets) apply(badge);
+
+        bool changed = false;
+        for (int i = 0; i < targets.Count && !changed; i++)
+        {
+            var badge = targets[i];
+            changed = badge.Shape != before[i].Shape
+                || badge.FillMode != before[i].FillMode
+                || Math.Abs(badge.FontSize - before[i].FontSize) > 0.001;
+        }
+
+        if (changed) document.MarkChanged();
+        if (renumberOnStyleChange) document.RenumberByReadingOrder();
+        document.EndEdit();
+
+        return changed;
+    }
 }
