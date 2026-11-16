@@ -369,6 +369,11 @@ internal static class SelfTest
                 return;
             }
 
+            // 刚打开时没有历史：两个按钮都应该是置灰的，而不是亮着点了没反应。
+            check("初始无可撤销/重做时按钮置灰",
+                !window.UndoButton.IsEnabled && !window.RedoButton.IsEnabled,
+                $"undoEnabled={window.UndoButton.IsEnabled} redoEnabled={window.RedoButton.IsEnabled}");
+
             var rect = document.Add(new ShapeAnnotation(AnnotationKind.Rectangle,
                 new[] { new PointD(20, 20), new PointD(120, 80) }));
             window.Canvas.SelectAnnotation(rect);
@@ -378,12 +383,13 @@ internal static class SelfTest
             window.UndoButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             int afterUndo = document.Annotations.Count;
             bool canRedoAfterUndo = document.CanRedo;
+            bool redoEnabledAfterUndo = window.RedoButton.IsEnabled;
 
             window.RedoButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             int afterRedo = document.Annotations.Count;
 
             check("撤销按钮生效", afterDraw == 1 && afterUndo == 0, $"{afterDraw}→{afterUndo}");
-            check("撤销后可重做", canRedoAfterUndo, null);
+            check("撤销后可重做", canRedoAfterUndo && redoEnabledAfterUndo, $"可用={redoEnabledAfterUndo}");
             check("重做按钮生效", afterRedo == 1, $"undo={afterUndo} redo={afterRedo}");
 
             // 文本类编辑（改样式）也要能重做，避免 EndEdit 把 redo 栈清掉。

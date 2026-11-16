@@ -76,7 +76,9 @@ public partial class EditorWindow : Window
         InitializeTools();
         RenumberStyleCheck.IsChecked = AppServices.Current?.Settings.RenumberBadgesOnStyleChange == true;
         RefreshPanels();
-        UpdateStatus();
+        // 打开窗口时就按历史栈给出按钮状态：没有可撤销 / 可重做的操作时直接置灰，
+        // 避免刚进编辑器点「重做」没有任何反应被当成按钮坏了。
+        SyncUndoButtons();
         ApplyInitialSize();
 
         Loaded += (_, _) =>
