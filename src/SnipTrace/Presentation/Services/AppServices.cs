@@ -49,6 +49,7 @@ public sealed class AppServices
         Toasts = new ToastService();
         Hotkeys = new HotkeyService();
         Tray = new TrayService();
+        Tray.ApplySettings(Settings.TrayIconMode);
         Capture = new CaptureWorkflow(this);
         Recording = new RecordingWorkflow(this);
 
@@ -103,6 +104,7 @@ public sealed class AppServices
     public void NotifySettingsChanged()
     {
         ThemeManager.Apply(Settings.Theme);
+        Tray.ApplySettings(Settings.TrayIconMode);
         SaveSettings();
         SettingsChanged?.Invoke();
         ApplyHotkeys();

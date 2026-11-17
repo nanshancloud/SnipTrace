@@ -192,6 +192,21 @@ public static class ThemeModes
         : Dark;
 }
 
+/// <summary>托盘图标配色：自动跟随任务栏明暗，或固定品牌彩色 / 浅色。</summary>
+public static class TrayIconModes
+{
+    public const string Auto = "Auto";
+    public const string Color = "Color";
+    public const string Light = "Light";
+
+    public static string Normalize(string? value)
+    {
+        if (Color.Equals(value, StringComparison.OrdinalIgnoreCase)) return Color;
+        if (Light.Equals(value, StringComparison.OrdinalIgnoreCase)) return Light;
+        return Auto;
+    }
+}
+
 /// <summary>录制 / GIF 中的鼠标高亮参数（QQ 演示模式）。</summary>
 public sealed class HighlightOptions
 {
@@ -353,6 +368,12 @@ public sealed class AppSettings
 
     public bool RunAtStartup { get; set; }
 
+    /// <summary>托盘图标配色，见 <see cref="TrayIconModes"/>。</summary>
+    public string TrayIconMode { get; set; } = TrayIconModes.Auto;
+
+    /// <summary>「已最小化到托盘」提示是否已被永久关闭。</summary>
+    public bool SuppressTrayHint { get; set; }
+
     /// <summary>启动时静默检查 GitHub 新版本；关掉后启动不联网，关于页仍可手动检查。</summary>
     public bool CheckUpdatesOnStartup { get; set; } = true;
 
@@ -388,6 +409,7 @@ public sealed class AppSettings
         Highlight.Normalize();
         Theme = ThemeModes.Normalize(Theme);
         HotkeyMode = HotkeyModes.Normalize(HotkeyMode);
+        TrayIconMode = TrayIconModes.Normalize(TrayIconMode);
 
         CaptureHotkey = NormalizeHotkey(CaptureHotkey, DefaultCaptureHotkey);
         GifHotkey = NormalizeHotkey(GifHotkey, DefaultGifHotkey);

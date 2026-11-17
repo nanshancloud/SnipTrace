@@ -84,6 +84,11 @@ public partial class SettingsView : UserControl
             if (settings.Theme == ThemeModes.Light) ThemeLightRadio.IsChecked = true;
             else ThemeDarkRadio.IsChecked = true;
 
+            if (settings.TrayIconMode == TrayIconModes.Color) TrayColorRadio.IsChecked = true;
+            else if (settings.TrayIconMode == TrayIconModes.Light) TrayLightRadio.IsChecked = true;
+            else TrayAutoRadio.IsChecked = true;
+            TrayHintCheck.IsChecked = !settings.SuppressTrayHint;
+
             RefreshHighlightSwatch();
             RefreshHotkeyModeUi();
             BuildToolbarList();
@@ -355,7 +360,7 @@ public partial class SettingsView : UserControl
             };
         }
 
-        foreach (var check in new[] { CursorInCaptureCheck, CopyAfterCaptureCheck, AutoSaveCheck, HotkeyWarnCheck, StartupCheck, HighlightCheck })
+        foreach (var check in new[] { CursorInCaptureCheck, CopyAfterCaptureCheck, AutoSaveCheck, HotkeyWarnCheck, StartupCheck, CheckUpdateCheck, HighlightCheck, TrayHintCheck })
         {
             check.Checked += OnToggle;
             check.Unchecked += OnToggle;
@@ -365,6 +370,9 @@ public partial class SettingsView : UserControl
         HotkeyUnifiedRadio.Checked += OnToggle;
         ThemeDarkRadio.Checked += OnToggle;
         ThemeLightRadio.Checked += OnToggle;
+        TrayAutoRadio.Checked += OnToggle;
+        TrayColorRadio.Checked += OnToggle;
+        TrayLightRadio.Checked += OnToggle;
     }
 
     private void OnToggle(object sender, RoutedEventArgs e)
@@ -418,6 +426,10 @@ public partial class SettingsView : UserControl
             CheckUpdatesOnStartup = CheckUpdateCheck.IsChecked == true,
             HotkeyMode = HotkeyUnifiedRadio.IsChecked == true ? HotkeyModes.Unified : HotkeyModes.Individual,
             Theme = ThemeLightRadio.IsChecked == true ? ThemeModes.Light : ThemeModes.Dark,
+            TrayIconMode = TrayColorRadio.IsChecked == true
+                ? TrayIconModes.Color
+                : TrayLightRadio.IsChecked == true ? TrayIconModes.Light : TrayIconModes.Auto,
+            SuppressTrayHint = TrayHintCheck.IsChecked != true,
             Highlight = new HighlightOptions
             {
                 Enabled = HighlightCheck.IsChecked == true,
@@ -516,6 +528,8 @@ public partial class SettingsView : UserControl
         target.WarnHotkeyFailure = source.WarnHotkeyFailure;
         target.RunAtStartup = source.RunAtStartup;
         target.CheckUpdatesOnStartup = source.CheckUpdatesOnStartup;
+        target.TrayIconMode = source.TrayIconMode;
+        target.SuppressTrayHint = source.SuppressTrayHint;
         target.HotkeyMode = source.HotkeyMode;
         target.Theme = source.Theme;
         target.Highlight = source.Highlight;

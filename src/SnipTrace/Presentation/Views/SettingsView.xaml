@@ -80,6 +80,19 @@
                              Style="{StaticResource FormatRadio}" ToolTip="浅色界面，选中即生效" />
             </StackPanel>
 
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <TextBlock Text="托盘图标" Width="72" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
+                <RadioButton x:Name="TrayAutoRadio" Content="自动" GroupName="TrayIconMode" Style="{StaticResource FormatRadio}"
+                             ToolTip="跟随任务栏明暗自动切换浅色 / 深色图标" />
+                <RadioButton x:Name="TrayColorRadio" Content="彩色" GroupName="TrayIconMode" Margin="8,0,0,0"
+                             Style="{StaticResource FormatRadio}" ToolTip="始终使用品牌强调色图标" />
+                <RadioButton x:Name="TrayLightRadio" Content="浅色" GroupName="TrayIconMode" Margin="8,0,0,0"
+                             Style="{StaticResource FormatRadio}" ToolTip="始终使用浅色图标，适合深色任务栏" />
+            </StackPanel>
+
+            <CheckBox x:Name="TrayHintCheck" Content="最小化到托盘时显示提示" Style="{StaticResource AppCheckBox}" Margin="0,10,0,0"
+                      ToolTip="关闭后不再弹出「已最小化到托盘」提示（也可在提示上点「不再提示」）" />
+
             <TextBlock Text="选区工具条" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,6" />
             <TextBlock Text="在预览条上按住拖动即可调整顺序（也可用列表里的 ↑ ↓）；勾选控制是否显示，改动立即生效。"
                        Style="{StaticResource CaptionText}" Margin="0,0,0,10" TextWrapping="Wrap" />

@@ -9,11 +9,11 @@ public sealed class ToastService
 {
     private ToastWindow? _window;
 
-    public void Info(string title, string message = "") => Show(title, message, false);
+    public void Info(string title, string message = "", string? actionText = null, Action? action = null) => Show(title, message, false, actionText, action);
 
     public void Warn(string title, string message = "") => Show(title, message, true);
 
-    private void Show(string title, string message, bool warning)
+    private void Show(string title, string message, bool warning, string? actionText = null, Action? action = null)
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher is null || dispatcher.HasShutdownStarted) return;
@@ -23,7 +23,7 @@ public sealed class ToastService
             try
             {
                 _window ??= new ToastWindow();
-                _window.ShowMessage(title, message, warning);
+                _window.ShowMessage(title, message, warning, actionText, action);
             }
             catch (Exception)
             {

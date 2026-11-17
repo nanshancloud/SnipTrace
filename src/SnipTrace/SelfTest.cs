@@ -204,6 +204,7 @@ internal static class SelfTest
         CheckSettingsLiveApply(Check);
         CheckAboutPage(root, Check);
         CheckUpdateService(Check);
+        CheckTrayOptions(Check);
         CheckEditorInteractions(Check);
         CheckEditorPanelSync(Check);
         CheckEditorUndoRedo(Check);
@@ -675,6 +676,8 @@ internal static class SelfTest
             string target = Path.Combine(paths.RootDirectory, "shots-smoke");
             view.ScreenshotDirBox.Text = target;
             view.CheckUpdateCheck.IsChecked = false;
+            view.TrayColorRadio.IsChecked = true;
+            view.TrayHintCheck.IsChecked = false;
 
             var frame = new DispatcherFrame();
             var timer = new DispatcherTimer(
@@ -690,6 +693,9 @@ internal static class SelfTest
             check("设置改动即时生效", ok, ok ? target : "仍为 " + settings.ScreenshotDirectory);
             check("启动检查更新开关即时生效", !settings.CheckUpdatesOnStartup,
                 settings.CheckUpdatesOnStartup.ToString());
+            check("托盘图标与提示开关即时生效",
+                settings.TrayIconMode == TrayIconModes.Color && settings.SuppressTrayHint,
+                $"{settings.TrayIconMode} suppress={settings.SuppressTrayHint}");
 
             int rows = view.ToolbarListPanel.Children.Count;
             check("设置页可增删排序工具条按钮", rows == SelectionToolbarItems.All.Length, rows.ToString());
@@ -729,6 +735,36 @@ internal static class SelfTest
         catch (Exception ex)
         {
             check("设置改动即时生效", false, ex.Message);
+        }
+    }
+
+
+    /// <summary>托盘的图标配色归一化，以及提示窗的「不再提示」按钮。</summary>
+    private static void CheckTrayOptions(Action<string, bool, string?> check)
+    {
+        try
+        {
+            bool normalize = TrayIconModes.Normalize("color") == TrayIconModes.Color
+                             && TrayIconModes.Normalize("Light") == TrayIconModes.Light
+                             && TrayIconModes.Normalize(null) == TrayIconModes.Auto
+                             && TrayIconModes.Normalize("weird") == TrayIconModes.Auto;
+
+            var toast = new ToastWindow();
+            bool actionInvoked = false;
+            toast.ShowMessage("已最小化到托盘", "双击托盘图标可重新打开主窗口。", false, "不再提示",
+                () => actionInvoked = true);
+
+            bool hasAction = toast.ActionRow.Visibility == Visibility.Visible
+                             && string.Equals(toast.ActionButton.Content as string, "不再提示", StringComparison.Ordinal);
+            toast.ActionButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            toast.Close();
+
+            check("托盘图标与提示选项", normalize && hasAction && actionInvoked,
+                $"normalize={normalize} action={hasAction} invoked={actionInvoked}");
+        }
+        catch (Exception ex)
+        {
+            check("托盘图标与提示选项", false, ex.Message);
         }
     }
 

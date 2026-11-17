@@ -474,7 +474,18 @@ public partial class ShellWindow : Window
             e.Cancel = true;
             SaveLayout();
             Hide();
-            Services.Toasts.Info("已最小化到托盘", "双击托盘图标可重新打开主窗口。");
+
+            // 提示可以一键永久关闭（也可在设置里重新打开）。
+            if (!Services.Settings.SuppressTrayHint)
+            {
+                Services.Toasts.Info("已最小化到托盘", "双击托盘图标可重新打开主窗口。", "不再提示", () =>
+                {
+                    Services.Settings.SuppressTrayHint = true;
+                    Services.SaveSettings();
+                    RefreshSettings();
+                });
+            }
+
             return;
         }
 
