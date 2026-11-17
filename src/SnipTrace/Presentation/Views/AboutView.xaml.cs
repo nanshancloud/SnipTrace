@@ -1,41 +1,76 @@
 using System;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using SnipTrace.App.Infrastructure.Platform;
 using SnipTrace.App.Presentation.Services;
 
 namespace SnipTrace.App.Presentation.Views;
 
-/// <summary>关于页：版本信息、项目地址与作者，与设置页平级出现在导航里。</summary>
+/// <summary>关于页：版本信息、检查更新、项目地址与作者，与设置页平级出现在导航里。</summary>
 public partial class AboutView : UserControl
 {
     private const string RepositoryUrl = "https://github.com/nanshancloud/SnipTrace";
 
+    private string _downloadUrl = UpdateService.ReleasesPageUrl;
+    private bool _checking;
+
     public AboutView()
     {
         InitializeComponent();
-        VersionText.Text = "版本 " + AppVersion;
+        VersionText.Text = "版本 " + UpdateService.CurrentVersionText;
     }
 
-    /// <summary>当前程序集版本（csproj 的 Version 字段）。</summary>
-    private static string AppVersion
+    /// <summary>手动检查更新：启动时的自动检查可在设置里关闭，这里始终可用。</summary>
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
     {
-        get
+        if (_checking) return;
+
+        _checking = true;
+        CheckUpdateButton.IsEnabled = false;
+        DownloadButton.Visibility = Visibility.Collapsed;
+        UpdateStatusText.Text = "正在检查…";
+
+        try
         {
-            var version = typeof(AboutView).Assembly.GetName().Version;
-            return version is null
-                ? "1.0.0"
-                : $"{version.Major}.{version.Minor}.{version.Build}";
+            UpdateCheckResult result = await UpdateService.CheckAsync();
+            if (!result.Succeeded)
+            {
+                UpdateStatusText.Text = "检查失败：" + (result.Error ?? "网络不可用");
+                return;
+            }
+
+            _downloadUrl = result.DownloadUrl;
+            if (result.HasUpdate)
+            {
+                UpdateStatusText.Text = $"发现新版本 v{result.LatestVersion}（当前 v{UpdateService.CurrentVersionText}）";
+                DownloadButton.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                UpdateStatusText.Text = $"已是最新版本（v{UpdateService.CurrentVersionText}）";
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "检查失败：" + ex.Message;
+        }
+        finally
+        {
+            _checking = false;
+            CheckUpdateButton.IsEnabled = true;
         }
     }
 
-    private void RepositoryLink_Click(object sender, RoutedEventArgs e)
+    private void Download_Click(object sender, RoutedEventArgs e) => OpenUrl(_downloadUrl);
+
+    private void RepositoryLink_Click(object sender, RoutedEventArgs e) => OpenUrl(RepositoryUrl);
+
+    private static void OpenUrl(string url)
     {
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(RepositoryUrl)
-            {
-                UseShellExecute = true
-            });
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception ex)
         {

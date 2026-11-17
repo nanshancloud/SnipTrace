@@ -69,7 +69,14 @@ public partial class SettingsView : UserControl
             AutoSaveCheck.IsChecked = settings.AutoSaveAfterCapture;
             HotkeyWarnCheck.IsChecked = settings.WarnHotkeyFailure;
             StartupCheck.IsChecked = settings.RunAtStartup;
+            CheckUpdateCheck.IsChecked = settings.CheckUpdatesOnStartup;
             HighlightCheck.IsChecked = settings.Highlight.Enabled;
+
+            // 换过安装位置（或旧版本写的是不带 --startup 的命令）时，顺手把启动项修到当前路径。
+            if (settings.RunAtStartup && !StartupService.MatchesCurrentExecutable())
+            {
+                StartupService.Apply(true);
+            }
 
             if (settings.HotkeyMode == HotkeyModes.Unified) HotkeyUnifiedRadio.IsChecked = true;
             else HotkeyIndividualRadio.IsChecked = true;
@@ -408,6 +415,7 @@ public partial class SettingsView : UserControl
             AutoSaveAfterCapture = AutoSaveCheck.IsChecked == true,
             WarnHotkeyFailure = HotkeyWarnCheck.IsChecked == true,
             RunAtStartup = StartupCheck.IsChecked == true,
+            CheckUpdatesOnStartup = CheckUpdateCheck.IsChecked == true,
             HotkeyMode = HotkeyUnifiedRadio.IsChecked == true ? HotkeyModes.Unified : HotkeyModes.Individual,
             Theme = ThemeLightRadio.IsChecked == true ? ThemeModes.Light : ThemeModes.Dark,
             Highlight = new HighlightOptions
@@ -507,6 +515,7 @@ public partial class SettingsView : UserControl
         target.AutoSaveAfterCapture = source.AutoSaveAfterCapture;
         target.WarnHotkeyFailure = source.WarnHotkeyFailure;
         target.RunAtStartup = source.RunAtStartup;
+        target.CheckUpdatesOnStartup = source.CheckUpdatesOnStartup;
         target.HotkeyMode = source.HotkeyMode;
         target.Theme = source.Theme;
         target.Highlight = source.Highlight;

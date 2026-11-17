@@ -353,6 +353,9 @@ public sealed class AppSettings
 
     public bool RunAtStartup { get; set; }
 
+    /// <summary>启动时静默检查 GitHub 新版本；关掉后启动不联网，关于页仍可手动检查。</summary>
+    public bool CheckUpdatesOnStartup { get; set; } = true;
+
     public string CaptureHotkey { get; set; } = DefaultCaptureHotkey;
 
     public string GifHotkey { get; set; } = DefaultGifHotkey;

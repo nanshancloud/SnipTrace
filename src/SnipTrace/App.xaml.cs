@@ -82,10 +82,14 @@ public partial class App : Application
             return;
         }
 
+        // 开机自启（--startup）：只驻留托盘并注册热键，不弹主窗口。
+        bool silentStart = e.Args.Any(arg =>
+            string.Equals(arg, StartupService.StartupArgument, StringComparison.OrdinalIgnoreCase));
+
         _shell = new ShellWindow();
         _services.Shell = _shell;
         MainWindow = _shell;
-        _shell.Show();
+        if (!silentStart) _shell.Show();
 
         // 供自动化截图/排查使用：--page settings 直接打开指定页面。
         string? startPage = ReadArgument(e.Args, "--page");
@@ -114,6 +118,25 @@ public partial class App : Application
         }
 
         Task.Run(ProbeMp4Encoder);
+
+        if (_services.Settings.CheckUpdatesOnStartup) _ = CheckUpdatesInBackgroundAsync();
+    }
+
+    /// <summary>启动后静默检查一次新版本；失败不打扰用户，只在真有新版本时提示。</summary>
+    private async Task CheckUpdatesInBackgroundAsync()
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
+            UpdateCheckResult result = await UpdateService.CheckAsync().ConfigureAwait(false);
+            if (!result.Succeeded || !result.HasUpdate) return;
+
+            _services?.Toasts.Info($"发现新版本 v{result.LatestVersion}", "打开「关于」页可查看并下载");
+        }
+        catch (Exception)
+        {
+            // 后台检查失败静默处理。
+        }
     }
 
     private static string? ReadArgument(string[] args, string name)

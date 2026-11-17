@@ -100,6 +100,12 @@ public static class StartupService
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "SnipTrace";
 
+    /// <summary>开机自启参数：静默启动到托盘，不弹主窗口。</summary>
+    public const string StartupArgument = "--startup";
+
+    private static string CommandLine =>
+        $"\"{Process.GetCurrentProcess().MainModule?.FileName}\" {StartupArgument}";
+
     public static bool IsEnabled()
     {
         try
@@ -123,7 +129,7 @@ public static class StartupService
             {
                 string? processPath = Environment.ProcessPath;
                 if (string.IsNullOrEmpty(processPath)) return false;
-                key.SetValue(ValueName, $"\"{processPath}\"");
+                key.SetValue(ValueName, $"\"{processPath}\" {StartupArgument}");
             }
             else
             {
@@ -138,14 +144,14 @@ public static class StartupService
         }
     }
 
+    /// <summary>启动项是否已经指向当前可执行文件（换过安装位置后需要重写）。</summary>
     public static bool MatchesCurrentExecutable()
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
             if (key?.GetValue(ValueName) is not string value) return false;
-            string expected = $"\"{Process.GetCurrentProcess().MainModule?.FileName}\"";
-            return string.Equals(value.Trim(), expected.Trim(), StringComparison.OrdinalIgnoreCase);
+            return string.Equals(value.Trim(), CommandLine.Trim(), StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception)
         {

@@ -99,7 +99,10 @@
                       ToolTip="开启后保存按钮也直接存入截图目录；关闭时保存按钮弹出另存为对话框" />
             <CheckBox x:Name="HotkeyWarnCheck" Content="快捷键注册失败时弹窗提醒" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10"
                       ToolTip="关闭后快捷键被占用只记录，不再弹提示" />
-            <CheckBox x:Name="StartupCheck" Content="开机自动启动（写入当前用户启动项）" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10" />
+            <CheckBox x:Name="StartupCheck" Content="开机自动启动（写入当前用户启动项，静默驻留托盘）" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10"
+                      ToolTip="开机后在托盘待命并注册快捷键，不弹出主窗口" />
+            <CheckBox x:Name="CheckUpdateCheck" Content="启动时检查更新（GitHub Releases）" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10"
+                      ToolTip="关闭后启动不再联网检查版本；关于页仍可手动点「检查更新」" />
 
             <TextBlock Text="鼠标高亮（演示模式）" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,10" />
             <CheckBox x:Name="HighlightCheck" Content="录制 GIF / MP4 时高亮显示鼠标位置" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10"

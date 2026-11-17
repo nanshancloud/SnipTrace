@@ -22,6 +22,16 @@
                     <TextBlock Text="轻量截图、贴图与录屏工具：选区标注、钉图置顶、GIF / MP4 录制。完全本地处理，不联网、不上传、不收集遥测。"
                                Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,16,0,0" />
 
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button x:Name="CheckUpdateButton" Content="检查更新" Style="{StaticResource SecondaryButton}"
+                                Click="CheckUpdate_Click" ToolTip="读取 GitHub 上发布的最新版本号" />
+                        <Button x:Name="DownloadButton" Content="下载新版本" Style="{StaticResource SecondaryButton}"
+                                Margin="8,0,0,0" Visibility="Collapsed" Click="Download_Click"
+                                ToolTip="在浏览器中打开发布页" />
+                        <TextBlock x:Name="UpdateStatusText" Style="{StaticResource CaptionText}" TextWrapping="Wrap"
+                                   VerticalAlignment="Center" Margin="12,0,0,0" Text="启动时自动检查，可在设置里关闭" />
+                    </StackPanel>
+
                     <Grid Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="80" />

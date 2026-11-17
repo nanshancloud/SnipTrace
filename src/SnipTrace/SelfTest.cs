@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using PixelFormats = System.Windows.Media.PixelFormats;
 using SnipTrace.App.Infrastructure.Capture;
 using SnipTrace.App.Infrastructure.Encoding;
+using SnipTrace.App.Infrastructure.Platform;
 using SnipTrace.App.Presentation.Editing;
 using SnipTrace.App.Presentation.Recording;
 using SnipTrace.App.Presentation.Selection;
@@ -202,6 +203,7 @@ internal static class SelfTest
         CheckWindowLayouts(root, Check);
         CheckSettingsLiveApply(Check);
         CheckAboutPage(root, Check);
+        CheckUpdateService(Check);
         CheckEditorInteractions(Check);
         CheckEditorPanelSync(Check);
         CheckEditorUndoRedo(Check);
@@ -672,6 +674,7 @@ internal static class SelfTest
 
             string target = Path.Combine(paths.RootDirectory, "shots-smoke");
             view.ScreenshotDirBox.Text = target;
+            view.CheckUpdateCheck.IsChecked = false;
 
             var frame = new DispatcherFrame();
             var timer = new DispatcherTimer(
@@ -685,6 +688,8 @@ internal static class SelfTest
 
             bool ok = string.Equals(settings.ScreenshotDirectory, target, StringComparison.OrdinalIgnoreCase);
             check("设置改动即时生效", ok, ok ? target : "仍为 " + settings.ScreenshotDirectory);
+            check("启动检查更新开关即时生效", !settings.CheckUpdatesOnStartup,
+                settings.CheckUpdatesOnStartup.ToString());
 
             int rows = view.ToolbarListPanel.Children.Count;
             check("设置页可增删排序工具条按钮", rows == SelectionToolbarItems.All.Length, rows.ToString());
@@ -724,6 +729,49 @@ internal static class SelfTest
         catch (Exception ex)
         {
             check("设置改动即时生效", false, ex.Message);
+        }
+    }
+
+    /// <summary>更新检查的纯逻辑：tag 解析、版本比较、GitHub 响应解析（不联网）。</summary>
+    private static void CheckUpdateService(Action<string, bool, string?> check)
+    {
+        try
+        {
+            var current = new Version(1, 0, 0);
+            Version? patch = UpdateService.ParseTag("v1.0.1");
+            Version? suffix = UpdateService.ParseTag("1.2.0-beta");
+            Version? bare = UpdateService.ParseTag("2.0");
+
+            bool newer = patch is not null && UpdateService.IsNewer(patch, current);
+            bool same = patch is not null && !UpdateService.IsNewer(new Version(1, 0, 0), current);
+            bool parseOk = patch is not null && patch.ToString(3) == "1.0.1"
+                           && suffix is not null && suffix.ToString(3) == "1.2.0"
+                           && bare is not null && bare.ToString(3) == "2.0.0";
+
+            UpdateCheckResult parsed = UpdateService.ParseLatestRelease(
+                "{\"tag_name\":\"v9.9.9\",\"html_url\":\"https://example.com/release\"}", current);
+            UpdateCheckResult bad = UpdateService.ParseLatestRelease("{\"tag_name\":\"nightly\"}", current);
+
+            // 仓库里的 tag 不一定是纯版本号：要跳过无关 tag，取能识别的最新版本。
+            UpdateCheckResult fromReleases = UpdateService.ParseReleaseList(
+                "[{\"tag_name\":\"SnipTrace\",\"html_url\":\"https://example.com/odd\"}," +
+                "{\"tag_name\":\"v1.3.0\",\"html_url\":\"https://example.com/130\"}]", current);
+            UpdateCheckResult fromTags = UpdateService.ParseTagList(
+                "[{\"name\":\"SnipTrace\"},{\"name\":\"v2.1.0\"}]", current);
+
+            check("更新检查版本解析",
+                newer && same && parseOk && parsed.Succeeded && parsed.HasUpdate
+                && parsed.LatestVersion == "9.9.9" && parsed.DownloadUrl == "https://example.com/release"
+                && !bad.Succeeded
+                && fromReleases.HasUpdate && fromReleases.LatestVersion == "1.3.0"
+                && fromReleases.DownloadUrl == "https://example.com/130"
+                && fromTags.HasUpdate && fromTags.LatestVersion == "2.1.0",
+                $"newer={newer} same={same} parse={parseOk} latest={parsed.LatestVersion} bad={bad.Succeeded} " +
+                $"list={fromReleases.LatestVersion} tags={fromTags.LatestVersion}");
+        }
+        catch (Exception ex)
+        {
+            check("更新检查版本解析", false, ex.Message);
         }
     }
 
