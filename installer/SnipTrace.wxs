@@ -2,7 +2,7 @@
 <!--
   屏迹 SnipTrace 安装包定义（WiX v5）。
   由 tools/package.ps1 调用：
-    wix build SnipTrace.wxs -arch x64 -d Version=1.0.0 -bindpath publish=<发布目录> -o <输出.msi>
+    wix build SnipTrace.wxs -arch x64 -d Version=1.0.1 -bindpath publish=<发布目录> -o <输出.msi>
   两种分发方式（内置运行时 / 框架依赖）共用 UpgradeCode，二选一安装并互相升级。
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
