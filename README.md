@@ -64,6 +64,7 @@ src/SnipTrace/           WPF 应用：Infrastructure（捕获 / 编码 / 托盘 
                          Themes（Brushes.Dark|Light.xaml 深浅色画刷 + Theme.xaml 样式）
 tests/SnipTrace.Tests/   控制台测试（无需测试框架）
 docs/DESIGN.md           设计方案（唯一设计基线）
+docs/images/             测试与验收截图（本地生成，不入库）
 ```
 
 分层约定：领域层不依赖 WPF；UI 线程不执行截图、编码或磁盘写入。

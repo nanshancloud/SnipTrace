@@ -24,10 +24,13 @@ namespace SnipTrace.App;
 
 /// <summary>
 /// 编码管线自检（--selftest）：验证 GIF 可解码、帧去重、循环标记与 MP4 编码可用性。
-/// 结果写入 %TEMP%\SnipTraceSelfTest\result.txt。
+/// 结果与临时文件写入 exe 旁的 selftest 目录；渲染截图默认写入仓库 docs\images（不入库）。
 /// </summary>
 internal static class SelfTest
 {
+    /// <summary>自检截图的输出目录：仓库内运行时为 docs\images，否则退回 exe 旁的 selftest。</summary>
+    private static readonly string ShotRoot = ResolveShotRoot();
+
     public static int Run()
     {
         int failures = 0;
@@ -185,7 +188,7 @@ internal static class SelfTest
                 {
                     using (var graphics = Graphics.FromImage(canvas)) graphics.Clear(Color.FromArgb(24, 32, 44));
                     var badgeImage = AnnotationRenderer.Render(ImageUtil.ToBitmapSource(canvas), badgeDoc);
-                    string badgePath = Path.Combine(root, "badge-shapes.png");
+                    string badgePath = Path.Combine(ShotRoot, "badge-shapes.png");
                     ImageUtil.SavePng(badgeImage, badgePath);
                     Check("序号与箭头形状渲染", File.Exists(badgePath) && new FileInfo(badgePath).Length > 1000, badgePath);
                 }
@@ -202,7 +205,7 @@ internal static class SelfTest
 
         CheckWindowLayouts(root, Check);
         CheckSettingsLiveApply(Check);
-        CheckAboutPage(root, Check);
+        CheckAboutPage(ShotRoot, Check);
         CheckUpdateService(Check);
         CheckTrayOptions(Check);
         CheckEditorInteractions(Check);
@@ -211,10 +214,40 @@ internal static class SelfTest
         CheckHighlightRender(Check);
         CheckArrowHeadRender(Check);
         CheckSelectionMaskRender(Check);
-        CheckSelectionToolbar(root, Check);
+        CheckSelectionToolbar(ShotRoot, Check);
 
         writer.WriteLine($"失败 {failures}");
         return failures;
+    }
+
+    /// <summary>
+    /// 截图目录解析：优先环境变量 SNIPTRACE_SHOTS_DIR，其次从 exe 目录向上找带 SnipTrace.slnx 与 docs 的仓库根，
+    /// 命中则用 docs\images；打包安装后没有仓库结构，退回 exe 旁的 selftest。
+    /// </summary>
+    private static string ResolveShotRoot()
+    {
+        string? custom = Environment.GetEnvironmentVariable("SNIPTRACE_SHOTS_DIR");
+        if (!string.IsNullOrWhiteSpace(custom))
+        {
+            string full = Path.GetFullPath(custom);
+            Directory.CreateDirectory(full);
+            return full;
+        }
+
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "SnipTrace.slnx")) &&
+                Directory.Exists(Path.Combine(dir.FullName, "docs")))
+            {
+                string shots = Path.Combine(dir.FullName, "docs", "images");
+                Directory.CreateDirectory(shots);
+                return shots;
+            }
+        }
+
+        string fallback = Path.Combine(AppContext.BaseDirectory, "selftest");
+        Directory.CreateDirectory(fallback);
+        return fallback;
     }
 
     /// <summary>高亮渲染半透明：同色画笔不透明作对照，保证覆盖层 / 编辑器 / 导出一致。</summary>
@@ -269,9 +302,7 @@ internal static class SelfTest
             demoDocument.Add(new ShapeAnnotation(AnnotationKind.Pen,
                 new[] { new PointD(8, 98), new PointD(312, 98) }) { Style = new AnnotationStyle(0xFFFF6B5F, 6, 1) });
 
-            string folder = Path.Combine(AppContext.BaseDirectory, "selftest");
-            Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, "highlight-transparency.png");
+            string path = Path.Combine(ShotRoot, "highlight-transparency.png");
             ImageUtil.SavePng(AnnotationRenderer.Render(ImageUtil.ToBitmapSource(demo), demoDocument), path);
             check("高亮对比图输出", File.Exists(path) && new FileInfo(path).Length > 500, "已生成对比图");
         }
@@ -344,9 +375,7 @@ internal static class SelfTest
                 Style = new AnnotationStyle(0xFFFF6B5F, 16, 1)
             });
 
-            string folder = Path.Combine(AppContext.BaseDirectory, "selftest");
-            Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, "arrow-head-widths.png");
+            string path = Path.Combine(ShotRoot, "arrow-head-widths.png");
             ImageUtil.SavePng(AnnotationRenderer.Render(ImageUtil.ToBitmapSource(demo), demoDocument), path);
             check("箭头端头对照图输出", File.Exists(path) && new FileInfo(path).Length > 500, "已生成对照图");
         }
@@ -527,7 +556,7 @@ internal static class SelfTest
     }
 
     /// <summary>覆盖层工具条：选择按钮存在，复制与精标用文字标签区分，整条工具条可渲染。</summary>
-    private static void CheckSelectionToolbar(string root, Action<string, bool, string?> check)
+    private static void CheckSelectionToolbar(string shots, Action<string, bool, string?> check)
     {
         try
         {
@@ -586,7 +615,7 @@ internal static class SelfTest
 
             var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(content);
-            string path = Path.Combine(root, "selection-toolbar.png");
+            string path = Path.Combine(shots, "selection-toolbar.png");
             ImageUtil.SavePng(bitmap, path);
             check("覆盖层工具条渲染", File.Exists(path) && new FileInfo(path).Length > 800, $"{width}×{height}");
 
@@ -726,8 +755,7 @@ internal static class SelfTest
             {
                 var target2 = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
                 target2.Render(backdrop);
-                string pagePath = Path.Combine(AppContext.BaseDirectory, "selftest", "settings-page.png");
-                Directory.CreateDirectory(Path.GetDirectoryName(pagePath)!);
+                string pagePath = Path.Combine(ShotRoot, "settings-page.png");
                 ImageUtil.SavePng(target2, pagePath);
                 check("设置页渲染", new FileInfo(pagePath).Length > 2000, $"{width}×{height}");
             }
@@ -812,7 +840,7 @@ internal static class SelfTest
     }
 
     /// <summary>关于页：版本号来自程序集，并渲染一张整页图便于人工核对排版。</summary>
-    private static void CheckAboutPage(string root, Action<string, bool, string?> check)
+    private static void CheckAboutPage(string shots, Action<string, bool, string?> check)
     {
         try
         {
@@ -835,7 +863,7 @@ internal static class SelfTest
 
             var target = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             target.Render(backdrop);
-            string path = Path.Combine(root, "about-page.png");
+            string path = Path.Combine(shots, "about-page.png");
             ImageUtil.SavePng(target, path);
             check("关于页渲染", File.Exists(path) && new FileInfo(path).Length > 2000, $"{width}×{height}");
         }

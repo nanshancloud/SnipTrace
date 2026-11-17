@@ -23,5 +23,6 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
-# 临时验收截图（docs/images 里的正式截图需要入库）
+# ---------- 测试与验收截图（只留在本机，不入库、不上传 GitHub） ----------
+docs/images/
 /artifacts/screenshots/

@@ -5,6 +5,7 @@
 - 代码版本：见 `git log`
 - 自动化测试：`dotnet run --project tests/SnipTrace.Tests`
 - 手工验收需要真机图形会话；本仓库内的验收记录只在具备桌面的环境填写。
+- 截图存放：`--selftest` 与手工验收的截图默认写入 `docs/images/`（表内 `images/xxx.png` 即指该目录）。该目录不入库、不上传 GitHub，只在本地保留；需要换位置时设环境变量 `SNIPTRACE_SHOTS_DIR`。打包安装后没有仓库结构，截图退回 exe 旁的 `selftest/`。
 
 ## 0. 实机验证记录
 
