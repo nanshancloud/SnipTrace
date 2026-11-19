@@ -37,14 +37,16 @@ public sealed class SelectionResult
 public enum OverlayAnnotateTool
 {
     None,
-    Select,
+
+    /// <summary>图形：矩形 / 椭圆 / 直线，具体种类由记住的子选项决定。</summary>
+    Shape,
     Arrow,
     Pen,
-    Eraser,
-    Rectangle,
-    Ellipse,
     Text,
-    Number
+    Number,
+
+    /// <summary>马赛克：按区域块化采样底图，块大小跟随线宽。</summary>
+    Mosaic
 }
 
 /// <summary>
@@ -88,12 +90,9 @@ public sealed class SelectionOverlay : IDisposable
     private string _textFontFamily = AppSettings.DefaultTextFontFamily;
     private double _strokeWidth = 3;
     private bool _annotating;
-    private Annotation? _selectedAnnotation;
-    private Annotation? _dragAnnotation;
-    private PointD _dragLast;
-    private bool _erasing;
-    private bool _eraseChanged;
-    private PointD _lastErasePoint;
+    private string _shapeVariant = SelectionToolbarItems.VariantRectangle;
+    private string _arrowVariant = SelectionToolbarItems.VariantArrow;
+    private double _mosaicWidth = 12;
     private BadgeShape _badgeShape = BadgeShape.Circle;
     private BadgeFillMode _badgeFillMode = BadgeFillMode.Fill;
 
@@ -104,6 +103,13 @@ public sealed class SelectionOverlay : IDisposable
         _virtualBounds = snapshot.Bounds;
         _cursor = MonitorService.GetCursorPosition();
         if (!string.IsNullOrWhiteSpace(textFontFamily)) _textFontFamily = textFontFamily.Trim();
+
+        // 图形 / 箭头记住上次选的子选项；工具条 Attach 前先读好，图标一次画对。
+        _shapeVariant = SelectionToolbarItems.NormalizeVariant(SelectionToolbarItems.Shape,
+            toolbarItems?.FirstOrDefault(item => item.Id == SelectionToolbarItems.Shape)?.Variant);
+        _arrowVariant = SelectionToolbarItems.NormalizeVariant(SelectionToolbarItems.Arrow,
+            toolbarItems?.FirstOrDefault(item => item.Id == SelectionToolbarItems.Arrow)?.Variant);
+
         _toolbar.Attach(this, toolbarItems);
     }
 
@@ -149,40 +155,23 @@ public sealed class SelectionOverlay : IDisposable
             return;
         }
 
-        // 选区四角：无论是否已经标注，拖角都能继续调整选区大小（标注随选区一起对齐）。
+        // 普通模式下的选区四角：拖角继续调整选区大小（已画标注随选区一起对齐）。
         if (!_selection.IsEmpty
-            && _annotateTool is OverlayAnnotateTool.None or OverlayAnnotateTool.Select
+            && _annotateTool == OverlayAnnotateTool.None
             && TryBeginResize())
         {
             return;
         }
 
-        // 标注模式下在选区内按下：开始绘制 / 拖动已选标注 / 擦除，不改变选区。
+        // 标注模式下在选区内按下：开始绘制，不改变选区。
         if (_annotateTool != OverlayAnnotateTool.None && !_selection.IsEmpty)
         {
-            if (_selection.Contains(_cursor))
-            {
-                switch (_annotateTool)
-                {
-                    case OverlayAnnotateTool.Select:
-                        BeginSelectDrag();
-                        break;
-                    case OverlayAnnotateTool.Eraser:
-                        BeginErase();
-                        break;
-                    default:
-                        BeginAnnotation();
-                        break;
-                }
-            }
-
+            if (_selection.Contains(_cursor)) BeginAnnotation();
             return;
         }
 
         // 普通模式重新框选会改变选区，覆盖层标注随之作废。
         _overlayAnnotations = null;
-        _selectedAnnotation = null;
-        _dragAnnotation = null;
         RefreshAnnotations();
 
         _anchor = _cursor;
@@ -215,18 +204,6 @@ public sealed class SelectionOverlay : IDisposable
         if (_resizeCorner != RectCorner.None)
         {
             ApplyResize();
-            return;
-        }
-
-        if (_erasing)
-        {
-            UpdateErase();
-            return;
-        }
-
-        if (_dragAnnotation is not null)
-        {
-            UpdateAnnotationDrag();
             return;
         }
 
@@ -278,19 +255,6 @@ public sealed class SelectionOverlay : IDisposable
             UpdateViews();
             UpdateResizeCursor();
             UpdateToolbar(forceMagnifier: true);
-            return;
-        }
-
-        if (_erasing)
-        {
-            EndErase();
-            return;
-        }
-
-        if (_dragAnnotation is not null)
-        {
-            _dragAnnotation = null;
-            RefreshAnnotations();
             return;
         }
 
@@ -373,7 +337,7 @@ public sealed class SelectionOverlay : IDisposable
     /// <summary>光标反馈：四角显示斜向双箭头，其余位置保持十字。</summary>
     private void UpdateResizeCursor()
     {
-        var corner = _annotateTool is OverlayAnnotateTool.None or OverlayAnnotateTool.Select
+        var corner = _annotateTool == OverlayAnnotateTool.None
             ? RectResize.HitCorner(_selection, _cursor)
             : RectCorner.None;
 
@@ -462,6 +426,15 @@ public sealed class SelectionOverlay : IDisposable
 
     public BadgeFillMode BadgeFillMode => _badgeFillMode;
 
+    /// <summary>图形按钮当前记住的子选项（矩形 / 椭圆 / 直线）。</summary>
+    public string ShapeVariant => _shapeVariant;
+
+    /// <summary>箭头按钮当前记住的子选项（箭头 / 直线）。</summary>
+    public string ArrowVariant => _arrowVariant;
+
+    /// <summary>工具条切换图形 / 箭头子选项时触发（Id, Variant），供上层写回设置。</summary>
+    public event Action<string, string>? VariantChanged;
+
     /// <summary>设置序号标记外形（圆 / 三角 / 方 / 五边 / 六边 / 心形 / 圆角）。</summary>
     public void SetBadgeShape(BadgeShape shape) => _badgeShape = shape;
 
@@ -472,10 +445,33 @@ public sealed class SelectionOverlay : IDisposable
     public void SetAnnotateTool(OverlayAnnotateTool tool)
     {
         if (_annotateTool == tool && tool != OverlayAnnotateTool.None) tool = OverlayAnnotateTool.None;
-        if (_annotateTool == OverlayAnnotateTool.Select) _selectedAnnotation = null;
         _annotateTool = tool;
         RefreshAnnotations();
         _toolbar.RefreshAnnotateState(_annotateTool, _annotateColor);
+    }
+
+    /// <summary>切换图形 / 箭头按钮的子选项：只改下一次绘制的种类，当前工具保持不变。</summary>
+    public void SetAnnotateVariant(string id, string variant)
+    {
+        string normalized = SelectionToolbarItems.NormalizeVariant(id, variant);
+
+        if (id == SelectionToolbarItems.Shape)
+        {
+            if (_shapeVariant == normalized) return;
+            _shapeVariant = normalized;
+        }
+        else if (id == SelectionToolbarItems.Arrow)
+        {
+            if (_arrowVariant == normalized) return;
+            _arrowVariant = normalized;
+        }
+        else
+        {
+            return;
+        }
+
+        _toolbar.RefreshVariantState(_shapeVariant, _arrowVariant);
+        VariantChanged?.Invoke(id, normalized);
     }
 
     /// <summary>循环切换预设标注色（珊瑚 / 黄 / 绿 / 蓝 / 白 / 深灰），工具条上滚轮触发。</summary>
@@ -512,12 +508,6 @@ public sealed class SelectionOverlay : IDisposable
         if (undo) _overlayAnnotations.Undo();
         else _overlayAnnotations.Redo();
 
-        // 撤销掉的标注可能正是当前选中项，选中态一并清掉。
-        if (_selectedAnnotation is not null && !_overlayAnnotations.Annotations.Contains(_selectedAnnotation))
-        {
-            _selectedAnnotation = null;
-        }
-
         RefreshAnnotations();
         UpdateToolbar();
     }
@@ -536,89 +526,6 @@ public sealed class SelectionOverlay : IDisposable
         }
 
         _overlayAnnotations.ResizeCanvas(_selection.Width, _selection.Height);
-    }
-
-    /// <summary>「选择」工具：点中图形 / 文字 / 笔迹即选中，并在拖动时整体平移。</summary>
-    private void BeginSelectDrag()
-    {
-        if (_overlayAnnotations is null || _overlayAnnotations.Annotations.Count == 0)
-        {
-            _selectedAnnotation = null;
-            RefreshAnnotations();
-            return;
-        }
-
-        var point = DocPoint(_cursor);
-        _selectedAnnotation = FindAnnotation(point);
-        _dragAnnotation = _selectedAnnotation;
-        _dragLast = point;
-        RefreshAnnotations();
-    }
-
-    private void UpdateAnnotationDrag()
-    {
-        if (_dragAnnotation is null) return;
-        var point = DocPoint(_cursor);
-        double dx = point.X - _dragLast.X;
-        double dy = point.Y - _dragLast.Y;
-        if (dx == 0 && dy == 0) return;
-
-        _dragAnnotation.Move(dx, dy);
-        _dragLast = point;
-        RefreshAnnotations();
-    }
-
-    /// <summary>自上而下（后画的优先）命中标注。</summary>
-    private Annotation? FindAnnotation(PointD point) => AnnotationEditing.HitTest(_overlayAnnotations, point);
-
-    /// <summary>橡皮：按住拖动擦掉画笔 / 高亮笔画，规则与编辑器一致（文本、箭头、序号、图形不参与）。</summary>
-    private void BeginErase()
-    {
-        if (_overlayAnnotations is null) return;
-
-        _erasing = true;
-        _eraseChanged = false;
-        _lastErasePoint = DocPoint(_cursor);
-        _overlayAnnotations.BeginEdit();
-        EraseBetween(_lastErasePoint, _lastErasePoint);
-    }
-
-    private void UpdateErase()
-    {
-        var point = DocPoint(_cursor);
-        EraseBetween(_lastErasePoint, point);
-        _lastErasePoint = point;
-    }
-
-    private void EndErase()
-    {
-        if (!_erasing) return;
-
-        _erasing = false;
-        _overlayAnnotations?.EndEdit(_eraseChanged);
-        _eraseChanged = false;
-        RefreshAnnotations();
-    }
-
-    private void EraseBetween(PointD from, PointD to)
-    {
-        if (_overlayAnnotations is null) return;
-
-        var removed = AnnotationEditing.EraseStrokes(_overlayAnnotations, from, to);
-        if (removed.Count == 0) return;
-
-        if (_selectedAnnotation is not null && removed.Contains(_selectedAnnotation)) _selectedAnnotation = null;
-        _eraseChanged = true;
-        RefreshAnnotations();
-    }
-
-    private void DeleteSelectedAnnotation()
-    {
-        if (_selectedAnnotation is null) return;
-        _overlayAnnotations?.Remove(_selectedAnnotation);
-        _selectedAnnotation = null;
-        _dragAnnotation = null;
-        RefreshAnnotations();
     }
 
     private void BeginAnnotation()
@@ -648,15 +555,27 @@ public sealed class SelectionOverlay : IDisposable
             return;
         }
 
-        var kind = _annotateTool switch
+        // 图形 / 箭头按记住的子选项决定画什么：直线用无端头的箭头表示。
+        var (kind, arrowHead) = _annotateTool switch
         {
-            OverlayAnnotateTool.Arrow => AnnotationKind.Arrow,
-            OverlayAnnotateTool.Rectangle => AnnotationKind.Rectangle,
-            OverlayAnnotateTool.Ellipse => AnnotationKind.Ellipse,
-            _ => AnnotationKind.Pen
+            OverlayAnnotateTool.Shape => _shapeVariant switch
+            {
+                SelectionToolbarItems.VariantEllipse => (AnnotationKind.Ellipse, ArrowHead.End),
+                SelectionToolbarItems.VariantLine => (AnnotationKind.Arrow, ArrowHead.None),
+                _ => (AnnotationKind.Rectangle, ArrowHead.End)
+            },
+            OverlayAnnotateTool.Arrow => _arrowVariant == SelectionToolbarItems.VariantLine
+                ? (AnnotationKind.Arrow, ArrowHead.None)
+                : (AnnotationKind.Arrow, ArrowHead.End),
+            OverlayAnnotateTool.Mosaic => (AnnotationKind.Mosaic, ArrowHead.End),
+            _ => (AnnotationKind.Pen, ArrowHead.End)
         };
 
-        _pendingShape = new ShapeAnnotation(kind, new[] { point, point }, CurrentAnnotateStyle());
+        var style = kind == AnnotationKind.Mosaic
+            ? CurrentAnnotateStyle().WithWidth(_mosaicWidth)
+            : CurrentAnnotateStyle();
+
+        _pendingShape = new ShapeAnnotation(kind, new[] { point, point }, style) { ArrowHead = arrowHead };
         _annotating = true;
         _overlayAnnotations!.Add(_pendingShape);
         RefreshAnnotations();
@@ -688,8 +607,8 @@ public sealed class SelectionOverlay : IDisposable
     }
 
     /// <summary>
-    /// 滚轮微调最后一个标注（选择工具下优先取选中的 / 光标下的标注）：
-    /// 矩形、椭圆、箭头改「线宽」；文字、序号改字号；画笔、高亮仍按 10% 缩放。
+    /// 滚轮微调最后一个标注：矩形、椭圆、箭头改「线宽」，马赛克改块大小；
+    /// 文字、序号改字号；画笔、高亮仍按 10% 缩放。
     /// </summary>
     public void OnMouseWheel(int delta)
     {
@@ -700,15 +619,17 @@ public sealed class SelectionOverlay : IDisposable
         var annotations = _overlayAnnotations;
         if (annotations is null || annotations.Annotations.Count == 0) return;
 
-        var target = _annotateTool == OverlayAnnotateTool.Select ? FindAnnotation(DocPoint(_cursor)) : null;
-        target ??= _selectedAnnotation;
-        if (target is null || !annotations.Annotations.Contains(target)) target = annotations.Annotations[^1];
+        var target = annotations.Annotations[^1];
 
         // 矩形 / 椭圆 / 箭头改线宽（箭头端头随线宽缩放），文字 / 序号改字号，画笔 / 高亮等比缩放。
         if (!AnnotationEditing.AdjustOnWheel(target, delta > 0)) return;
 
-        // 线宽记住下来，后续新画的图形 / 箭头沿用。
-        if (target is ShapeAnnotation { Kind: AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Arrow } shape)
+        // 尺寸记住下来，后续新画的同类标注沿用。
+        if (target is ShapeAnnotation { Kind: AnnotationKind.Mosaic } mosaic)
+        {
+            _mosaicWidth = mosaic.Style.Width;
+        }
+        else if (target is ShapeAnnotation { Kind: AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Arrow } shape)
         {
             _strokeWidth = shape.Style.Width;
         }
@@ -745,14 +666,9 @@ public sealed class SelectionOverlay : IDisposable
 
     private void RefreshAnnotations()
     {
-        var selected = _selectedAnnotation is not null && _overlayAnnotations is not null
-            && _overlayAnnotations.Annotations.Contains(_selectedAnnotation)
-                ? _selectedAnnotation
-                : null;
-
         foreach (var window in _windows)
         {
-            window.UpdateAnnotations(_overlayAnnotations, _selection, selected);
+            window.UpdateAnnotations(_overlayAnnotations, _selection);
         }
 
         // 回退 / 前进按钮的可用状态跟着标注历史走。
@@ -789,9 +705,6 @@ public sealed class SelectionOverlay : IDisposable
                 return;
             case Key.S when (modifiers & ModifierKeys.Control) != 0:
                 if (!_selection.IsEmpty) Complete(SelectionAction.Save);
-                return;
-            case Key.Delete or Key.Back when _selectedAnnotation is not null:
-                DeleteSelectedAnnotation();
                 return;
         }
 

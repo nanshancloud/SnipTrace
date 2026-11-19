@@ -50,6 +50,7 @@ public sealed class CaptureWorkflow
 
             using var overlay = new SelectionOverlay(snapshot, _services.Settings.SelectionToolbar,
                 _services.Settings.TextFontFamily);
+            overlay.VariantChanged += _services.RememberAnnotateVariant;
             var result = await overlay.ShowAsync();
             if (result is null) return;
 

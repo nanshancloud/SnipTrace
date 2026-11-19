@@ -137,7 +137,7 @@ public partial class SettingsView : UserControl
             string name = SelectionToolbarCatalog.DisplayName(item.Id);
             var button = new Button
             {
-                Content = SelectionToolbarIcons.For(item.Id),
+                Content = SelectionToolbarIcons.For(item.Id, item.Variant),
                 Style = (Style)FindResource("ToolIconButton"),
                 Tag = item,
                 Opacity = item.Visible ? 1.0 : 0.35,

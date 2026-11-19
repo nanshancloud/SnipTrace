@@ -310,21 +310,34 @@ public sealed class ToolbarItemSetting
     public string Id { get; set; } = string.Empty;
 
     public bool Visible { get; set; } = true;
+
+    /// <summary>同组按钮记住的子选项（图形：rectangle / ellipse / line；箭头：arrow / line）。</summary>
+    public string Variant { get; set; } = string.Empty;
 }
 
 /// <summary>选区工具条按钮 Id 与默认排列（列表顺序就是显示顺序，可增删）。</summary>
 public static class SelectionToolbarItems
 {
     public const string Ratio = "ratio";
-    public const string Select = "select";
+    public const string Shape = "shape";
     public const string Arrow = "arrow";
     public const string Pen = "pen";
-    public const string Eraser = "eraser";
-    public const string Rectangle = "rectangle";
-    public const string Ellipse = "ellipse";
     public const string Text = "text";
     public const string Number = "number";
+    public const string Mosaic = "mosaic";
     public const string Color = "color";
+
+    /// <summary>图形 / 箭头子选项。</summary>
+    public const string VariantRectangle = "rectangle";
+    public const string VariantEllipse = "ellipse";
+    public const string VariantLine = "line";
+    public const string VariantArrow = "arrow";
+
+    /// <summary>旧版本按钮 Id（迁移：矩形 / 椭圆并入图形，选择 / 橡皮移除）。</summary>
+    public const string LegacySelect = "select";
+    public const string LegacyEraser = "eraser";
+    public const string LegacyRectangle = "rectangle";
+    public const string LegacyEllipse = "ellipse";
     public const string Copy = "copy";
     public const string Save = "save";
     public const string Pin = "pin";
@@ -338,19 +351,36 @@ public static class SelectionToolbarItems
     /// <summary>全部按钮，数组顺序即默认顺序（「复制」默认在最右侧）。</summary>
     public static readonly string[] All =
     {
-        Ratio, Select, Arrow, Pen, Eraser, Rectangle, Ellipse, Text, Number, Color,
+        Ratio, Shape, Arrow, Pen, Text, Number, Mosaic, Color,
         Save, Pin, Gif, Video, Undo, Redo, Cancel, Refine, Copy
     };
+
+    /// <summary>图形 / 箭头这类带子选项的按钮，把 Variant 收敛到合法值。</summary>
+    public static string NormalizeVariant(string id, string? variant)
+    {
+        string text = (variant ?? string.Empty).Trim();
+        return id switch
+        {
+            Shape => text is VariantRectangle or VariantEllipse or VariantLine ? text : VariantRectangle,
+            Arrow => text is VariantLine ? VariantLine : VariantArrow,
+            _ => string.Empty
+        };
+    }
 
     public static bool IsKnown(string? id) => id is not null && Array.IndexOf(All, id) >= 0;
 
     public static List<ToolbarItemSetting> CreateDefault()
-        => All.Select(id => new ToolbarItemSetting { Id = id, Visible = true }).ToList();
+        => All.Select(id => new ToolbarItemSetting { Id = id, Visible = true, Variant = NormalizeVariant(id, null) }).ToList();
 
     public static List<ToolbarItemSetting> Clone(List<ToolbarItemSetting>? items)
         => items is null
             ? CreateDefault()
-            : items.Select(item => new ToolbarItemSetting { Id = item.Id, Visible = item.Visible }).ToList();
+            : items.Select(item => new ToolbarItemSetting
+            {
+                Id = item.Id,
+                Visible = item.Visible,
+                Variant = NormalizeVariant(item.Id, item.Variant)
+            }).ToList();
 
     /// <summary>去掉未知 / 重复项并补齐缺失按钮，避免手改配置把工具条弄坏。</summary>
     public static List<ToolbarItemSetting> Normalize(List<ToolbarItemSetting>? items)
@@ -364,8 +394,18 @@ public static class SelectionToolbarItems
             {
                 if (item is null || string.IsNullOrWhiteSpace(item.Id)) continue;
                 string id = item.Id.Trim();
+                string variant = item.Variant;
+
+                // 旧配置迁移：矩形 / 椭圆并入「图形」并记住子选项；选择 / 橡皮不再出现在工具条上。
+                if (id is LegacyRectangle or LegacyEllipse)
+                {
+                    variant = string.Equals(id, LegacyEllipse, StringComparison.OrdinalIgnoreCase) ? VariantEllipse : VariantRectangle;
+                    id = Shape;
+                }
+
+                if (id is LegacySelect or LegacyEraser) continue;
                 if (!IsKnown(id) || !seen.Add(id)) continue;
-                result.Add(new ToolbarItemSetting { Id = id, Visible = item.Visible });
+                result.Add(new ToolbarItemSetting { Id = id, Visible = item.Visible, Variant = NormalizeVariant(id, variant) });
             }
         }
 
@@ -384,7 +424,7 @@ public static class SelectionToolbarItems
                 }
             }
 
-            result.Insert(insertAt, new ToolbarItemSetting { Id = id, Visible = true });
+            result.Insert(insertAt, new ToolbarItemSetting { Id = id, Visible = true, Variant = NormalizeVariant(id, null) });
             seen.Add(id);
         }
 

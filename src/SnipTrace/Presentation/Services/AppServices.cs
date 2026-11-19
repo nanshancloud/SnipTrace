@@ -101,6 +101,17 @@ public sealed class AppServices
 
     public void SaveSettings() => SettingsStore.Save(Settings);
 
+    /// <summary>记住选区工具条「图形 / 箭头」上次选的子选项，下次开截图时沿用。</summary>
+    public void RememberAnnotateVariant(string id, string variant)
+    {
+        var item = Settings.SelectionToolbar?.FirstOrDefault(entry => entry.Id == id);
+        string normalized = SelectionToolbarItems.NormalizeVariant(id, variant);
+        if (item is null || string.Equals(item.Variant, normalized, StringComparison.Ordinal)) return;
+
+        item.Variant = normalized;
+        SaveSettings();
+    }
+
     public void NotifySettingsChanged()
     {
         ThemeManager.Apply(Settings.Theme);

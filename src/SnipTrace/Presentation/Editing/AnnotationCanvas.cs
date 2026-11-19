@@ -224,7 +224,12 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         dc.PushTransform(new TranslateTransform(_offset.X, _offset.Y));
         dc.PushTransform(new ScaleTransform(_zoom, _zoom));
-        foreach (var annotation in _document.InRenderOrder) AnnotationRenderer.Draw(dc, annotation);
+        foreach (var annotation in _document.InRenderOrder)
+        {
+            // 画布图像与标注同源（原点都在图像左上角），马赛克直接按图像像素取样。
+            if (annotation is ShapeAnnotation { Kind: AnnotationKind.Mosaic } mosaic) AnnotationRenderer.DrawMosaic(dc, Image, mosaic);
+            else AnnotationRenderer.Draw(dc, annotation);
+        }
         dc.Pop();
         dc.Pop();
 

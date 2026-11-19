@@ -1,0 +1,11 @@
+<Window x:Class="SnipTrace.App.Presentation.Selection.SelectionVariantWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
+        Topmost="True" Focusable="False" WindowStartupLocation="Manual" SizeToContent="WidthAndHeight"
+        Background="Transparent" AllowsTransparency="True" Title="SnipTrace Variant">
+    <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1" CornerRadius="9" Padding="8,6">
+        <WrapPanel x:Name="ChipPanel" MaxWidth="360" />
+    </Border>
+</Window>

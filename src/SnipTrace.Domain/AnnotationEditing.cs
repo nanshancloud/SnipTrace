@@ -41,8 +41,8 @@ public static class AnnotationEditing
     }
 
     /// <summary>
-    /// 滚轮微调：矩形 / 椭圆 / 箭头改线宽（1–16），文字 / 序号改字号，
-    /// 画笔与高亮按比例缩放。返回是否发生变化。
+    /// 滚轮微调：矩形 / 椭圆 / 箭头改线宽（1–16），马赛克改块大小（跟随线宽），
+    /// 文字 / 序号改字号，画笔与高亮按比例缩放。返回是否发生变化。
     /// </summary>
     public static bool AdjustOnWheel(Annotation annotation, bool increase, double factor = 1.1)
     {
@@ -56,7 +56,8 @@ public static class AnnotationEditing
                 badge.FontSize = Math.Clamp(badge.FontSize * (increase ? factor : 1 / factor), MinFontSize, MaxBadgeFontSize);
                 return true;
 
-            case ShapeAnnotation shape when shape.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Arrow:
+            case ShapeAnnotation shape when shape.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse
+                or AnnotationKind.Arrow or AnnotationKind.Mosaic:
                 double width = Math.Clamp(shape.Style.Width + (increase ? 1 : -1), MinStrokeWidth, MaxStrokeWidth);
                 shape.Style = shape.Style.WithWidth(width);
                 return true;

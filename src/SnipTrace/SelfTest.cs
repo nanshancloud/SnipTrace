@@ -555,7 +555,7 @@ internal static class SelfTest
         target.Render(element);
     }
 
-    /// <summary>覆盖层工具条：选择按钮存在，复制与精标用文字标签区分，整条工具条可渲染。</summary>
+    /// <summary>覆盖层工具条：图形 / 箭头 / 马赛克按钮存在，复制与精标用文字标签区分，整条工具条可渲染。</summary>
     private static void CheckSelectionToolbar(string shots, Action<string, bool, string?> check)
     {
         try
@@ -576,29 +576,38 @@ internal static class SelfTest
             content.UpdateLayout();
 
             var labels = new List<string>();
-            bool hasSelect = false;
-            bool hasEraser = false;
+            bool hasShape = false;
+            bool hasArrow = false;
+            bool hasMosaic = false;
             WalkVisuals(content, node =>
             {
                 if (node is TextBlock text) labels.Add(text.Text);
                 if (node is not ToggleButton toggle) return;
-                if (Equals(toggle.Tag, OverlayAnnotateTool.Select)) hasSelect = true;
-                if (Equals(toggle.Tag, OverlayAnnotateTool.Eraser)) hasEraser = true;
+                if (Equals(toggle.Tag, OverlayAnnotateTool.Shape)) hasShape = true;
+                if (Equals(toggle.Tag, OverlayAnnotateTool.Arrow)) hasArrow = true;
+                if (Equals(toggle.Tag, OverlayAnnotateTool.Mosaic)) hasMosaic = true;
             });
 
-            check("工具条有选择按钮", hasSelect, null);
-            check("工具条有橡皮按钮", hasEraser, null);
+            check("工具条有图形按钮", hasShape, null);
+            check("工具条有箭头按钮", hasArrow, null);
+            check("工具条有马赛克按钮", hasMosaic, null);
             check("工具条有回退与前进按钮", toolbar.HasHistoryButtons, null);
             check("回退前进初始不可用", !overlay.CanUndoAnnotations && !overlay.CanRedoAnnotations,
                 $"undo={overlay.CanUndoAnnotations} redo={overlay.CanRedoAnnotations}");
             check("复制与精标有文字标签", labels.Contains("复制") && labels.Contains("精标"),
                 string.Join("/", labels.Where(t => t is "复制" or "精标")));
 
-            // 增删 + 排序：只留 选择 / 复制 / 精标，三组各一个按钮 + 两条分隔线。
+            // 图形 / 箭头的子选项：合法值记住，乱写的值收敛回默认。
+            overlay.SetAnnotateVariant(SelectionToolbarItems.Shape, SelectionToolbarItems.VariantLine);
+            check("图形子选项可切换", overlay.ShapeVariant == SelectionToolbarItems.VariantLine, overlay.ShapeVariant);
+            overlay.SetAnnotateVariant(SelectionToolbarItems.Shape, "乱写");
+            check("图形子选项收敛到矩形", overlay.ShapeVariant == SelectionToolbarItems.VariantRectangle, overlay.ShapeVariant);
+
+            // 增删 + 排序：只留 图形 / 复制 / 精标，三组各一个按钮 + 两条分隔线。
             var custom = SelectionToolbarItems.CreateDefault();
             foreach (var item in custom)
             {
-                item.Visible = item.Id is SelectionToolbarItems.Copy or SelectionToolbarItems.Select or SelectionToolbarItems.Refine;
+                item.Visible = item.Id is SelectionToolbarItems.Copy or SelectionToolbarItems.Shape or SelectionToolbarItems.Refine;
             }
 
             var customOverlay = new SelectionOverlay(snapshot, custom);

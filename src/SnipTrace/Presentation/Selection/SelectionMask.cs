@@ -17,9 +17,6 @@ public sealed class SelectionMask : FrameworkElement
     private static readonly Pen HoverPen = Freeze(
         new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x5F)), 1) { DashStyle = new DashStyle(new double[] { 4, 3 }, 0) });
 
-    private static readonly Pen SelectionPen = Freeze(
-        new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x5F)), 1.2) { DashStyle = new DashStyle(new double[] { 5, 3 }, 0) });
-
     private BitmapSource? _image;
     private PixelRect _monitorBounds;
     private PixelRect _selection;
@@ -27,7 +24,6 @@ public sealed class SelectionMask : FrameworkElement
     private double _scale = 1;
     private AnnotationDocument? _annotations;
     private PixelRect _annotationArea;
-    private Annotation? _selected;
 
     public BitmapSource? Image
     {
@@ -99,18 +95,6 @@ public sealed class SelectionMask : FrameworkElement
         {
             if (_annotationArea.Equals(value)) return;
             _annotationArea = value;
-            InvalidateVisual();
-        }
-    }
-
-    /// <summary>「选择」工具下当前选中的标注：画一圈虚线框提示可拖动。</summary>
-    public Annotation? Selected
-    {
-        get => _selected;
-        set
-        {
-            if (ReferenceEquals(_selected, value)) return;
-            _selected = value;
             InvalidateVisual();
         }
     }
@@ -195,18 +179,21 @@ public sealed class SelectionMask : FrameworkElement
             (_annotationArea.Top - _monitorBounds.Top) / _scale));
         dc.PushTransform(group);
 
+        // 覆盖层的底图是本显示器切片，图像原点相对选区有偏移；马赛克要按标注坐标取样，
+        // 与导出路径保持一致。
+        var imageOrigin = new PointD(
+            _monitorBounds.Left - _annotationArea.Left,
+            _monitorBounds.Top - _annotationArea.Top);
+
         foreach (var annotation in _annotations.InRenderOrder)
         {
-            AnnotationRenderer.Draw(dc, annotation);
-        }
-
-        if (_selected is not null)
-        {
-            var bounds = _selected.Bounds;
-            if (!bounds.IsEmpty)
+            if (annotation is ShapeAnnotation { Kind: AnnotationKind.Mosaic } mosaic)
             {
-                var box = new Rect(bounds.X - 2, bounds.Y - 2, bounds.Width + 4, bounds.Height + 4);
-                dc.DrawRectangle(null, SelectionPen, box);
+                AnnotationRenderer.DrawMosaic(dc, _image, mosaic, imageOrigin);
+            }
+            else
+            {
+                AnnotationRenderer.Draw(dc, annotation);
             }
         }
 

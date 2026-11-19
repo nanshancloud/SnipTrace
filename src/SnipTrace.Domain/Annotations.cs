@@ -8,7 +8,10 @@ public enum AnnotationKind
     Pen,
     Highlight,
     Text,
-    Number
+    Number,
+
+    /// <summary>马赛克：按区域块化采样源图，块大小跟随 Style.Width。</summary>
+    Mosaic
 }
 
 /// <summary>序号标记外形：圆 / 圆角胶囊 / 三角 / 方 / 五边形 / 六边形 / 心形。</summary>
@@ -192,6 +195,12 @@ public sealed class ShapeAnnotation : Annotation
 
         var raw = RawBounds;
         if (raw.IsEmpty) return point.DistanceTo(start) <= pad;
+
+        // 马赛克是整块区域，点在范围内即命中（编辑器里便于选中 / 移动）。
+        if (_kind == AnnotationKind.Mosaic)
+        {
+            return raw.Contains(new PixelPoint((int)Math.Round(point.X), (int)Math.Round(point.Y)));
+        }
 
         switch (_kind)
         {

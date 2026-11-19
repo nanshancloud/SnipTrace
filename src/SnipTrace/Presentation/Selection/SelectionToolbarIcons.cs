@@ -15,18 +15,27 @@ namespace SnipTrace.App.Presentation.Selection;
 /// </summary>
 internal static class SelectionToolbarIcons
 {
-    /// <summary>按按钮 Id 生成图标内容。</summary>
-    public static FrameworkElement For(string id) => id switch
+    private const string RectanglePath = "M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z";
+    private const string EllipsePath = "M7,3 C10.3,3 12,4.6 12,7 C12,9.4 10.3,11 7,11 C3.7,11 2,9.4 2,7 C2,4.6 3.7,3 7,3 Z";
+    private const string LinePath = "M2.5,11.5 L11.5,2.5";
+    private const string ArrowPath = "M2,12 L11,3 M11,3 L7.5,3.5 M11,3 L10.5,6.5";
+
+    /// <summary>按按钮 Id 生成图标内容；图形 / 箭头按记住的子选项换几何并加小三角表示可切换。</summary>
+    public static FrameworkElement For(string id, string variant = "") => id switch
     {
         SelectionToolbarItems.Ratio => RatioChip(),
-        SelectionToolbarItems.Select => Stroke("M3,2 L3,11.4 L5.5,9 L7.2,12.8 L9.1,12 L7.4,8.2 L10.6,8 Z"),
-        SelectionToolbarItems.Arrow => Stroke("M2,12 L11,3 M11,3 L7.5,3.5 M11,3 L10.5,6.5"),
+        SelectionToolbarItems.Shape => WithVariantChevron(Stroke(variant switch
+        {
+            SelectionToolbarItems.VariantEllipse => EllipsePath,
+            SelectionToolbarItems.VariantLine => LinePath,
+            _ => RectanglePath
+        })),
+        SelectionToolbarItems.Arrow => WithVariantChevron(Stroke(
+            variant == SelectionToolbarItems.VariantLine ? LinePath : ArrowPath)),
         SelectionToolbarItems.Pen => Stroke("M2.5,11.5 L10,4 L12,2 M2.5,11.5 L2,13 L3.5,12.5"),
-        SelectionToolbarItems.Eraser => Stroke("M3.6,9.2 L8.2,4.6 L11.8,8.2 L7.2,12.8 Z M2,13.8 L9.4,13.8"),
-        SelectionToolbarItems.Rectangle => Stroke("M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z"),
-        SelectionToolbarItems.Ellipse => Stroke("M7,3 C10.3,3 12,4.6 12,7 C12,9.4 10.3,11 7,11 C3.7,11 2,9.4 2,7 C2,4.6 3.7,3 7,3 Z"),
         SelectionToolbarItems.Text => TextGlyph(),
         SelectionToolbarItems.Number => Badge(),
+        SelectionToolbarItems.Mosaic => MosaicGlyph(),
         SelectionToolbarItems.Color => Swatch(),
         SelectionToolbarItems.Copy => Glyph("\uE8C8"),
         SelectionToolbarItems.Save => Glyph("\uE74E"),
@@ -60,6 +69,51 @@ internal static class SelectionToolbarIcons
         };
         BindForeground(path, Shape.StrokeProperty);
         return path;
+    }
+
+    /// <summary>图形 / 箭头按钮右下角的小三角：提示点击后还能切换子选项。</summary>
+    private static FrameworkElement WithVariantChevron(FrameworkElement icon)
+    {
+        var grid = new Grid { Width = 14, Height = 14 };
+        grid.Children.Add(icon);
+
+        var chevron = new Path
+        {
+            Data = Geometry.Parse("M0,0 L3.4,0 L0,3.4 Z"),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, -1, -1),
+            Opacity = 0.7
+        };
+        BindForeground(chevron, Shape.FillProperty);
+        grid.Children.Add(chevron);
+        return grid;
+    }
+
+    /// <summary>马赛克按钮：3×3 色块，直观表示打码。</summary>
+    public static FrameworkElement MosaicGlyph()
+    {
+        var canvas = new Canvas { Width = 14, Height = 14 };
+        for (int row = 0; row < 3; row++)
+        {
+            for (int col = 0; col < 3; col++)
+            {
+                var block = new Rectangle
+                {
+                    Width = 3.6,
+                    Height = 3.6,
+                    RadiusX = 0.8,
+                    RadiusY = 0.8,
+                    Opacity = row == 1 && col == 1 ? 0.55 : 1
+                };
+                BindForeground(block, Shape.FillProperty);
+                Canvas.SetLeft(block, 1 + col * 4.2);
+                Canvas.SetTop(block, 1 + row * 4.2);
+                canvas.Children.Add(block);
+            }
+        }
+
+        return canvas;
     }
 
     public static FrameworkElement TextGlyph()

@@ -579,7 +579,7 @@ internal static class Program
             new() { Id = SelectionToolbarItems.Copy, Visible = false },
             new() { Id = "不存在的按钮" },
             new() { Id = SelectionToolbarItems.Refine },
-            new() { Id = SelectionToolbarItems.Select }
+            new() { Id = SelectionToolbarItems.Shape }
         };
         var normalized = SelectionToolbarItems.Normalize(custom);
         Check("工具条去重并忽略未知项",
@@ -587,7 +587,7 @@ internal static class Program
             && normalized.Count(item => item.Id == SelectionToolbarItems.Refine) == 1
             && normalized.All(item => item.Id != "不存在的按钮")
             && Index(normalized, SelectionToolbarItems.Refine) < Index(normalized, SelectionToolbarItems.Copy)
-            && Index(normalized, SelectionToolbarItems.Copy) < Index(normalized, SelectionToolbarItems.Select),
+            && Index(normalized, SelectionToolbarItems.Copy) < Index(normalized, SelectionToolbarItems.Shape),
             string.Join(",", normalized.Select(i => i.Id).Take(4)));
         Check("工具条保留隐藏状态", !normalized[Index(normalized, SelectionToolbarItems.Copy)].Visible);
         Check("工具条补齐缺失按钮", normalized.Count == SelectionToolbarItems.All.Length, normalized.Count.ToString());
@@ -601,7 +601,7 @@ internal static class Program
             {
                 new() { Id = SelectionToolbarItems.Refine },
                 new() { Id = SelectionToolbarItems.Copy, Visible = false },
-                new() { Id = SelectionToolbarItems.Select }
+                new() { Id = SelectionToolbarItems.Shape, Variant = SelectionToolbarItems.VariantEllipse }
             }
         };
         var saved = System.Text.Json.JsonSerializer.Serialize(custom2, options);
@@ -611,7 +611,8 @@ internal static class Program
             restored is not null
             && restored.SelectionToolbar.Count == SelectionToolbarItems.All.Length
             && Index(restored.SelectionToolbar, SelectionToolbarItems.Refine) < Index(restored.SelectionToolbar, SelectionToolbarItems.Copy)
-            && Index(restored.SelectionToolbar, SelectionToolbarItems.Copy) < Index(restored.SelectionToolbar, SelectionToolbarItems.Select)
+            && Index(restored.SelectionToolbar, SelectionToolbarItems.Copy) < Index(restored.SelectionToolbar, SelectionToolbarItems.Shape)
+            && restored.SelectionToolbar[Index(restored.SelectionToolbar, SelectionToolbarItems.Shape)].Variant == SelectionToolbarItems.VariantEllipse
             && !restored.SelectionToolbar[Index(restored.SelectionToolbar, SelectionToolbarItems.Copy)].Visible,
             restored is null ? "反序列化为空" : string.Join(",", restored.SelectionToolbar.Select(i => i.Id + (i.Visible ? "+" : "-")).Take(4)));
 
@@ -619,15 +620,36 @@ internal static class Program
         var partial = new List<ToolbarItemSetting>
         {
             new() { Id = SelectionToolbarItems.Copy },
-            new() { Id = SelectionToolbarItems.Select }
+            new() { Id = SelectionToolbarItems.Shape }
         };
         var filled = SelectionToolbarItems.Normalize(partial);
         Check("缺失按钮按默认位置插回",
             filled[0].Id == SelectionToolbarItems.Ratio
-            && Index(filled, SelectionToolbarItems.Eraser) > Index(filled, SelectionToolbarItems.Pen)
-            && Index(filled, SelectionToolbarItems.Eraser) < Index(filled, SelectionToolbarItems.Copy)
+            && Index(filled, SelectionToolbarItems.Mosaic) > Index(filled, SelectionToolbarItems.Number)
+            && Index(filled, SelectionToolbarItems.Mosaic) < Index(filled, SelectionToolbarItems.Copy)
             && filled.Count == SelectionToolbarItems.All.Length,
             string.Join(",", filled.Select(i => i.Id).Take(6)));
+
+        // 旧配置迁移：矩形 / 椭圆并入「图形」并记住子选项，选择 / 橡皮直接丢掉。
+        var legacyToolbar = new List<ToolbarItemSetting>
+        {
+            new() { Id = SelectionToolbarItems.LegacyEllipse },
+            new() { Id = SelectionToolbarItems.LegacySelect },
+            new() { Id = SelectionToolbarItems.LegacyRectangle },
+            new() { Id = SelectionToolbarItems.LegacyEraser },
+            new() { Id = SelectionToolbarItems.Arrow }
+        };
+        var migratedToolbar = SelectionToolbarItems.Normalize(legacyToolbar);
+        Check("旧工具条矩形椭圆并入图形",
+            Index(migratedToolbar, SelectionToolbarItems.Shape) >= 0
+            && migratedToolbar[Index(migratedToolbar, SelectionToolbarItems.Shape)].Variant == SelectionToolbarItems.VariantEllipse
+            && Index(migratedToolbar, SelectionToolbarItems.LegacySelect) < 0
+            && Index(migratedToolbar, SelectionToolbarItems.LegacyEraser) < 0
+            && Index(migratedToolbar, SelectionToolbarItems.LegacyRectangle) < 0
+            && Index(migratedToolbar, SelectionToolbarItems.LegacyEllipse) < 0,
+            string.Join(",", migratedToolbar.Select(i => i.Id).Take(6)));
+        Check("箭头子选项默认为箭头",
+            migratedToolbar[Index(migratedToolbar, SelectionToolbarItems.Arrow)].Variant == SelectionToolbarItems.VariantArrow);
 
         // 回退 / 前进：默认就这么排（录屏之后、取消之前），旧配置升级后也会被插回这里。
         Check("工具条含回退与前进", Index(defaults, SelectionToolbarItems.Undo) >= 0 && Index(defaults, SelectionToolbarItems.Redo) >= 0);
@@ -725,6 +747,13 @@ internal static class Program
 
         for (int i = 0; i < 40; i++) AnnotationEditing.AdjustOnWheel(rect, false);
         Check("线宽下限 1", Math.Abs(rect.Style.Width - AnnotationEditing.MinStrokeWidth) < 0.001, rect.Style.Width.ToString("0.##"));
+
+        var mosaic = new ShapeAnnotation(AnnotationKind.Mosaic,
+            new[] { new PointD(0, 0), new PointD(60, 40) }, new AnnotationStyle(0xFFFF6B5F, 12, 1));
+        AnnotationEditing.AdjustOnWheel(mosaic, true);
+        Check("马赛克滚轮改块大小", Math.Abs(mosaic.Style.Width - 13) < 0.001, mosaic.Style.Width.ToString("0.##"));
+        Check("马赛克整块区域可命中",
+            mosaic.HitTest(new PointD(30, 20), 0) && !mosaic.HitTest(new PointD(200, 20), 0));
 
         var arrow = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
         double before = arrow.Style.Width;

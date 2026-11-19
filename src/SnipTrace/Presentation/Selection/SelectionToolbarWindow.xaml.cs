@@ -23,6 +23,8 @@ public partial class SelectionToolbarWindow : Window
     private readonly SelectionHintWindow _hint = new();
     private readonly SelectionRatioWindow _ratioPopup = new();
     private readonly SelectionBadgeWindow _badgePopup = new();
+    private readonly SelectionVariantWindow _variantPopup = new();
+    private readonly Dictionary<string, ToggleButton> _variantButtons = new();
     private readonly List<ToggleButton> _annotateButtons = new();
     private List<ToolbarItemSetting> _items = SelectionToolbarItems.CreateDefault();
     private SelectionOverlay? _overlay;
@@ -43,6 +45,7 @@ public partial class SelectionToolbarWindow : Window
         _items = SelectionToolbarItems.Normalize(items?.ToList());
         _ratioPopup.Attach(overlay);
         _badgePopup.Attach(overlay);
+        _variantPopup.Attach(overlay);
         BuildActions();
         IsVisibleChanged += (_, _) =>
         {
@@ -83,6 +86,7 @@ public partial class SelectionToolbarWindow : Window
         _hint.HideHint();
         _ratioPopup.HidePopup();
         _badgePopup.HidePopup();
+        _variantPopup.HidePopup();
         if (_ratioButton is not null) _ratioButton.IsChecked = false;
     }
 
@@ -91,6 +95,7 @@ public partial class SelectionToolbarWindow : Window
     {
         ButtonRow.Children.Clear();
         _annotateButtons.Clear();
+        _variantButtons.Clear();
         _ratioButton = null;
         _ratioLabel = null;
         _colorSwatch = null;
@@ -129,34 +134,17 @@ public partial class SelectionToolbarWindow : Window
                 AddRatioButton();
                 break;
 
-            case SelectionToolbarItems.Select:
-                AddAnnotateToggle(OverlayAnnotateTool.Select, SelectionToolbarIcons.For(id),
-                    "选择：点选图形 / 文字 / 序号 / 笔迹后拖动移动，滚轮改线宽（矩形 / 椭圆 / 箭头）或字号，Delete 删除");
+            case SelectionToolbarItems.Shape:
+                AddVariantToggle(id, OverlayAnnotateTool.Shape);
                 break;
 
             case SelectionToolbarItems.Arrow:
-                AddAnnotateToggle(OverlayAnnotateTool.Arrow, SelectionToolbarIcons.For(id),
-                    "箭头标注：在选区内拖动绘制；滚轮改线宽（箭头端头同步放大 / 缩小）");
+                AddVariantToggle(id, OverlayAnnotateTool.Arrow);
                 break;
 
             case SelectionToolbarItems.Pen:
                 AddAnnotateToggle(OverlayAnnotateTool.Pen, SelectionToolbarIcons.For(id),
                     "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
-                break;
-
-            case SelectionToolbarItems.Eraser:
-                AddAnnotateToggle(OverlayAnnotateTool.Eraser, SelectionToolbarIcons.For(id),
-                    "橡皮：按住拖动擦掉画笔 / 高亮笔画（文本、箭头、序号、图形不受影响）；再点一次退出");
-                break;
-
-            case SelectionToolbarItems.Rectangle:
-                AddAnnotateToggle(OverlayAnnotateTool.Rectangle, SelectionToolbarIcons.For(id),
-                    "矩形标注：在选区内拖出矩形；再点一次退出标注模式");
-                break;
-
-            case SelectionToolbarItems.Ellipse:
-                AddAnnotateToggle(OverlayAnnotateTool.Ellipse, SelectionToolbarIcons.For(id),
-                    "椭圆标注：在选区内拖出椭圆；再点一次退出标注模式");
                 break;
 
             case SelectionToolbarItems.Text:
@@ -166,6 +154,11 @@ public partial class SelectionToolbarWindow : Window
 
             case SelectionToolbarItems.Number:
                 AddBadgeButton();
+                break;
+
+            case SelectionToolbarItems.Mosaic:
+                AddAnnotateToggle(OverlayAnnotateTool.Mosaic, SelectionToolbarIcons.For(id),
+                    "马赛克：在选区内拖出要打码的区域，按块大小取平均色覆盖；滚轮改块大小");
                 break;
 
             case SelectionToolbarItems.Color:
@@ -288,6 +281,52 @@ public partial class SelectionToolbarWindow : Window
         ButtonRow.Children.Add(button);
     }
 
+    /// <summary>图形 / 箭头：点击激活工具并弹出子选项芯片，再点一次退出标注模式。</summary>
+    private void AddVariantToggle(string id, OverlayAnnotateTool tool)
+    {
+        var button = new ToggleButton
+        {
+            Content = SelectionToolbarIcons.For(id, VariantOf(id)),
+            Style = (Style)FindResource("ToolIconToggle"),
+            Tag = tool
+        };
+        button.Click += (_, _) =>
+        {
+            if (_overlay is null) return;
+            bool activate = _overlay.AnnotateTool != tool;
+            ClosePopups();
+            _overlay.SetAnnotateTool(activate ? tool : OverlayAnnotateTool.None);
+            if (!activate) return;
+
+            WindowPlacement.Raise(this);
+            _variantPopup.ShowAbove(GetButtonBounds(button), id, VariantOf(id));
+        };
+        AttachHint(button, id == SelectionToolbarItems.Shape
+            ? "图形标注：在选区内拖出矩形 / 椭圆 / 直线（弹出层切换，记住上次选择）；滚轮改线宽"
+            : "箭头标注：在选区内拖动绘制箭头 / 直线（弹出层切换，记住上次选择）；滚轮改线宽");
+        _variantButtons[id] = button;
+        _annotateButtons.Add(button);
+        ButtonRow.Children.Add(button);
+    }
+
+    /// <summary>当前记住的子选项（覆盖层为准，未接通时退回默认值）。</summary>
+    private string VariantOf(string id) => (id == SelectionToolbarItems.Shape
+        ? _overlay?.ShapeVariant
+        : _overlay?.ArrowVariant) ?? SelectionToolbarItems.NormalizeVariant(id, null);
+
+    /// <summary>子选项变化后刷新按钮图标与弹出层选中态。</summary>
+    public void RefreshVariantState(string shapeVariant, string arrowVariant)
+    {
+        RefreshVariantButton(SelectionToolbarItems.Shape, shapeVariant);
+        RefreshVariantButton(SelectionToolbarItems.Arrow, arrowVariant);
+    }
+
+    private void RefreshVariantButton(string id, string variant)
+    {
+        if (_variantButtons.TryGetValue(id, out var button)) button.Content = SelectionToolbarIcons.For(id, variant);
+        _variantPopup.Refresh(id, variant);
+    }
+
     private void AddColorButton()
     {
         _colorSwatch = new Border
@@ -328,6 +367,7 @@ public partial class SelectionToolbarWindow : Window
         }
 
         if (tool != OverlayAnnotateTool.Number) _badgePopup.HidePopup();
+        if (tool is not (OverlayAnnotateTool.Shape or OverlayAnnotateTool.Arrow)) _variantPopup.HidePopup();
 
         if (_colorSwatch is not null)
         {

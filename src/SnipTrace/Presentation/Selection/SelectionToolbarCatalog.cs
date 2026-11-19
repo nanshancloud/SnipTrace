@@ -11,14 +11,12 @@ public static class SelectionToolbarCatalog
     public static string DisplayName(string id) => id switch
     {
         SelectionToolbarItems.Ratio => "比例",
-        SelectionToolbarItems.Select => "选择",
+        SelectionToolbarItems.Shape => "图形",
         SelectionToolbarItems.Arrow => "箭头",
         SelectionToolbarItems.Pen => "画笔",
-        SelectionToolbarItems.Eraser => "橡皮",
-        SelectionToolbarItems.Rectangle => "矩形",
-        SelectionToolbarItems.Ellipse => "椭圆",
         SelectionToolbarItems.Text => "文字",
         SelectionToolbarItems.Number => "序号",
+        SelectionToolbarItems.Mosaic => "马赛克",
         SelectionToolbarItems.Color => "颜色",
         SelectionToolbarItems.Copy => "复制",
         SelectionToolbarItems.Save => "保存",
@@ -30,6 +28,16 @@ public static class SelectionToolbarCatalog
         SelectionToolbarItems.Cancel => "取消",
         SelectionToolbarItems.Refine => "精标",
         _ => id
+    };
+
+    /// <summary>子选项显示名（图形 / 箭头按钮的弹出层芯片）。</summary>
+    public static string VariantName(string id, string variant) => (id, variant) switch
+    {
+        (SelectionToolbarItems.Shape, SelectionToolbarItems.VariantEllipse) => "椭圆",
+        (SelectionToolbarItems.Shape, SelectionToolbarItems.VariantLine) => "直线",
+        (SelectionToolbarItems.Shape, _) => "矩形",
+        (SelectionToolbarItems.Arrow, SelectionToolbarItems.VariantLine) => "直线",
+        _ => "箭头"
     };
 
     /// <summary>同组按钮之间不插分隔线。</summary>

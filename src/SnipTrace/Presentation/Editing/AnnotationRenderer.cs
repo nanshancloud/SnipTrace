@@ -46,7 +46,89 @@ public static class AnnotationRenderer
             dc.DrawImage(image, new Rect(0, 0, document.ImageWidth, document.ImageHeight));
         }
 
-        foreach (var annotation in document.InRenderOrder) Draw(dc, annotation);
+        foreach (var annotation in document.InRenderOrder)
+        {
+            // 马赛克要读源图像素，单独走一条绘制路径。
+            if (annotation is ShapeAnnotation { Kind: AnnotationKind.Mosaic } mosaic) DrawMosaic(dc, image, mosaic);
+            else Draw(dc, annotation);
+        }
+    }
+
+    /// <summary>
+    /// 马赛克：按块大小对源图区域取平均色再逐块填充（滚轮改块大小）。
+    /// <paramref name="imageOrigin"/> 是图像左上角在标注坐标中的位置：导出与编辑器为 (0,0)，
+    /// 覆盖层则为本显示器切片相对选区的偏移，保证两条渲染链路结果一致。
+    /// </summary>
+    public static void DrawMosaic(DrawingContext dc, BitmapSource? image, ShapeAnnotation shape, PointD imageOrigin = default)
+    {
+        if (image is null || shape.Points.Count < 2) return;
+
+        int originX = (int)Math.Round(imageOrigin.X);
+        int originY = (int)Math.Round(imageOrigin.Y);
+
+        // 形状矩形换算到图像像素坐标（标注坐标减去图像原点）。
+        int left = (int)Math.Round(Math.Min(shape.Points[0].X, shape.Points[1].X)) - originX;
+        int top = (int)Math.Round(Math.Min(shape.Points[0].Y, shape.Points[1].Y)) - originY;
+        int right = (int)Math.Round(Math.Max(shape.Points[0].X, shape.Points[1].X)) - originX;
+        int bottom = (int)Math.Round(Math.Max(shape.Points[0].Y, shape.Points[1].Y)) - originY;
+
+        // 只画落在图像内的部分（覆盖层的显示器切片可能比选区小）。
+        int sampleLeft = Math.Max(left, 0);
+        int sampleTop = Math.Max(top, 0);
+        int sampleRight = Math.Min(right, image.PixelWidth);
+        int sampleBottom = Math.Min(bottom, image.PixelHeight);
+        int width = sampleRight - sampleLeft;
+        int height = sampleBottom - sampleTop;
+        if (width <= 1 || height <= 1) return;
+
+        int block = Math.Clamp((int)Math.Round(shape.Style.Width * 2), 8, 48);
+
+        // 绘制坐标 = 图像坐标 + 图像原点。
+        int drawLeft = sampleLeft + originX;
+        int drawTop = sampleTop + originY;
+
+        try
+        {
+            var crop = new CroppedBitmap(image, new Int32Rect(sampleLeft, sampleTop, width, height));
+            BitmapSource source = crop.Format == PixelFormats.Bgra32
+                ? crop
+                : new FormatConvertedBitmap(crop, PixelFormats.Bgra32, null, 0);
+
+            int stride = width * 4;
+            var pixels = new byte[stride * height];
+            source.CopyPixels(pixels, stride, 0);
+
+            for (int y = 0; y < height; y += block)
+            {
+                int rows = Math.Min(block, height - y);
+                for (int x = 0; x < width; x += block)
+                {
+                    int cols = Math.Min(block, width - x);
+                    long sumB = 0, sumG = 0, sumR = 0;
+                    for (int row = 0; row < rows; row++)
+                    {
+                        int offset = (y + row) * stride + x * 4;
+                        for (int col = 0; col < cols; col++)
+                        {
+                            sumB += pixels[offset];
+                            sumG += pixels[offset + 1];
+                            sumR += pixels[offset + 2];
+                            offset += 4;
+                        }
+                    }
+
+                    int count = rows * cols;
+                    var brush = Freeze(new SolidColorBrush(Color.FromRgb(
+                        (byte)(sumR / count), (byte)(sumG / count), (byte)(sumB / count))));
+                    // 多铺 1 px，避免块之间出现细缝。
+                    dc.DrawRectangle(brush, null, new Rect(drawLeft + x, drawTop + y, cols + 1, rows + 1));
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // 源图异常时不画马赛克，别影响其它标注。
+        }
     }
 
     public static BitmapSource Render(BitmapSource image, AnnotationDocument document)
@@ -57,7 +139,11 @@ public static class AnnotationRenderer
         using (var dc = visual.RenderOpen())
         {
             dc.DrawImage(image, new Rect(0, 0, width, height));
-            foreach (var annotation in document.InRenderOrder) Draw(dc, annotation);
+            foreach (var annotation in document.InRenderOrder)
+            {
+                if (annotation is ShapeAnnotation { Kind: AnnotationKind.Mosaic } mosaic) DrawMosaic(dc, image, mosaic);
+                else Draw(dc, annotation);
+            }
         }
 
         var target = new RenderTargetBitmap((int)width, (int)height, 96, 96, PixelFormats.Pbgra32);
