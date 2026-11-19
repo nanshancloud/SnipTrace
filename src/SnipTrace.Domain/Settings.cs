@@ -54,7 +54,13 @@ public readonly record struct HotkeyGesture(HotkeyModifiers Modifiers, int Virtu
         ["NumPad6"] = 0x66,
         ["NumPad7"] = 0x67,
         ["NumPad8"] = 0x68,
-        ["NumPad9"] = 0x69
+        ["NumPad9"] = 0x69,
+        ["NumPadMultiply"] = 0x6A,
+        ["NumPadAdd"] = 0x6B,
+        ["NumPadSubtract"] = 0x6D,
+        ["NumPadDecimal"] = 0x6E,
+        ["NumPadDivide"] = 0x6F,
+        ["Clear"] = 0x0C
     };
 
     public string ToDisplayString()

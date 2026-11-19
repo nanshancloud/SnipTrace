@@ -239,6 +239,16 @@ internal static class Program
         Check("按键名反查找不到的键返回 false", !HotkeyGesture.TryGetKeyName(0xFF, out _));
 
         var recorded = new HotkeyGesture(HotkeyModifiers.Control | HotkeyModifiers.Shift, 'G', gName);
+        // 所有修饰键都能组合，小键盘运算符也能录入。
+        Check("四修饰键组合可解析",
+            HotkeyGesture.TryParse("Ctrl+Shift+Alt+Win+G", out var fourKeys)
+            && fourKeys.Modifiers == (HotkeyModifiers.Control | HotkeyModifiers.Shift | HotkeyModifiers.Alt | HotkeyModifiers.Win)
+            && fourKeys.VirtualKey == 'G',
+            fourKeys.ToDisplayString());
+        Check("小键盘运算符可解析",
+            HotkeyGesture.TryParse("Ctrl+NumPadAdd", out var numPadAdd) && numPadAdd.VirtualKey == 0x6B,
+            numPadAdd.ToDisplayString());
+
         Check("录入手势可被解析回原文", HotkeyGesture.TryParse(recorded.ToDisplayString(), out var reparsed)
             && reparsed.VirtualKey == 'G'
             && reparsed.Modifiers == (HotkeyModifiers.Control | HotkeyModifiers.Shift),

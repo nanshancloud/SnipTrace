@@ -9,11 +9,14 @@ using SnipTrace.Domain;
 namespace SnipTrace.App.Presentation.Selection;
 
 /// <summary>
-/// 覆盖层文字标注的输入弹窗：贴着点击位置出现，Enter 提交、Esc 取消。
+/// 覆盖层文字标注的输入弹窗：贴着点击位置出现并自动聚焦，Enter 提交、Esc 取消；
+/// 鼠标移出输入框（或失焦）自动保存，微信截图的手感。
 /// </summary>
 public sealed class AnnotationTextPopup : Window
 {
     private readonly TextBox _input = new();
+    private bool _closing;
+    private bool _settled;
 
     public AnnotationTextPopup(PointD origin, AnnotationStyle style, string? fontFamily = null)
     {
@@ -58,31 +61,71 @@ public sealed class AnnotationTextPopup : Window
             switch (e.Key)
             {
                 case Key.Enter:
-                    Committed?.Invoke(_input.Text);
-                    Close();
                     e.Handled = true;
+                    Commit();
                     break;
                 case Key.Escape:
-                    Close();
                     e.Handled = true;
+                    Cancel();
                     break;
             }
         };
-        LostFocus += (_, _) => { if (IsLoaded) Close(); };
+
+        // 鼠标移出输入框即视为输入完成：自动保存（空内容等同取消）。
+        bool entered = false;
+        border.MouseEnter += (_, _) => entered = true;
+        border.MouseLeave += (_, _) =>
+        {
+            if (entered) Commit();
+        };
+
+        // 窗口已经在关闭流程里时不能再调 Close()，否则会抛「窗口关闭期间无法…」。
+        Closing += (_, _) => _closing = true;
+        Closed += (_, _) => _settled = true;
+        LostFocus += (_, _) => Commit();
     }
 
     /// <summary>提交文字内容（空文本表示取消）。</summary>
     public event Action<string>? Committed;
 
+    /// <summary>显示后调用：把窗口激活并把焦点交给输入框（已 Loaded 也能立即生效）。</summary>
     public void FocusInput()
     {
-        SourceInitialized += (_, _) => { };  // SourceInitialized 之后才可安全激活
-        Loaded += (_, _) =>
+        void Apply()
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             if (handle != IntPtr.Zero) WindowPlacement.ApplyToolWindowStyle(this);
+            Activate();
             _input.Focus();
             Keyboard.Focus(_input);
-        };
+            _input.SelectAll();
+        }
+
+        if (IsLoaded) Apply();
+        else Loaded += (_, _) => Apply();
+    }
+
+    private void Commit()
+    {
+        if (_settled) return;
+        _settled = true;
+
+        string text = _input.Text;
+        CloseSafely();
+        Committed?.Invoke(text);
+    }
+
+    private void Cancel()
+    {
+        if (_settled) return;
+        _settled = true;
+        CloseSafely();
+    }
+
+    private void CloseSafely()
+    {
+        if (_closing) return;
+        _closing = true;
+        Close();
     }
 }

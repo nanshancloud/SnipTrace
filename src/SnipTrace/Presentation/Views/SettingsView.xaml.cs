@@ -518,6 +518,19 @@ public partial class SettingsView : UserControl
         }
     }
 
+    /// <summary>一键把五个快捷键恢复成默认值并立即生效。</summary>
+    private void ResetHotkeys_Click(object sender, RoutedEventArgs e)
+    {
+        CaptureHotkeyInput.Value = AppSettings.DefaultCaptureHotkey;
+        GifHotkeyInput.Value = AppSettings.DefaultGifHotkey;
+        VideoHotkeyInput.Value = AppSettings.DefaultVideoHotkey;
+        FullScreenHotkeyInput.Value = AppSettings.DefaultFullScreenHotkey;
+        AllScreensHotkeyInput.Value = AppSettings.DefaultAllScreensHotkey;
+
+        Apply();
+        StatusText.Text = "快捷键已恢复默认";
+    }
+
     /// <summary>打开系统字体对话框挑文本标注字体。</summary>
     private void PickTextFont_Click(object sender, RoutedEventArgs e)
     {

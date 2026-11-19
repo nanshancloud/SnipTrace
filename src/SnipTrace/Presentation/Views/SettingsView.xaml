@@ -37,6 +37,8 @@
                 <RadioButton x:Name="HotkeyUnifiedRadio" Content="统一快捷键" GroupName="HotkeyMode" Margin="8,0,0,0"
                              Style="{StaticResource FormatRadio}"
                              ToolTip="只用「区域截图」快捷键唤起选区，选完后在工具条上选择 GIF / 录屏 / 完成" />
+                <Button Content="重置快捷键" Style="{StaticResource SecondaryButton}" Margin="18,0,0,0"
+                        Click="ResetHotkeys_Click" ToolTip="把五个快捷键全部恢复成默认值" />
             </StackPanel>
             <Grid x:Name="HotkeyGrid">
                 <Grid.ColumnDefinitions>
