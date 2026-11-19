@@ -29,9 +29,6 @@ public partial class SettingsView : UserControl
     private ToolbarItemSetting? _draggingItem;
     private Point _dragStartPoint;
 
-    /// <summary>拖动结束后紧跟的那次 Click 不应该切换显示状态。</summary>
-    private bool _suppressToolbarClick;
-
     public SettingsView(AppSettings settings, PathService paths)
     {
         InitializeComponent();
@@ -63,6 +60,7 @@ public partial class SettingsView : UserControl
             SetText(VideoHotkeyBox, settings.VideoHotkey);
             SetText(FullScreenHotkeyBox, settings.FullScreenHotkey);
             SetText(AllScreensHotkeyBox, settings.AllScreensHotkey);
+            SetText(TextFontBox, settings.TextFontFamily);
             SetText(HighlightColorBox, settings.Highlight.Color);
             SetText(HighlightSizeBox, settings.Highlight.Diameter.ToString(CultureInfo.InvariantCulture));
             SetText(HighlightOpacityBox, settings.Highlight.OpacityPercent.ToString(CultureInfo.InvariantCulture));
@@ -93,6 +91,7 @@ public partial class SettingsView : UserControl
             TrayHintCheck.IsChecked = !settings.SuppressTrayHint;
 
             RefreshHighlightSwatch();
+            RefreshTextFontSample();
             RefreshHotkeyModeUi();
             BuildToolbarPreview();
         }
@@ -138,9 +137,8 @@ public partial class SettingsView : UserControl
                 Content = SelectionToolbarIcons.For(item.Id),
                 Style = (Style)FindResource("ToolIconButton"),
                 Tag = item,
-                AllowDrop = true,
                 Opacity = item.Visible ? 1.0 : 0.35,
-                ToolTip = $"{name}：{(item.Visible ? "已显示，点击隐藏" : "已隐藏，点击显示")}；按住拖动调整顺序"
+                ToolTip = $"{name}（{(item.Visible ? "已显示" : "已隐藏")}）\n点击切换显示 / 隐藏 · 按住拖动调整顺序"
             };
 
             if (SelectionToolbarIcons.IsAutoWidth(item.Id))
@@ -150,13 +148,9 @@ public partial class SettingsView : UserControl
                 button.Padding = new Thickness(8, 0, 8, 0);
             }
 
-            button.Click += (_, _) => ToggleToolbarVisible(item.Id);
             button.PreviewMouseLeftButtonDown += PreviewItem_MouseDown;
             button.MouseMove += PreviewItem_MouseMove;
-            button.PreviewMouseLeftButtonUp += (_, _) => _draggingItem = null;
-            button.DragEnter += PreviewItem_DragOver;
-            button.DragOver += PreviewItem_DragOver;
-            button.Drop += PreviewItem_Drop;
+            button.PreviewMouseLeftButtonUp += (_, _) => EndPreviewItemPress(button, item.Id);
 
             ToolbarPreviewPanel.Children.Add(button);
         }
@@ -165,7 +159,7 @@ public partial class SettingsView : UserControl
     /// <summary>点预览条上的按钮：切换这个按钮在真实工具条里是否出现。</summary>
     private void ToggleToolbarVisible(string id)
     {
-        if (_loading || _suppressToolbarClick) return;
+        if (_loading) return;
 
         var items = _settings.SelectionToolbar;
         int index = items?.FindIndex(item => string.Equals(item.Id, id, StringComparison.Ordinal)) ?? -1;
@@ -229,40 +223,60 @@ public partial class SettingsView : UserControl
         if (Math.Abs(position.X - _dragStartPoint.X) < 4 && Math.Abs(position.Y - _dragStartPoint.Y) < 4) return;
 
         var item = _draggingItem;
-        _draggingItem = null;
-        _suppressToolbarClick = true;
+        _draggingItem = null; // 已进入拖动：抬手时不再切换显隐
         if (sender is UIElement source)
         {
             if (source.IsMouseCaptured) source.ReleaseMouseCapture();
             DragDrop.DoDragDrop(source, new DataObject(typeof(ToolbarItemSetting), item), DragDropEffects.Move);
         }
-
-        // 拖动结束后的那次 Click 不要当成「切换显示」。
-        Dispatcher.BeginInvoke(new Action(() => _suppressToolbarClick = false), DispatcherPriority.Background);
     }
 
-    private void PreviewItem_DragOver(object sender, DragEventArgs e)
+    /// <summary>抬手：没拖动过才算一次点击（切换显隐）；拖动过则什么都不做，顺序已在 Drop 里改好。</summary>
+    private void EndPreviewItemPress(UIElement element, string id)
+    {
+        bool wasClick = _draggingItem is not null;
+        _draggingItem = null;
+        if (element.IsMouseCaptured) element.ReleaseMouseCapture();
+        if (wasClick) ToggleToolbarVisible(id);
+    }
+
+    private void ToolbarPanel_DragOver(object sender, DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(typeof(ToolbarItemSetting)) ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private void PreviewItem_Drop(object sender, DragEventArgs e)
+    /// <summary>
+    /// 整条预览条都是放置目标：按落点 X 与各按钮中线的比较算插入位置，
+    /// 落在按钮之间的空隙、分隔线上也能正确换位（只在按钮上放手会漏掉空档）。
+    /// </summary>
+    private void ToolbarPanel_Drop(object sender, DragEventArgs e)
     {
-        if (sender is not FrameworkElement element || element.Tag is not ToolbarItemSetting target) return;
         if (e.Data.GetData(typeof(ToolbarItemSetting)) is not ToolbarItemSetting dragged) return;
 
         var items = _settings.SelectionToolbar;
-        if (items is null) return;
+        if (items is null || items.Count == 0) return;
 
-        // 设置写回时列表会被整体替换，按 Id 兜底查找更稳。
         int from = items.FindIndex(item => string.Equals(item.Id, dragged.Id, StringComparison.Ordinal));
-        int to = items.FindIndex(item => string.Equals(item.Id, target.Id, StringComparison.Ordinal));
-        if (from < 0 || to < 0) return;
+        if (from < 0) return;
 
-        // 落在目标右半边就插到它后面，左半边插到它前面。
-        if (e.GetPosition(element).X > element.ActualWidth / 2) to++;
-        if (to > from) to--;
+        double x = e.GetPosition(ToolbarPreviewPanel).X;
+        int targetIndex = items.Count;
+        foreach (var child in ToolbarPreviewPanel.Children)
+        {
+            if (child is not Button button || button.Tag is not ToolbarItemSetting target) continue;
+            if (string.Equals(target.Id, dragged.Id, StringComparison.Ordinal)) continue;
+
+            Point center = button.TranslatePoint(new Point(button.ActualWidth / 2, 0), ToolbarPreviewPanel);
+            if (x < center.X)
+            {
+                int index = items.FindIndex(item => string.Equals(item.Id, target.Id, StringComparison.Ordinal));
+                if (index >= 0) targetIndex = index;
+                break;
+            }
+        }
+
+        int to = Math.Clamp(targetIndex > from ? targetIndex - 1 : targetIndex, 0, items.Count - 1);
         e.Handled = true;
         MoveToolbarItemTo(from, to);
     }
@@ -274,7 +288,7 @@ public partial class SettingsView : UserControl
 
     private void HookEvents()
     {
-        foreach (var box in new[] { ScreenshotDirBox, VideoDirBox, CaptureHotkeyBox, GifHotkeyBox, VideoHotkeyBox, FullScreenHotkeyBox, AllScreensHotkeyBox, HighlightColorBox, HighlightSizeBox, HighlightOpacityBox })
+        foreach (var box in new[] { ScreenshotDirBox, VideoDirBox, TextFontBox, CaptureHotkeyBox, GifHotkeyBox, VideoHotkeyBox, FullScreenHotkeyBox, AllScreensHotkeyBox, HighlightColorBox, HighlightSizeBox, HighlightOpacityBox })
         {
             box.TextChanged += (_, _) =>
             {
@@ -285,6 +299,11 @@ public partial class SettingsView : UserControl
         }
 
         foreach (var box in GetHotkeyBoxes()) box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
+
+        // 整条预览条作为拖放目标（见 ToolbarPanel_Drop）。
+        ToolbarPreviewPanel.AllowDrop = true;
+        ToolbarPreviewPanel.DragOver += ToolbarPanel_DragOver;
+        ToolbarPreviewPanel.Drop += ToolbarPanel_Drop;
 
         foreach (var check in new[] { CursorInCaptureCheck, CopyAfterCaptureCheck, AutoSaveCheck, HotkeyWarnCheck, StartupCheck, CheckUpdateCheck, HighlightCheck, TrayHintCheck })
         {
@@ -432,6 +451,7 @@ public partial class SettingsView : UserControl
                 ? TrayIconModes.Color
                 : TrayLightRadio.IsChecked == true ? TrayIconModes.Light : TrayIconModes.Auto,
             SuppressTrayHint = TrayHintCheck.IsChecked != true,
+            TextFontFamily = TextFontBox.Text.Trim(),
             Highlight = new HighlightOptions
             {
                 Enabled = HighlightCheck.IsChecked == true,
@@ -481,6 +501,69 @@ public partial class SettingsView : UserControl
         }
         catch (FormatException)
         {
+        }
+    }
+
+    /// <summary>字体预览：选中的字体立刻套到示例文字上。</summary>
+    private void RefreshTextFontSample()
+    {
+        string family = TextFontBox.Text.Trim();
+        if (string.IsNullOrEmpty(family)) family = AppSettings.DefaultTextFontFamily;
+        try
+        {
+            TextFontSample.FontFamily = new FontFamily(family);
+        }
+        catch (Exception)
+        {
+            TextFontSample.FontFamily = (FontFamily)FindResource("AppFont");
+        }
+    }
+
+    /// <summary>打开系统字体对话框挑文本标注字体。</summary>
+    private void PickTextFont_Click(object sender, RoutedEventArgs e)
+    {
+        string current = TextFontBox.Text.Trim();
+        if (string.IsNullOrEmpty(current)) current = AppSettings.DefaultTextFontFamily;
+
+        try
+        {
+            using var dialog = new System.Windows.Forms.FontDialog
+            {
+                ShowEffects = false,
+                FontMustExist = true,
+                Font = new System.Drawing.Font(current, 12f)
+            };
+
+            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+            TextFontBox.Text = dialog.Font.FontFamily.Name;
+            RefreshTextFontSample();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "打开字体对话框失败：" + ex.Message;
+        }
+    }
+
+    /// <summary>高亮颜色取色：系统取色对话框，选完写回 #RRGGBB 并即时生效。</summary>
+    private void PickHighlightColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ColorPicker.TryPick(ParseArgb(HighlightColorBox.Text), out uint picked)) return;
+
+        HighlightColorBox.Text = $"#{(picked & 0xFFFFFF):X6}";
+        RefreshHighlightSwatch();
+        StatusText.Text = "高亮颜色已更新";
+    }
+
+    private static uint ParseArgb(string? text)
+    {
+        try
+        {
+            Color color = (Color)ColorConverter.ConvertFromString((text ?? string.Empty).Trim());
+            return ((uint)color.A << 24) | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B;
+        }
+        catch (Exception)
+        {
+            return 0xFFFFCC00;
         }
     }
 
@@ -534,6 +617,7 @@ public partial class SettingsView : UserControl
         target.SuppressTrayHint = source.SuppressTrayHint;
         target.HotkeyMode = source.HotkeyMode;
         target.Theme = source.Theme;
+        target.TextFontFamily = source.TextFontFamily;
         target.Highlight = source.Highlight;
         target.CaptureHotkey = source.CaptureHotkey;
         target.GifHotkey = source.GifHotkey;

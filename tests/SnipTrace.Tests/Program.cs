@@ -263,6 +263,16 @@ internal static class Program
         var conflict = new AppSettings { CaptureHotkey = "F1", GifHotkey = "F1" };
         Check("检测快捷键冲突", conflict.FindHotkeyConflict() is not null);
 
+        // 默认外观是浅色（白色）；标注字体有默认值，空值回退默认。
+        Check("默认外观为浅色", new AppSettings().Theme == ThemeModes.Light, new AppSettings().Theme);
+        var blankFont = new AppSettings { TextFontFamily = "  " };
+        blankFont.Normalize(@"C:\shots", @"C:\videos");
+        Check("标注字体空值回退默认",
+            blankFont.TextFontFamily == AppSettings.DefaultTextFontFamily, blankFont.TextFontFamily);
+        var customFont = new AppSettings { TextFontFamily = "SimSun" };
+        customFont.Normalize(@"C:\shots", @"C:\videos");
+        Check("标注字体保留自定义值", customFont.TextFontFamily == "SimSun", customFont.TextFontFamily);
+
         var gif = new GifOptions { Fps = 12 };
         Check("GIF 延迟按 10ms 对齐", gif.FrameDelayMilliseconds == 80, gif.FrameDelayMilliseconds.ToString());
 
@@ -550,6 +560,8 @@ internal static class Program
         Check("工具条默认按钮数", defaults.Count == SelectionToolbarItems.All.Length, defaults.Count.ToString());
         Check("工具条默认全显示", defaults.All(item => item.Visible));
         Check("工具条默认顺序", defaults.Select(item => item.Id).SequenceEqual(SelectionToolbarItems.All));
+        Check("复制按钮默认在最右侧",
+            defaults[^1].Id == SelectionToolbarItems.Copy, defaults[^1].Id);
 
         var custom = new List<ToolbarItemSetting>
         {

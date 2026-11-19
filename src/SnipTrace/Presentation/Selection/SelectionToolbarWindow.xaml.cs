@@ -304,8 +304,18 @@ public partial class SelectionToolbarWindow : Window
             Content = _colorSwatch,
             Style = (Style)FindResource("ToolIconButton")
         };
-        button.Click += (_, _) => _overlay?.CycleAnnotateColor();
-        AttachHint(button, "标注颜色：点击切换 珊瑚 / 黄 / 绿 / 蓝 / 白 / 深灰");
+        // 取色模式：点击开系统取色对话框；滚轮仍可快速切预设色。
+        button.Click += (_, _) =>
+        {
+            uint current = _overlay?.AnnotateColor ?? 0xFFFF6B5F;
+            if (ColorPicker.TryPick(current, out uint picked)) _overlay?.SetAnnotateColor(picked);
+        };
+        button.MouseWheel += (_, e) =>
+        {
+            _overlay?.CycleAnnotateColor();
+            e.Handled = true;
+        };
+        AttachHint(button, "标注 / 文本颜色：点击打开取色对话框任选颜色；滚轮切换预设色（珊瑚 / 黄 / 绿 / 蓝 / 白 / 深灰）");
         ButtonRow.Children.Add(button);
     }
 

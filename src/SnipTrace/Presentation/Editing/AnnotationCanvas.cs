@@ -57,6 +57,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     private bool _eraseChanged;
     private PointD _lastErasePoint;
 
+    /// <summary>新建文本标注使用的字体（来自设置页「标注字体」）。</summary>
+    public string TextFontFamily { get; set; } = AppSettings.DefaultTextFontFamily;
+
     public AnnotationCanvas()
     {
         Focusable = true;
@@ -461,6 +464,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             {
                 Origin = image,
                 FontSize = Math.Max(14, CurrentStyle.StrokeWidth * 5),
+                FontFamily = TextFontFamily,
                 Style = CurrentStyle,
                 Text = string.Empty
             };

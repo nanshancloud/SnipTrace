@@ -41,12 +41,14 @@ public partial class EditorWindow : Window
     private BadgeShape _badgeShape = BadgeShape.Circle;
     private BadgeFillMode _badgeFill = BadgeFillMode.Fill;
 
-    public EditorWindow(BitmapSource image, string baseName, AnnotationDocument? initialAnnotations = null)
+    public EditorWindow(BitmapSource image, string baseName, AnnotationDocument? initialAnnotations = null,
+        string? textFontFamily = null)
     {
         InitializeComponent();
         _image = image;
         _baseName = baseName;
         _document = new AnnotationDocument(image.PixelWidth, image.PixelHeight);
+        if (!string.IsNullOrWhiteSpace(textFontFamily)) Canvas.TextFontFamily = textFontFamily.Trim();
 
         // 覆盖层上已画的标注带进编辑器继续精标。
         if (initialAnnotations is not null)
@@ -203,6 +205,36 @@ public partial class EditorWindow : Window
                 swatch.MouseLeftButtonUp += (_, _) => SetColor(captured);
                 ColorPanel.Children.Add(swatch);
             }
+
+            // 取色模式：色板末尾的「取色」块，打开系统取色对话框任选标注 / 文本颜色。
+            bool customColor = !Palette.Contains(_style.Argb);
+            var picker = new Border
+            {
+                Width = 26,
+                Height = 26,
+                CornerRadius = new CornerRadius(7),
+                Margin = new Thickness(0, 0, 6, 6),
+                BorderThickness = new Thickness(2),
+                BorderBrush = customColor ? (Brush)FindResource("AccentBrush") : Brushes.Transparent,
+                Cursor = Cursors.Hand,
+                ToolTip = "取色：打开系统取色对话框，任选标注 / 文本颜色",
+                Background = new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromRgb(0xFF, 0x6B, 0x5F), 0),
+                        new GradientStop(Color.FromRgb(0xFF, 0xCC, 0x00), 0.25),
+                        new GradientStop(Color.FromRgb(0x59, 0xE0, 0xBE), 0.5),
+                        new GradientStop(Color.FromRgb(0x4C, 0x8D, 0xFF), 0.75),
+                        new GradientStop(Color.FromRgb(0xF2, 0xF6, 0xFC), 1)
+                    },
+                    new Point(0, 0),
+                    new Point(1, 1))
+            };
+            picker.MouseLeftButtonUp += (_, _) =>
+            {
+                if (ColorPicker.TryPick(_style.Argb, out uint picked)) SetColor(picked);
+            };
+            ColorPanel.Children.Add(picker);
 
             WidthPanel.Children.Clear();
             foreach (double width in StrokeWidths)

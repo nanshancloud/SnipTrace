@@ -329,11 +329,11 @@ public static class SelectionToolbarItems
     public const string Cancel = "cancel";
     public const string Refine = "refine";
 
-    /// <summary>全部按钮，数组顺序即默认顺序。</summary>
+    /// <summary>全部按钮，数组顺序即默认顺序（「复制」默认在最右侧）。</summary>
     public static readonly string[] All =
     {
         Ratio, Select, Arrow, Pen, Eraser, Rectangle, Ellipse, Text, Number, Color,
-        Copy, Save, Pin, Gif, Video, Undo, Redo, Cancel, Refine
+        Save, Pin, Gif, Video, Undo, Redo, Cancel, Refine, Copy
     };
 
     public static bool IsKnown(string? id) => id is not null && Array.IndexOf(All, id) >= 0;
@@ -394,6 +394,8 @@ public sealed class AppSettings
     public const string DefaultFullScreenHotkey = "Ctrl+Shift+F";
     public const string DefaultAllScreensHotkey = "Ctrl+Alt+F";
 
+    public const string DefaultTextFontFamily = "Microsoft YaHei UI";
+
     public string ScreenshotDirectory { get; set; } = string.Empty;
 
     public string VideoDirectory { get; set; } = string.Empty;
@@ -411,8 +413,11 @@ public sealed class AppSettings
     /// <summary>HotkeyModes.Individual / Unified。</summary>
     public string HotkeyMode { get; set; } = HotkeyModes.Individual;
 
-    /// <summary>ThemeModes.Dark / Light。</summary>
-    public string Theme { get; set; } = ThemeModes.Dark;
+    /// <summary>ThemeModes.Dark / Light；新装默认浅色（白色外观）。</summary>
+    public string Theme { get; set; } = ThemeModes.Light;
+
+    /// <summary>文本标注（文本工具）使用的字体，空值回退默认。</summary>
+    public string TextFontFamily { get; set; } = DefaultTextFontFamily;
 
     /// <summary>序号标记改样式（形状 / 填充）后是否按阅读顺序重新计数。</summary>
     public bool RenumberBadgesOnStyleChange { get; set; }
@@ -466,6 +471,7 @@ public sealed class AppSettings
         Theme = ThemeModes.Normalize(Theme);
         HotkeyMode = HotkeyModes.Normalize(HotkeyMode);
         TrayIconMode = TrayIconModes.Normalize(TrayIconMode);
+        TextFontFamily = string.IsNullOrWhiteSpace(TextFontFamily) ? DefaultTextFontFamily : TextFontFamily.Trim();
 
         CaptureHotkey = NormalizeHotkey(CaptureHotkey, DefaultCaptureHotkey);
         GifHotkey = NormalizeHotkey(GifHotkey, DefaultGifHotkey);

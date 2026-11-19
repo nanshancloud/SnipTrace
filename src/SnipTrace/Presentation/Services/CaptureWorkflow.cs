@@ -48,7 +48,8 @@ public sealed class CaptureWorkflow
                 _services.Toasts.Warn("部分显示器捕获失败", "失败区域已填充黑色，可尝试重新截图。");
             }
 
-            using var overlay = new SelectionOverlay(snapshot, _services.Settings.SelectionToolbar);
+            using var overlay = new SelectionOverlay(snapshot, _services.Settings.SelectionToolbar,
+                _services.Settings.TextFontFamily);
             var result = await overlay.ShowAsync();
             if (result is null) return;
 
@@ -176,7 +177,7 @@ public sealed class CaptureWorkflow
 
     private void OpenEditor(BitmapSource image, AnnotationDocument? annotations = null)
     {
-        var editor = new EditorWindow(image, NewBaseName(), annotations);
+        var editor = new EditorWindow(image, NewBaseName(), annotations, _services.Settings.TextFontFamily);
         editor.Show();
     }
 

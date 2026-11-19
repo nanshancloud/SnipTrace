@@ -737,6 +737,47 @@ internal static class SelfTest
                     b.Tag is ToolbarItemSetting item && item.Id is SelectionToolbarItems.Undo or SelectionToolbarItems.Redo) == 2,
                 null);
 
+            // 默认外观为白色（浅色）；文本字体有默认值。
+            var defaults = AppSettings.CreateDefault();
+            defaults.Normalize(paths.DefaultScreenshotDirectory, paths.DefaultVideoDirectory);
+            check("默认外观为浅色", defaults.Theme == ThemeModes.Light, defaults.Theme);
+            check("文本字体默认值", defaults.TextFontFamily == AppSettings.DefaultTextFontFamily, defaults.TextFontFamily);
+
+            // 覆盖升级不会重置设置：主文件损坏时从上一次保存的备份恢复。
+            string sandbox = Path.Combine(Path.GetTempPath(), "SnipTraceSettingsSmoke");
+            try
+            {
+                if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
+                var sandboxPaths = new Infrastructure.Storage.PathService(sandbox);
+                var store = new Infrastructure.Storage.SettingsStore(sandboxPaths);
+
+                var first = AppSettings.CreateDefault();
+                first.Theme = ThemeModes.Dark;
+                first.TextFontFamily = "SimSun";
+                store.Save(first);
+
+                var second = AppSettings.CreateDefault();
+                second.Theme = ThemeModes.Dark;
+                second.TextFontFamily = "SimHei";
+                store.Save(second); // 此时 .bak 保存的是第一份（SimSun）
+
+                File.WriteAllText(sandboxPaths.SettingsFile, "{ 这不是合法 JSON");
+                var recovered = store.Load();
+                check("设置文件损坏时从备份恢复",
+                    recovered.Theme == ThemeModes.Dark && recovered.TextFontFamily == "SimSun",
+                    $"{recovered.Theme}/{recovered.TextFontFamily} warn={store.LastLoadWarning}");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
+                }
+                catch (Exception)
+                {
+                }
+            }
+
             // 快捷键按键录入：虚拟键码能反查回规范按键名（按键录入 → 文本 → 再解析要能对上）。
             check("快捷键按键名反查",
                 HotkeyGesture.TryGetKeyName(0x47, out string g) && g == "G"

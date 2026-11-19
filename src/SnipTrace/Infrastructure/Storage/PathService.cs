@@ -7,10 +7,24 @@ namespace SnipTrace.App.Infrastructure.Storage;
 
 public sealed class PathService
 {
-    public PathService()
+    public PathService() : this(null)
     {
-        RootDirectory = ResolveRoot(out bool fallback);
-        RootWasFallback = fallback;
+    }
+
+    /// <summary>指定根目录（单元测试用）；传 null / 空则按系统目录解析。</summary>
+    public PathService(string? rootDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(rootDirectory))
+        {
+            RootDirectory = ResolveRoot(out bool fallback);
+            RootWasFallback = fallback;
+        }
+        else
+        {
+            RootDirectory = Path.GetFullPath(rootDirectory);
+            RootWasFallback = false;
+        }
+
         SettingsFile = Path.Combine(RootDirectory, "settings.json");
         RecentFile = Path.Combine(RootDirectory, "recent.json");
         TempDirectory = Path.Combine(RootDirectory, "Temp");

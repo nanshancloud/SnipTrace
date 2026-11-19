@@ -15,7 +15,7 @@ public sealed class AnnotationTextPopup : Window
 {
     private readonly TextBox _input = new();
 
-    public AnnotationTextPopup(PointD origin, AnnotationStyle style)
+    public AnnotationTextPopup(PointD origin, AnnotationStyle style, string? fontFamily = null)
     {
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -44,6 +44,7 @@ public sealed class AnnotationTextPopup : Window
         _input.MinHeight = 32;
         _input.AcceptsReturn = false;
         _input.FontSize = 14;
+        if (!string.IsNullOrWhiteSpace(fontFamily)) _input.FontFamily = new FontFamily(fontFamily);
         _input.Background = (Brush)Application.Current.Resources["SurfaceBrush"];
         _input.Foreground = (Brush)Application.Current.Resources["TextPrimaryBrush"];
         _input.CaretBrush = (Brush)Application.Current.Resources["AccentBrush"];

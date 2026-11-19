@@ -84,7 +84,8 @@ public sealed class SelectionOverlay : IDisposable
     private AnnotationDocument? _overlayAnnotations;
     private ShapeAnnotation? _pendingShape;
     private AnnotationTextPopup? _textPopup;
-    private int _paletteIndex;
+    private uint _annotateColor = AnnotatePalette[0];
+    private string _textFontFamily = AppSettings.DefaultTextFontFamily;
     private double _strokeWidth = 3;
     private bool _annotating;
     private Annotation? _selectedAnnotation;
@@ -96,11 +97,13 @@ public sealed class SelectionOverlay : IDisposable
     private BadgeShape _badgeShape = BadgeShape.Circle;
     private BadgeFillMode _badgeFillMode = BadgeFillMode.Fill;
 
-    public SelectionOverlay(DesktopSnapshot snapshot, IReadOnlyList<ToolbarItemSetting>? toolbarItems = null)
+    public SelectionOverlay(DesktopSnapshot snapshot, IReadOnlyList<ToolbarItemSetting>? toolbarItems = null,
+        string? textFontFamily = null)
     {
         _snapshot = snapshot;
         _virtualBounds = snapshot.Bounds;
         _cursor = MonitorService.GetCursorPosition();
+        if (!string.IsNullOrWhiteSpace(textFontFamily)) _textFontFamily = textFontFamily.Trim();
         _toolbar.Attach(this, toolbarItems);
     }
 
@@ -453,7 +456,7 @@ public sealed class SelectionOverlay : IDisposable
 
     public OverlayAnnotateTool AnnotateTool => _annotateTool;
 
-    public uint AnnotateColor => AnnotatePalette[_paletteIndex];
+    public uint AnnotateColor => _annotateColor;
 
     public BadgeShape BadgeShape => _badgeShape;
 
@@ -472,14 +475,21 @@ public sealed class SelectionOverlay : IDisposable
         if (_annotateTool == OverlayAnnotateTool.Select) _selectedAnnotation = null;
         _annotateTool = tool;
         RefreshAnnotations();
-        _toolbar.RefreshAnnotateState(_annotateTool, AnnotatePalette[_paletteIndex]);
+        _toolbar.RefreshAnnotateState(_annotateTool, _annotateColor);
     }
 
-    /// <summary>循环切换标注颜色（珊瑚 / 黄 / 绿 / 蓝 / 白 / 深灰）。</summary>
+    /// <summary>循环切换预设标注色（珊瑚 / 黄 / 绿 / 蓝 / 白 / 深灰），工具条上滚轮触发。</summary>
     public void CycleAnnotateColor()
     {
-        _paletteIndex = (_paletteIndex + 1) % AnnotatePalette.Length;
-        _toolbar.RefreshAnnotateState(_annotateTool, AnnotatePalette[_paletteIndex]);
+        int index = Array.IndexOf(AnnotatePalette, _annotateColor);
+        SetAnnotateColor(AnnotatePalette[(index + 1 + AnnotatePalette.Length) % AnnotatePalette.Length]);
+    }
+
+    /// <summary>取色模式：直接指定标注色（工具条颜色按钮弹系统取色对话框）。</summary>
+    public void SetAnnotateColor(uint argb)
+    {
+        _annotateColor = argb;
+        _toolbar.RefreshAnnotateState(_annotateTool, _annotateColor);
     }
 
     /// <summary>覆盖层标注是否还有可回退的步骤。</summary>
@@ -512,7 +522,7 @@ public sealed class SelectionOverlay : IDisposable
         UpdateToolbar();
     }
 
-    private AnnotationStyle CurrentAnnotateStyle() => new(AnnotatePalette[_paletteIndex], _strokeWidth, 1);
+    private AnnotationStyle CurrentAnnotateStyle() => new(_annotateColor, _strokeWidth, 1);
 
     private PointD DocPoint(PixelPoint point) => new(point.X - _selection.Left, point.Y - _selection.Top);
 
@@ -709,7 +719,7 @@ public sealed class SelectionOverlay : IDisposable
     private void ShowTextPopup(PointD point)
     {
         if (_textPopup is not null) return;
-        _textPopup = new AnnotationTextPopup(point, CurrentAnnotateStyle());
+        _textPopup = new AnnotationTextPopup(point, CurrentAnnotateStyle(), _textFontFamily);
         _textPopup.Committed += text =>
         {
             _textPopup = null;
@@ -720,6 +730,7 @@ public sealed class SelectionOverlay : IDisposable
                 Text = text,
                 Origin = point,
                 FontSize = 20,
+                FontFamily = _textFontFamily,
                 Style = CurrentAnnotateStyle()
             });
             RefreshAnnotations();

@@ -103,7 +103,7 @@
                        Style="{StaticResource CaptionText}" Margin="0,0,0,10" TextWrapping="Wrap" />
             <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1" CornerRadius="9" Padding="5,3" HorizontalAlignment="Left" Margin="0,0,0,8">
-                <WrapPanel x:Name="ToolbarPreviewPanel" />
+                <WrapPanel x:Name="ToolbarPreviewPanel" AllowDrop="True" />
             </Border>
             <Button Content="恢复默认工具条" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"
                     Click="ResetToolbar_Click" ToolTip="恢复全部按钮并按默认顺序排列" />
@@ -121,6 +121,26 @@
             <CheckBox x:Name="CheckUpdateCheck" Content="启动时检查更新（GitHub Releases）" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10"
                       ToolTip="关闭后启动不再联网检查版本；关于页仍可手动点「检查更新」" />
 
+            <TextBlock Text="标注" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,10" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="文本字体" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
+                <TextBox x:Name="TextFontBox" Grid.Column="1" Width="220" IsReadOnly="True"
+                         Style="{StaticResource AppTextBox}"
+                         ToolTip="覆盖层文本工具与编辑器新建文本标注使用的字体" />
+                <Button Grid.Column="2" Content="选择字体…" Style="{StaticResource SecondaryButton}"
+                        HorizontalAlignment="Left" Margin="10,0,0,0" Click="PickTextFont_Click"
+                        ToolTip="打开系统字体对话框挑选字体" />
+            </Grid>
+            <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,10,0,0" HorizontalAlignment="Left">
+                <TextBlock x:Name="TextFontSample" Text="文本标注示例 Aa 123" FontSize="18" />
+            </Border>
+
             <TextBlock Text="鼠标高亮（演示模式）" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,10" />
             <CheckBox x:Name="HighlightCheck" Content="录制 GIF / MP4 时高亮显示鼠标位置" Style="{StaticResource AppCheckBox}" Margin="0,0,0,10"
                       ToolTip="开启后在光标位置绘制半透明色圈，GIF 与 MP4 均生效" />
@@ -129,6 +149,7 @@
                     <ColumnDefinition Width="120" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="高亮颜色" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
                 <Border Grid.Column="1" Width="26" Height="26" CornerRadius="6" Margin="0,0,8,0"
@@ -139,6 +160,8 @@
                 </Border>
                 <TextBox x:Name="HighlightColorBox" Grid.Column="2" Style="{StaticResource AppTextBox}"
                          ToolTip="#RRGGBB 或 #AARRGGBB，例如 FFCC00 / 3478FF" />
+                <Button Grid.Column="3" Content="取色…" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
+                        Click="PickHighlightColor_Click" ToolTip="打开系统取色对话框，选完自动填入色值" />
             </Grid>
             <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions>
