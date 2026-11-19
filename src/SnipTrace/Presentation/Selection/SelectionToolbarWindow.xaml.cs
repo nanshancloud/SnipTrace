@@ -158,7 +158,7 @@ public partial class SelectionToolbarWindow : Window
 
             case SelectionToolbarItems.Mosaic:
                 AddAnnotateToggle(OverlayAnnotateTool.Mosaic, SelectionToolbarIcons.For(id),
-                    "马赛克：在选区内拖出要打码的区域，按块大小取平均色覆盖；滚轮改块大小");
+                    "马赛克笔刷：在选区内按住拖动，沿轨迹打码；滚轮改块大小（8–48 px）");
                 break;
 
             case SelectionToolbarItems.Color:

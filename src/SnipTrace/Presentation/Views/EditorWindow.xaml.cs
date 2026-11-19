@@ -64,9 +64,15 @@ public partial class EditorWindow : Window
         Canvas.CurrentStyle = _style;
         Canvas.BadgeShape = _badgeShape;
         Canvas.BadgeFillMode = _badgeFill;
-        Canvas.ZoomChanged += (_, _) => UpdateStatus();
+        Canvas.ZoomChanged += (_, _) =>
+        {
+            UpdateStatus();
+            PositionStyleBar();
+        };
         Canvas.SelectionChanged += (_, _) => SyncFromSelection();
+        Canvas.ContentMoved += (_, _) => PositionStyleBar();
         Canvas.TextEditRequested += BeginTextEdit;
+        TextEditorBox.IsVisibleChanged += (_, _) => UpdateStyleBar();
 
         _document.Changed += (_, _) =>
         {
@@ -88,11 +94,16 @@ public partial class EditorWindow : Window
             UpdatePanelVisibility();
             Canvas.ZoomToFit();
             UpdateStatus();
+            UpdateStyleBar();
             Canvas.Focus();
         };
 
         KeyDown += EditorWindow_KeyDown;
-        SizeChanged += (_, _) => UpdatePanelVisibility();
+        SizeChanged += (_, _) =>
+        {
+            UpdatePanelVisibility();
+            PositionStyleBar();
+        };
     }
 
     private static AppServices Services => AppServices.Current!;
@@ -300,12 +311,160 @@ public partial class EditorWindow : Window
             BadgeFillPanel.Children.Clear();
             BadgeFillPanel.Children.Add(Chip("填充", badgeFill == BadgeFillMode.Fill, () => SetBadgeFillMode(BadgeFillMode.Fill)));
             BadgeFillPanel.Children.Add(Chip("边框", badgeFill == BadgeFillMode.Outline, () => SetBadgeFillMode(BadgeFillMode.Outline)));
+
+            RefreshStyleBarStates();
         }
         finally
         {
             _updatingPanels = false;
         }
     }
+
+    #region 浮动样式条
+
+    private Annotation? _styleBarTarget;
+
+    /// <summary>
+    /// 选中单个文本 / 图形 / 序号时，在选区上方浮出样式条（参考微信截图）：
+    /// 文本 / 序号给字号，图形给线宽 / 块大小，右侧统一给颜色。
+    /// </summary>
+    private void UpdateStyleBar()
+    {
+        var target = Canvas.Selection.Count == 1 ? Canvas.Selection[0] : null;
+        bool supported = target is TextAnnotation or NumberBadgeAnnotation or ShapeAnnotation;
+        if (!supported || Canvas.Tool != EditorTool.Select
+            || TextEditorBox.Visibility == Visibility.Visible)
+        {
+            _styleBarTarget = null;
+            StyleBar.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        _styleBarTarget = target;
+        BuildStyleBar(target!);
+        StyleBar.Visibility = Visibility.Visible;
+        PositionStyleBar();
+    }
+
+    private void BuildStyleBar(Annotation target)
+    {
+        StyleBarSizePanel.Children.Clear();
+        StyleBarColorPanel.Children.Clear();
+
+        if (target is TextAnnotation or NumberBadgeAnnotation)
+        {
+            double current = target switch
+            {
+                TextAnnotation text => text.FontSize,
+                NumberBadgeAnnotation badge => badge.FontSize,
+                _ => 20
+            };
+            foreach (var (size, label) in new (double Size, string Label)[] { (12, "小"), (20, "中"), (28, "大") })
+            {
+                double captured = size;
+                var chip = Chip(label, Math.Abs(current - size) <= 3, () => SetFontSize(captured));
+                StyleChip(chip, size);
+                StyleBarSizePanel.Children.Add(chip);
+            }
+        }
+        else if (target is ShapeAnnotation shape)
+        {
+            var widths = shape.Kind == AnnotationKind.Mosaic
+                ? new (double Width, string Label)[] { (4, "小"), (6, "中"), (10, "大") }
+                : new (double Width, string Label)[] { (1, "细"), (3, "中"), (6, "粗") };
+            foreach (var (width, label) in widths)
+            {
+                double captured = width;
+                var chip = Chip(label, Math.Abs(shape.Style.StrokeWidth - width) < 0.01, () => SetWidth(captured));
+                StyleChip(chip, width);
+                StyleBarSizePanel.Children.Add(chip);
+            }
+        }
+
+        // 马赛克取源图颜色，颜色块对它没有意义，只保留块大小芯片。
+        bool showColors = target is not ShapeAnnotation { Kind: AnnotationKind.Mosaic };
+        StyleBarDivider.Visibility = showColors ? Visibility.Visible : Visibility.Collapsed;
+        StyleBarColorPanel.Visibility = showColors ? Visibility.Visible : Visibility.Collapsed;
+
+        foreach (uint color in Palette)
+        {
+            uint captured = color;
+            var swatch = new Border
+            {
+                Width = 18,
+                Height = 18,
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(0, 0, 4, 0),
+                Background = new SolidColorBrush(AnnotationRenderer.ToColor(color, 1)),
+                BorderThickness = new Thickness(2),
+                BorderBrush = target.Style.Argb == color
+                    ? new SolidColorBrush(AnnotationRenderer.ToColor(0xFFF2F6FC, 1))
+                    : Brushes.Transparent,
+                Cursor = Cursors.Hand,
+                ToolTip = "应用到选中标注",
+                Tag = color
+            };
+            swatch.MouseLeftButtonUp += (_, _) => SetColor(captured);
+            StyleBarColorPanel.Children.Add(swatch);
+        }
+    }
+
+    private static void StyleChip(ToggleButton chip, double value)
+    {
+        chip.Tag = value;
+        chip.FontSize = 11;
+        chip.Padding = new Thickness(8, 2, 8, 2);
+        chip.Margin = new Thickness(0, 0, 4, 0);
+    }
+
+    /// <summary>RefreshPanels 之后同步样式条选中态（只改状态，不重建控件，拖动时不抖）。</summary>
+    private void RefreshStyleBarStates()
+    {
+        if (_styleBarTarget is null || StyleBar.Visibility != Visibility.Visible) return;
+
+        foreach (var chip in StyleBarSizePanel.Children.OfType<ToggleButton>())
+        {
+            if (chip.Tag is not double value) continue;
+            chip.IsChecked = _styleBarTarget switch
+            {
+                TextAnnotation text => Math.Abs(text.FontSize - value) <= 3,
+                NumberBadgeAnnotation badge => Math.Abs(badge.FontSize - value) <= 3,
+                ShapeAnnotation shape => Math.Abs(shape.Style.StrokeWidth - value) < 0.01,
+                _ => chip.IsChecked
+            };
+        }
+
+        foreach (var swatch in StyleBarColorPanel.Children.OfType<Border>())
+        {
+            if (swatch.Tag is not uint color) continue;
+            swatch.BorderBrush = _styleBarTarget.Style.Argb == color
+                ? new SolidColorBrush(AnnotationRenderer.ToColor(0xFFF2F6FC, 1))
+                : Brushes.Transparent;
+        }
+    }
+
+    /// <summary>把样式条放到选区上方（上方空间不足时移到下方），并夹在画布内。</summary>
+    private void PositionStyleBar()
+    {
+        if (_styleBarTarget is null || StyleBar.Visibility != Visibility.Visible) return;
+        var bounds = _styleBarTarget.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+
+        StyleBar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var size = StyleBar.DesiredSize;
+        var top = Canvas.ToScreen(new PointD(bounds.Left, bounds.Top));
+        var bottom = Canvas.ToScreen(new PointD(bounds.Right, bounds.Bottom));
+
+        double x = (top.X + bottom.X) / 2 - size.Width / 2;
+        double y = top.Y - size.Height - 8;
+        if (y < 4) y = bottom.Y + 8;
+
+        double maxX = Math.Max(4, Canvas.ActualWidth - size.Width - 4);
+        double maxY = Math.Max(4, Canvas.ActualHeight - size.Height - 4);
+        StyleBar.Margin = new Thickness(Math.Clamp(x, 4, maxX), Math.Clamp(y, 4, maxY), 0, 0);
+    }
+
+    #endregion
 
     private ToggleButton Chip(string text, bool isChecked, Action onClick)
     {
@@ -445,6 +604,7 @@ public partial class EditorWindow : Window
         if (selected is not null) _style = selected.Style;
         Canvas.CurrentStyle = _style;
         RefreshPanels();
+        UpdateStyleBar();
         UpdateStatus();
     }
 
@@ -532,8 +692,18 @@ public partial class EditorWindow : Window
         // 切换工具时结束未完成的多段箭头，避免草稿悬空。
         Canvas.FinishArrowDraft();
         Canvas.Tool = tool;
+
+        // 马赛克笔刷默认给一个看得见块大小的线宽（块 = 线宽 × 2）。
+        if (tool == EditorTool.Mosaic && _style.StrokeWidth < 4)
+        {
+            _style = _style.WithWidth(6);
+            Canvas.CurrentStyle = _style;
+            RefreshPanels();
+        }
+
         foreach (var pair in _toolButtons) pair.Value.IsChecked = pair.Key == tool;
         Canvas.Focus();
+        UpdateStyleBar();
         UpdateStatus();
     }
 
@@ -622,8 +792,8 @@ public partial class EditorWindow : Window
     private void PinImage()
     {
         CommitText();
-        var flat = AnnotationRenderer.Render(_image, _document);
-        new PinWindow(flat, _baseName).Show();
+        // 钉图里仍可继续选中 / 拖动标注，复制保存时由钉图自己烘焙。
+        new PinWindow(_image, _baseName, _document, Canvas.TextFontFamily).Show();
     }
 
     private void ToggleFullscreen()
@@ -719,6 +889,10 @@ public partial class EditorWindow : Window
                 break;
             case Key.H:
                 SelectTool(EditorTool.Highlight);
+                e.Handled = true;
+                break;
+            case Key.M:
+                SelectTool(EditorTool.Mosaic);
                 e.Handled = true;
                 break;
             case Key.T:

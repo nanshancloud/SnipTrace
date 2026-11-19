@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using SnipTrace.App.Infrastructure.Capture;
+using SnipTrace.App.Presentation.Editing;
 using SnipTrace.App.Presentation.Services;
 using SnipTrace.Domain;
 
@@ -13,6 +14,7 @@ public partial class PinWindow : Window
 {
     private readonly BitmapSource _image;
     private readonly string _baseName;
+    private readonly AnnotationDocument _document;
     private readonly double _baseWidth;
     private readonly double _baseHeight;
 
@@ -22,12 +24,28 @@ public partial class PinWindow : Window
     /// <summary>右键唤出的工具条是否常驻（不随鼠标移出隐藏）。</summary>
     private bool _toolbarPinned;
 
-    public PinWindow(BitmapSource image, string baseName)
+    public PinWindow(BitmapSource image, string baseName, AnnotationDocument? annotations = null,
+        string? textFontFamily = null)
     {
         InitializeComponent();
         _image = image;
         _baseName = baseName;
-        PreviewImage.Source = image;
+
+        // 钉图保留标注文档：鼠标悬浮到标注上即可选中，拖动移动、四角调整；
+        // 复制 / 保存时再烘焙进图片，钉图期间不丢可编辑性。
+        _document = new AnnotationDocument(image.PixelWidth, image.PixelHeight);
+        if (annotations is not null)
+        {
+            foreach (var annotation in annotations.Annotations) _document.Add(annotation.Clone());
+        }
+
+        Canvas.Image = image;
+        Canvas.Document = _document;
+        Canvas.Tool = EditorTool.Select;
+        Canvas.HoverSelect = true;
+        Canvas.HoverHitTolerance = 4;
+        Canvas.ShowCheckerboard = false;
+        if (!string.IsNullOrWhiteSpace(textFontFamily)) Canvas.TextFontFamily = textFontFamily.Trim();
 
         var area = SystemParameters.WorkArea;
         double scale = Math.Min(1.0, Math.Min(area.Width * 0.8 / image.PixelWidth, area.Height * 0.8 / image.PixelHeight));
@@ -35,12 +53,17 @@ public partial class PinWindow : Window
         _baseHeight = Math.Max(60, image.PixelHeight * scale);
         ApplyZoom(1);
 
+        // 窗口尺寸变化后让画布按窗口大小重新贴合，标注跟着一起缩放。
+        Loaded += (_, _) => Canvas.ZoomToFit(0);
+        SizeChanged += (_, _) => Canvas.ZoomToFit(0);
+
         MouseEnter += (_, _) => ShowToolbar(true);
         MouseLeave += (_, _) =>
         {
             if (!_toolbarPinned) ShowToolbar(false);
         };
 
+        PreviewMouseLeftButtonDown += PinWindow_PreviewMouseLeftButtonDown;
         PreviewMouseWheel += PinWindow_MouseWheel;
         MouseRightButtonUp += (_, e) =>
         {
@@ -153,10 +176,25 @@ public partial class PinWindow : Window
         }
     }
 
-    private void Image_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    /// <summary>
+    /// 按下时先问画布：命中标注就交给它选中 / 拖动 / 调整，其余位置拖整个钉图窗口；
+    /// 工具条上的点击不触发窗口拖动。
+    /// </summary>
+    private void PinWindow_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (ToolBar.IsVisible && ToolBar.IsMouseOver) return;
+
+        var point = e.GetPosition(Canvas);
+        if (Canvas.HitTestAnnotation(point) is not null || Canvas.IsOverSelectionHandle(point)) return;
+
+        Canvas.SelectAnnotation(null);
         if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+        e.Handled = true;
     }
+
+    /// <summary>导出用：有标注时把标注烘焙进图片，否则直接给原图。</summary>
+    private BitmapSource FlatImage()
+        => _document.Annotations.Count > 0 ? AnnotationRenderer.Render(_image, _document) : _image;
 
     private void Copy_Click(object sender, RoutedEventArgs e) => Copy();
 
@@ -171,7 +209,7 @@ public partial class PinWindow : Window
         {
             bool wasTopmost = Topmost;
             Topmost = false;
-            var editor = new EditorWindow(_image, _baseName);
+            var editor = new EditorWindow(_image, _baseName, _document, Canvas.TextFontFamily);
             editor.Closed += (_, _) => Topmost = wasTopmost;
             editor.Show();
             editor.Activate();
@@ -186,7 +224,7 @@ public partial class PinWindow : Window
 
     private void Copy()
     {
-        if (SnipTrace.App.Infrastructure.Platform.ClipboardService.SetImage(_image))
+        if (SnipTrace.App.Infrastructure.Platform.ClipboardService.SetImage(FlatImage()))
         {
             Services.Toasts.Info("已复制到剪贴板");
         }
@@ -211,7 +249,7 @@ public partial class PinWindow : Window
             };
 
             if (dialog.ShowDialog(this) != true) return;
-            ImageUtil.SavePng(_image, dialog.FileName);
+            ImageUtil.SavePng(FlatImage(), dialog.FileName);
             AddRecent(dialog.FileName);
             Services.Toasts.Info("已保存", dialog.FileName);
         }
@@ -226,7 +264,7 @@ public partial class PinWindow : Window
     {
         try
         {
-            string path = Services.SaveScreenshot(_image, _baseName, out _);
+            string path = Services.SaveScreenshot(FlatImage(), _baseName, out _);
             Services.Toasts.Info("已保存", path);
         }
         catch (Exception ex)
@@ -239,7 +277,7 @@ public partial class PinWindow : Window
     {
         try
         {
-            using var thumbnail = ImageUtil.ToBitmap(_image);
+            using var thumbnail = ImageUtil.ToBitmap(FlatImage());
             Services.Recent.Add(path, RecentItemKind.Screenshot, _image.PixelWidth, _image.PixelHeight, 0, thumbnail);
         }
         catch (Exception)

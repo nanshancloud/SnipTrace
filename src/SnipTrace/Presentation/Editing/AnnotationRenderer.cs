@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -13,6 +14,9 @@ public static class AnnotationRenderer
     public static void Draw(DrawingContext dc, Annotation annotation)
     {
         if (annotation is TextAnnotation { Text.Length: 0 }) return;
+
+        // 马赛克要读源图像素，必须走 DrawMosaic；直接调 Draw 时什么也不画。
+        if (annotation is ShapeAnnotation { Kind: AnnotationKind.Mosaic }) return;
 
         // 高亮按荧光笔处理：始终半透明，底下文字 / 线条仍然看得见。
         var color = ToColor(annotation.Style.Argb, AnnotationEditing.RenderOpacity(annotation));
@@ -55,80 +59,145 @@ public static class AnnotationRenderer
     }
 
     /// <summary>
-    /// 马赛克：按块大小对源图区域取平均色再逐块填充（滚轮改块大小）。
+    /// 马赛克笔刷：沿笔迹把扫到的方块（按图像像素网格对齐）取源图平均色铺满。
     /// <paramref name="imageOrigin"/> 是图像左上角在标注坐标中的位置：导出与编辑器为 (0,0)，
     /// 覆盖层则为本显示器切片相对选区的偏移，保证两条渲染链路结果一致。
     /// </summary>
     public static void DrawMosaic(DrawingContext dc, BitmapSource? image, ShapeAnnotation shape, PointD imageOrigin = default)
     {
-        if (image is null || shape.Points.Count < 2) return;
+        if (image is null || shape.Points.Count == 0) return;
 
+        int block = shape.MosaicBlockSize;
         int originX = (int)Math.Round(imageOrigin.X);
         int originY = (int)Math.Round(imageOrigin.Y);
 
-        // 形状矩形换算到图像像素坐标（标注坐标减去图像原点）。
-        int left = (int)Math.Round(Math.Min(shape.Points[0].X, shape.Points[1].X)) - originX;
-        int top = (int)Math.Round(Math.Min(shape.Points[0].Y, shape.Points[1].Y)) - originY;
-        int right = (int)Math.Round(Math.Max(shape.Points[0].X, shape.Points[1].X)) - originX;
-        int bottom = (int)Math.Round(Math.Max(shape.Points[0].Y, shape.Points[1].Y)) - originY;
+        var cells = CollectMosaicCells(shape.Points, originX, originY, block, image.PixelWidth, image.PixelHeight);
+        if (cells.Count == 0) return;
 
-        // 只画落在图像内的部分（覆盖层的显示器切片可能比选区小）。
-        int sampleLeft = Math.Max(left, 0);
-        int sampleTop = Math.Max(top, 0);
-        int sampleRight = Math.Min(right, image.PixelWidth);
-        int sampleBottom = Math.Min(bottom, image.PixelHeight);
-        int width = sampleRight - sampleLeft;
-        int height = sampleBottom - sampleTop;
-        if (width <= 1 || height <= 1) return;
-
-        int block = Math.Clamp((int)Math.Round(shape.Style.Width * 2), 8, 48);
-
-        // 绘制坐标 = 图像坐标 + 图像原点。
-        int drawLeft = sampleLeft + originX;
-        int drawTop = sampleTop + originY;
-
+        BitmapSource source;
         try
         {
-            var crop = new CroppedBitmap(image, new Int32Rect(sampleLeft, sampleTop, width, height));
-            BitmapSource source = crop.Format == PixelFormats.Bgra32
-                ? crop
-                : new FormatConvertedBitmap(crop, PixelFormats.Bgra32, null, 0);
-
-            int stride = width * 4;
-            var pixels = new byte[stride * height];
-            source.CopyPixels(pixels, stride, 0);
-
-            for (int y = 0; y < height; y += block)
-            {
-                int rows = Math.Min(block, height - y);
-                for (int x = 0; x < width; x += block)
-                {
-                    int cols = Math.Min(block, width - x);
-                    long sumB = 0, sumG = 0, sumR = 0;
-                    for (int row = 0; row < rows; row++)
-                    {
-                        int offset = (y + row) * stride + x * 4;
-                        for (int col = 0; col < cols; col++)
-                        {
-                            sumB += pixels[offset];
-                            sumG += pixels[offset + 1];
-                            sumR += pixels[offset + 2];
-                            offset += 4;
-                        }
-                    }
-
-                    int count = rows * cols;
-                    var brush = Freeze(new SolidColorBrush(Color.FromRgb(
-                        (byte)(sumR / count), (byte)(sumG / count), (byte)(sumB / count))));
-                    // 多铺 1 px，避免块之间出现细缝。
-                    dc.DrawRectangle(brush, null, new Rect(drawLeft + x, drawTop + y, cols + 1, rows + 1));
-                }
-            }
+            source = BgraSource(image);
         }
         catch (Exception)
         {
-            // 源图异常时不画马赛克，别影响其它标注。
+            return;
         }
+
+        // 每个块单独取样：笔迹可能很长很细，按块取比整块外接矩形更省。
+        var buffer = new byte[block * block * 4];
+        foreach (var (col, row) in cells)
+        {
+            int left = Math.Max(col * block, 0);
+            int top = Math.Max(row * block, 0);
+            int right = Math.Min((col + 1) * block, image.PixelWidth);
+            int bottom = Math.Min((row + 1) * block, image.PixelHeight);
+            int width = right - left;
+            int height = bottom - top;
+            if (width <= 0 || height <= 0) continue;
+
+            if (!TryAverageColor(source, left, top, width, height, buffer, out var color)) continue;
+
+            // 块坐标是图像像素，加回图像原点才是标注坐标。
+            // 多铺 0.5 px，减少非整数缩放下块之间的细缝。
+            var brush = Freeze(new SolidColorBrush(color));
+            dc.DrawRectangle(brush, null, new Rect(left + originX, top + originY, width + 0.5, height + 0.5));
+        }
+    }
+
+    /// <summary>
+    /// 笔迹扫过的块集合：沿折线按小块步进取样，块按图像像素网格对齐（拖动过程中块边界稳定不抖）。
+    /// </summary>
+    private static HashSet<(int Col, int Row)> CollectMosaicCells(
+        IReadOnlyList<PointD> points, int originX, int originY, int block, int imageWidth, int imageHeight)
+    {
+        var cells = new HashSet<(int, int)>();
+        double radius = block / 2.0;
+        double step = Math.Max(2, block / 4.0);
+
+        void Mark(double x, double y)
+        {
+            int minCol = (int)Math.Floor((x - radius) / block);
+            int maxCol = (int)Math.Floor((x + radius) / block);
+            int minRow = (int)Math.Floor((y - radius) / block);
+            int maxRow = (int)Math.Floor((y + radius) / block);
+
+            for (int row = minRow; row <= maxRow; row++)
+            {
+                if ((row + 1) * block <= 0 || row * block >= imageHeight) continue;
+                for (int col = minCol; col <= maxCol; col++)
+                {
+                    if ((col + 1) * block <= 0 || col * block >= imageWidth) continue;
+                    cells.Add((col, row));
+                }
+            }
+        }
+
+        var prev = new PointD(points[0].X - originX, points[0].Y - originY);
+        Mark(prev.X, prev.Y);
+        for (int i = 1; i < points.Count; i++)
+        {
+            var current = new PointD(points[i].X - originX, points[i].Y - originY);
+            double dx = current.X - prev.X;
+            double dy = current.Y - prev.Y;
+            double distance = Math.Sqrt(dx * dx + dy * dy);
+            int steps = Math.Max(1, (int)Math.Ceiling(distance / step));
+            for (int s = 1; s <= steps; s++)
+            {
+                Mark(prev.X + dx * s / steps, prev.Y + dy * s / steps);
+            }
+
+            prev = current;
+        }
+
+        return cells;
+    }
+
+    /// <summary>取一个块的平均色（只算图像内交集部分）。</summary>
+    private static bool TryAverageColor(
+        BitmapSource source, int x, int y, int width, int height, byte[] buffer, out Color color)
+    {
+        color = default;
+        int stride = width * 4;
+        try
+        {
+            source.CopyPixels(new Int32Rect(x, y, width, height), buffer, stride, 0);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+
+        long sumB = 0, sumG = 0, sumR = 0;
+        for (int row = 0; row < height; row++)
+        {
+            int offset = row * stride;
+            for (int col = 0; col < width; col++)
+            {
+                sumB += buffer[offset];
+                sumG += buffer[offset + 1];
+                sumR += buffer[offset + 2];
+                offset += 4;
+            }
+        }
+
+        int count = width * height;
+        color = Color.FromRgb((byte)(sumR / count), (byte)(sumG / count), (byte)(sumB / count));
+        return true;
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BitmapSource, BitmapSource> BgraCache = new();
+
+    /// <summary>Bgra32 / Bgr32 直接读；其它格式按图缓存一份转换结果，避免每帧重复转换。</summary>
+    private static BitmapSource BgraSource(BitmapSource image)
+    {
+        if (image.Format == PixelFormats.Bgra32 || image.Format == PixelFormats.Bgr32) return image;
+        return BgraCache.GetValue(image, key =>
+        {
+            var converted = new FormatConvertedBitmap(key, PixelFormats.Bgra32, null, 0);
+            converted.Freeze();
+            return converted;
+        });
     }
 
     public static BitmapSource Render(BitmapSource image, AnnotationDocument document)

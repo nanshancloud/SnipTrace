@@ -212,6 +212,8 @@ internal static class SelfTest
         CheckEditorPanelSync(Check);
         CheckEditorUndoRedo(Check);
         CheckHighlightRender(Check);
+        CheckMosaicBrush(ShotRoot, Check);
+        CheckEditorStyleBar(Check);
         CheckArrowHeadRender(Check);
         CheckSelectionMaskRender(Check);
         CheckSelectionToolbar(ShotRoot, Check);
@@ -309,6 +311,146 @@ internal static class SelfTest
         catch (Exception ex)
         {
             check("高亮半透明渲染", false, ex.Message);
+        }
+    }
+
+    /// <summary>马赛克笔刷：沿轨迹按块取平均色（块内一致），笔迹之外保持原图。</summary>
+    private static void CheckMosaicBrush(string shots, Action<string, bool, string?> check)
+    {
+        try
+        {
+            const int width = 200;
+            const int height = 100;
+            using var source = new Bitmap(width, height);
+            using (var graphics = Graphics.FromImage(source))
+            {
+                graphics.Clear(Color.White);
+                using var warm = new SolidBrush(Color.FromArgb(255, 210, 60));
+                using var cool = new SolidBrush(Color.FromArgb(40, 110, 255));
+                for (int x = 0; x < width; x += 2)
+                {
+                    graphics.FillRectangle(warm, x, 0, 1, height);
+                    graphics.FillRectangle(cool, x + 1, 0, 1, height);
+                }
+            }
+
+            var image = ImageUtil.ToBitmapSource(source);
+            var document = new AnnotationDocument(width, height);
+            document.Add(new ShapeAnnotation(AnnotationKind.Mosaic,
+                new[] { new PointD(20, 50), new PointD(90, 50), new PointD(180, 50) })
+            {
+                Style = new AnnotationStyle(0xFFFF6B5F, 8, 1) // 块 16 px
+            });
+
+            var rendered = AnnotationRenderer.Render(image, document);
+
+            Color Pixel(int x, int y)
+            {
+                var bytes = new byte[4];
+                rendered.CopyPixels(new Int32Rect(x, y, 1, 1), bytes, 4, 0);
+                return Color.FromArgb(bytes[2], bytes[1], bytes[0]);
+            }
+
+            // 同一块内取两点：马赛克块内颜色必须一致。
+            var inBlockA = Pixel(97, 49);
+            var inBlockB = Pixel(110, 62);
+            check("马赛克块内颜色一致", inBlockA.ToArgb() == inBlockB.ToArgb(), $"{inBlockA} / {inBlockB}");
+
+            // 笔迹之外仍是原图的 1 px 竖条纹（相邻像素不同）。
+            var outsideA = Pixel(150, 90);
+            var outsideB = Pixel(151, 90);
+            check("马赛克不改造笔迹之外", outsideA.ToArgb() != outsideB.ToArgb(), $"{outsideA} / {outsideB}");
+
+            // 存一张笔刷示意：在彩色渐变 + 文字上沿波浪笔迹打码。
+            using var demo = new Bitmap(320, 140);
+            using (var graphics = Graphics.FromImage(demo))
+            {
+                using var gradient = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new Rectangle(0, 0, 320, 140),
+                    Color.FromArgb(30, 90, 160), Color.FromArgb(240, 180, 60), 25f);
+                graphics.FillRectangle(gradient, 0, 0, 320, 140);
+                using var font = new Font("Microsoft YaHei", 13);
+                using var textBrush = new SolidBrush(Color.FromArgb(250, 250, 250));
+                graphics.DrawString("马赛克笔刷：沿拖动轨迹打码", font, textBrush, 14, 18);
+                graphics.DrawString("敏感信息 1234-5678", font, textBrush, 14, 96);
+            }
+
+            var demoDocument = new AnnotationDocument(320, 140);
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Mosaic,
+                new[]
+                {
+                    new PointD(18, 30), new PointD(80, 34), new PointD(140, 24),
+                    new PointD(210, 30), new PointD(300, 26)
+                })
+            {
+                Style = new AnnotationStyle(0xFFFF6B5F, 10, 1)
+            });
+            demoDocument.Add(new ShapeAnnotation(AnnotationKind.Mosaic,
+                new[] { new PointD(150, 104), new PointD(232, 104) })
+            {
+                Style = new AnnotationStyle(0xFFFF6B5F, 12, 1)
+            });
+
+            string path = Path.Combine(shots, "mosaic-brush.png");
+            ImageUtil.SavePng(AnnotationRenderer.Render(ImageUtil.ToBitmapSource(demo), demoDocument), path);
+            check("马赛克笔刷渲染", File.Exists(path) && new FileInfo(path).Length > 500, path);
+        }
+        catch (Exception ex)
+        {
+            check("马赛克笔刷渲染", false, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 编辑器选中文本 / 图形后浮出样式条：文本给字号芯片、图形给线宽芯片，右侧都有颜色块。
+    /// </summary>
+    private static void CheckEditorStyleBar(Action<string, bool, string?> check)
+    {
+        EditorWindow? editor = null;
+        try
+        {
+            using var source = new Bitmap(360, 220);
+            using (var graphics = Graphics.FromImage(source)) graphics.Clear(Color.White);
+            editor = new EditorWindow(ImageUtil.ToBitmapSource(source), "selftest-stylebar");
+            editor.Show();
+            editor.UpdateLayout();
+
+            var text = new TextAnnotation
+            {
+                Origin = new PointD(40, 40),
+                Text = "样式条",
+                FontSize = 24,
+                Style = new AnnotationStyle(0xFFFF6B5F, 3, 1)
+            };
+            editor.Canvas.Document!.Add(text);
+            editor.Canvas.SelectAnnotation(text);
+            editor.UpdateLayout();
+
+            bool textVisible = editor.StyleBar.Visibility == Visibility.Visible;
+            bool textSizes = editor.StyleBarSizePanel.Children.Count == 3;
+            bool textColors = editor.StyleBarColorPanel.Children.Count > 0;
+            check("选中文本弹出字号 + 颜色条", textVisible && textSizes && textColors,
+                $"visible={textVisible} sizes={editor.StyleBarSizePanel.Children.Count} colors={editor.StyleBarColorPanel.Children.Count}");
+
+            var shape = new ShapeAnnotation(AnnotationKind.Rectangle,
+                new[] { new PointD(40, 120), new PointD(140, 180) },
+                new AnnotationStyle(0xFF4EA1FF, 3, 1));
+            editor.Canvas.Document.Add(shape);
+            editor.Canvas.SelectAnnotation(shape);
+            editor.UpdateLayout();
+
+            bool shapeVisible = editor.StyleBar.Visibility == Visibility.Visible;
+            bool shapeChips = editor.StyleBarSizePanel.Children.Count == 3;
+            check("选中图形弹出线宽 + 颜色条", shapeVisible && shapeChips && editor.StyleBarColorPanel.Children.Count > 0,
+                $"visible={shapeVisible} sizes={editor.StyleBarSizePanel.Children.Count} colors={editor.StyleBarColorPanel.Children.Count}");
+        }
+        catch (Exception ex)
+        {
+            check("选中文本弹出字号 + 颜色条", false, ex.Message);
+        }
+        finally
+        {
+            editor?.Close();
         }
     }
 

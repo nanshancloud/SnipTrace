@@ -41,7 +41,7 @@ public static class AnnotationEditing
     }
 
     /// <summary>
-    /// 滚轮微调：矩形 / 椭圆 / 箭头改线宽（1–16），马赛克改块大小（跟随线宽），
+    /// 滚轮微调：矩形 / 椭圆 / 箭头改线宽（1–16），马赛克笔刷改块大小（线宽 4–24 → 块 8–48），
     /// 文字 / 序号改字号，画笔与高亮按比例缩放。返回是否发生变化。
     /// </summary>
     public static bool AdjustOnWheel(Annotation annotation, bool increase, double factor = 1.1)
@@ -56,8 +56,14 @@ public static class AnnotationEditing
                 badge.FontSize = Math.Clamp(badge.FontSize * (increase ? factor : 1 / factor), MinFontSize, MaxBadgeFontSize);
                 return true;
 
+            // 马赛克笔刷的线宽只用来换算块大小，范围放宽到 4–24（块 8–48 px）。
+            case ShapeAnnotation mosaic when mosaic.Kind == AnnotationKind.Mosaic:
+                double mosaicWidth = Math.Clamp(mosaic.Style.Width + (increase ? 1 : -1), 4, 24);
+                mosaic.Style = mosaic.Style.WithWidth(mosaicWidth);
+                return true;
+
             case ShapeAnnotation shape when shape.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse
-                or AnnotationKind.Arrow or AnnotationKind.Mosaic:
+                or AnnotationKind.Arrow:
                 double width = Math.Clamp(shape.Style.Width + (increase ? 1 : -1), MinStrokeWidth, MaxStrokeWidth);
                 shape.Style = shape.Style.WithWidth(width);
                 return true;

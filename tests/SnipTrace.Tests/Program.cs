@@ -752,8 +752,14 @@ internal static class Program
             new[] { new PointD(0, 0), new PointD(60, 40) }, new AnnotationStyle(0xFFFF6B5F, 12, 1));
         AnnotationEditing.AdjustOnWheel(mosaic, true);
         Check("马赛克滚轮改块大小", Math.Abs(mosaic.Style.Width - 13) < 0.001, mosaic.Style.Width.ToString("0.##"));
-        Check("马赛克整块区域可命中",
-            mosaic.HitTest(new PointD(30, 20), 0) && !mosaic.HitTest(new PointD(200, 20), 0));
+        Check("马赛克按笔迹命中",
+            mosaic.HitTest(new PointD(30, 20), 0) && !mosaic.HitTest(new PointD(10, 40), 0));
+        Check("马赛克是折线笔刷", mosaic.IsPolyline);
+        Check("马赛克块大小随线宽收敛",
+            new ShapeAnnotation(AnnotationKind.Mosaic, new[] { new PointD(0, 0) },
+                new AnnotationStyle(0xFFFF6B5F, 1, 1)).MosaicBlockSize == 8
+            && new ShapeAnnotation(AnnotationKind.Mosaic, new[] { new PointD(0, 0) },
+                new AnnotationStyle(0xFFFF6B5F, 30, 1)).MosaicBlockSize == 48);
 
         var arrow = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
         double before = arrow.Style.Width;

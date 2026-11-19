@@ -1,6 +1,7 @@
 ﻿<Window x:Class="SnipTrace.App.Presentation.Views.PinWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:editing="clr-namespace:SnipTrace.App.Presentation.Editing"
         WindowStyle="None" Background="{DynamicResource PanelBrush}" Topmost="True" ShowInTaskbar="False"
         ResizeMode="CanResizeWithGrip" WindowStartupLocation="CenterScreen" AllowsTransparency="False"
         TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
@@ -54,8 +55,8 @@
 
     <Border BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" Background="{DynamicResource PanelBrush}">
         <Grid>
-            <Image x:Name="PreviewImage" Stretch="Uniform"
-                   MouseLeftButtonDown="Image_MouseLeftButtonDown" />
+            <!-- 可交互画布：悬浮即选中标注，拖动移动、四角调整；空白处按下仍拖整个钉图 -->
+            <editing:AnnotationCanvas x:Name="Canvas" Focusable="False" />
 
             <!-- Snipaste 式工具条：悬停或右键唤出，图标不占画面 -->
             <Border x:Name="ToolBar" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,6,0,0"

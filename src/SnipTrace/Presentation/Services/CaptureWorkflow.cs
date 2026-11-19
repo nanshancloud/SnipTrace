@@ -151,7 +151,8 @@ public sealed class CaptureWorkflow
                 break;
             case SelectionAction.Pin:
                 AutoSaveIfEnabled(finalImage());
-                new PinWindow(finalImage(), NewBaseName()).Show();
+                // 钉图拿原图 + 标注文档：悬浮即可选中标注继续拖动 / 调整，复制保存时再烘焙。
+                new PinWindow(image, NewBaseName(), annotations, _services.Settings.TextFontFamily).Show();
                 break;
             default:
                 if (_services.Settings.CopyAfterCapture) ClipboardService.SetImage(finalImage());

@@ -59,6 +59,8 @@
                     <ToggleButton Style="{StaticResource ToolButton}" Content="箭头" Tag="Arrow" Click="Tool_Click" ToolTip="箭头 (A)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="画笔" Tag="Pen" Click="Tool_Click" ToolTip="画笔 (P)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="高亮" Tag="Highlight" Click="Tool_Click" ToolTip="高亮笔 (H)" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="马赛克" Tag="Mosaic" Click="Tool_Click"
+                                  ToolTip="马赛克笔刷 (M)：沿拖动轨迹打码，右侧「线宽」控制块大小" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="文本" Tag="Text" Click="Tool_Click" ToolTip="文本 (T)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="序号" Tag="Number" Click="Tool_Click" ToolTip="序号标签 (N)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="橡皮" Tag="Eraser" Click="Tool_Click"
@@ -76,6 +78,19 @@
                          AcceptsReturn="True" TextWrapping="Wrap" VerticalAlignment="Top" HorizontalAlignment="Left"
                          MinWidth="160" Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource AccentBrush}"
                          KeyDown="TextEditor_KeyDown" LostFocus="TextEditor_LostFocus" />
+
+                <!-- 选中文本 / 图形后的浮动样式条（微信截图式）：字号或线宽 + 颜色 -->
+                <Border x:Name="StyleBar" Visibility="Collapsed" Panel.ZIndex="5"
+                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="9" Padding="6,3">
+                    <StackPanel Orientation="Horizontal">
+                        <WrapPanel x:Name="StyleBarSizePanel" VerticalAlignment="Center" />
+                        <Border x:Name="StyleBarDivider" Width="1" Height="16" Margin="4,0,6,0"
+                                Background="{DynamicResource BorderBrush}" VerticalAlignment="Center" />
+                        <WrapPanel x:Name="StyleBarColorPanel" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
             </Grid>
 
             <Border x:Name="PropertiesPanel" Grid.Column="2" Background="{DynamicResource PanelBrush}"

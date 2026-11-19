@@ -104,7 +104,7 @@ public sealed class ShapeAnnotation : Annotation
         _kind = kind;
         Points = points.ToList();
         if (Points.Count == 0) Points.Add(new PointD(0, 0));
-        if (_kind is not (AnnotationKind.Pen or AnnotationKind.Highlight or AnnotationKind.Arrow) && Points.Count == 1)
+        if (!IsPolyline && _kind != AnnotationKind.Arrow && Points.Count == 1)
         {
             Points.Add(Points[0]);
         }
@@ -116,8 +116,15 @@ public sealed class ShapeAnnotation : Annotation
 
     public List<PointD> Points { get; }
 
-    /// <summary>画笔 / 高亮：采样折线，创建时逐点追加。</summary>
-    public bool IsPolyline => _kind is AnnotationKind.Pen or AnnotationKind.Highlight;
+    /// <summary>马赛克块大小范围（像素）。</summary>
+    public const int MinMosaicBlock = 8;
+    public const int MaxMosaicBlock = 48;
+
+    /// <summary>马赛克块大小：跟随线宽（块 = 线宽 × 2），收敛到 8–48 px。</summary>
+    public int MosaicBlockSize => Math.Clamp((int)Math.Round(Style.Width * 2), MinMosaicBlock, MaxMosaicBlock);
+
+    /// <summary>画笔 / 高亮 / 马赛克笔刷：采样折线，创建时逐点追加。</summary>
+    public bool IsPolyline => _kind is AnnotationKind.Pen or AnnotationKind.Highlight or AnnotationKind.Mosaic;
 
     /// <summary>箭头端头形式；多段箭头同样适用（起点 / 末端取首尾段方向）。</summary>
     public ArrowHead ArrowHead { get; set; } = ArrowHead.End;
@@ -171,7 +178,9 @@ public sealed class ShapeAnnotation : Annotation
         {
             var raw = RawBounds;
             if (raw.IsEmpty) return raw;
-            int pad = (int)Math.Ceiling(Style.Width / 2) + 1;
+            int pad = _kind == AnnotationKind.Mosaic
+                ? (int)Math.Ceiling(MosaicBlockSize / 2.0) + 1
+                : (int)Math.Ceiling(Style.Width / 2) + 1;
             return raw.Inflate(pad);
         }
     }
@@ -179,6 +188,19 @@ public sealed class ShapeAnnotation : Annotation
     public override bool HitTest(PointD point, double tolerance)
     {
         double pad = tolerance + Style.Width / 2;
+
+        // 马赛克笔刷：按块大小给半径，整条笔迹附近都算命中。
+        if (_kind == AnnotationKind.Mosaic)
+        {
+            double mosaicPad = tolerance + MosaicBlockSize / 2.0;
+            if (Points.Count == 1) return point.DistanceTo(Points[0]) <= mosaicPad;
+            for (int i = 1; i < Points.Count; i++)
+            {
+                if (DistanceToSegment(point, Points[i - 1], Points[i]) <= mosaicPad) return true;
+            }
+
+            return false;
+        }
 
         if (IsPolyline || _kind == AnnotationKind.Arrow)
         {

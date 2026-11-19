@@ -17,6 +17,9 @@ public enum EditorTool
     Arrow,
     Pen,
     Highlight,
+
+    /// <summary>马赛克笔刷：沿拖动轨迹打码，块大小跟随线宽。</summary>
+    Mosaic,
     Text,
     Number,
     Eraser
@@ -71,6 +74,9 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     public event EventHandler? SelectionChanged;
 
+    /// <summary>拖动 / 缩放标注过程中的位置变化（浮动样式条靠它跟随选区）。</summary>
+    public event EventHandler? ContentMoved;
+
     /// <summary>请求编辑文本：(标注, 是否为新建)。</summary>
     public event Action<TextAnnotation, bool>? TextEditRequested;
 
@@ -91,6 +97,15 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     /// <summary>新建序号使用的填充方式（填充 / 边框）。</summary>
     public BadgeFillMode BadgeFillMode { get; set; } = BadgeFillMode.Fill;
+
+    /// <summary>是否绘制棋盘格底（钉图不需要，直接透出窗口底色）。</summary>
+    public bool ShowCheckerboard { get; set; } = true;
+
+    /// <summary>悬浮即选中：钉图里鼠标移到标注上就显示选框与手柄，方便直接拖动 / 调整。</summary>
+    public bool HoverSelect { get; set; }
+
+    /// <summary>悬浮命中的额外容差（px），细线 / 箭头也能轻松悬停选中。</summary>
+    public double HoverHitTolerance { get; set; } = 2;
 
     /// <summary>是否存在尚未结束的多段箭头。</summary>
     public bool HasArrowDraft => _arrowDraft is not null;
@@ -115,15 +130,24 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
     }
 
-    public void ZoomToFit()
+    public void ZoomToFit(double margin = 40)
     {
         if (Image is null || ActualWidth <= 0 || ActualHeight <= 0) return;
-        double scaleX = (ActualWidth - 40) / Image.PixelWidth;
-        double scaleY = (ActualHeight - 40) / Image.PixelHeight;
+        double scaleX = Math.Max(1, ActualWidth - margin) / Image.PixelWidth;
+        double scaleY = Math.Max(1, ActualHeight - margin) / Image.PixelHeight;
         _zoom = Math.Clamp(Math.Min(scaleX, scaleY), MinZoom, MaxZoom);
         CenterImage();
         ZoomChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
+    }
+
+    /// <summary>屏幕坐标命中的标注（后画的优先），钉图用它区分「拖窗口」还是「拖标注」。</summary>
+    public Annotation? HitTestAnnotation(Point screen)
+    {
+        if (_document is null || Image is null) return null;
+        var image = ToImage(screen);
+        return _document.HitTest(
+            new PixelPoint((int)Math.Round(image.X), (int)Math.Round(image.Y)), HoverHitTolerance);
     }
 
     public void SetZoom(double zoom)
@@ -216,7 +240,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
-        dc.DrawRectangle(_checkerBrush, null, new Rect(RenderSize));
+        if (ShowCheckerboard) dc.DrawRectangle(_checkerBrush, null, new Rect(RenderSize));
         if (Image is null || _document is null) return;
 
         dc.PushClip(new RectangleGeometry(new Rect(RenderSize)));
@@ -394,7 +418,8 @@ public sealed class AnnotationCanvas : FrameworkElement
                 return;
             }
 
-            var hit = _document.HitTest(_dragStartImage);
+            // 钉图是「悬浮即选中」，按下时用同样的容差命中，细线不会因为差几像素改去框选。
+            var hit = _document.HitTest(_dragStartImage, HoverSelect ? HoverHitTolerance : 0);
             if (hit is TextAnnotation textAnnotation && e.ClickCount == 2)
             {
                 // 双击文本进入内容修改。
@@ -484,6 +509,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             EditorTool.Ellipse => AnnotationKind.Ellipse,
             EditorTool.Arrow => AnnotationKind.Arrow,
             EditorTool.Highlight => AnnotationKind.Highlight,
+            EditorTool.Mosaic => AnnotationKind.Mosaic,
             _ => AnnotationKind.Pen
         };
 
@@ -611,11 +637,16 @@ public sealed class AnnotationCanvas : FrameworkElement
             }
             case DragMode.None:
                 UpdateCursor(screen);
+                if (HoverSelect && Tool == EditorTool.Select) UpdateHoverSelection(imagePoint);
                 break;
         }
 
         // 拖动改变了标注（移动 / 缩放 / 重定向）：告诉文档这一步有变化，撤销栈才会记录。
-        if (_interactionChanged && _document is not null) _document.MarkChanged();
+        if (_interactionChanged && _document is not null)
+        {
+            _document.MarkChanged();
+            ContentMoved?.Invoke(this, EventArgs.Empty);
+        }
 
         if (_marquee)
         {
@@ -771,6 +802,26 @@ public sealed class AnnotationCanvas : FrameworkElement
             ? Cursors.SizeAll
             : Cursors.Arrow;
     }
+
+    /// <summary>
+    /// 钉图：鼠标悬浮到标注上即选中，移开后保留选中（方便接着抓四角手柄调整大小）。
+    /// </summary>
+    private void UpdateHoverSelection(PixelPoint imagePoint)
+    {
+        if (_document is null || _selection.Count > 1) return;
+
+        var hover = _document.HitTest(imagePoint, HoverHitTolerance);
+        if (hover is null) return;
+        if (_selection.Count == 1 && ReferenceEquals(_selection[0], hover)) return;
+        SelectAnnotation(hover);
+    }
+
+    /// <summary>
+    /// 屏幕坐标是否落在当前选中标注的手柄上：钉图用它区分「拖窗口」还是「拖手柄调整」。
+    /// </summary>
+    public bool IsOverSelectionHandle(Point screen)
+        => Tool == EditorTool.Select && _selection.Count == 1
+           && (HitHandle(screen) >= 0 || HitVertexHandle(screen) >= 0);
 
     /// <summary>命中箭头顶点手柄（仅单选箭头时有效）。</summary>
     private int HitVertexHandle(Point screen)
