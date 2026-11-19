@@ -29,6 +29,9 @@ public partial class SettingsView : UserControl
     private ToolbarItemSetting? _draggingItem;
     private Point _dragStartPoint;
 
+    /// <summary>拖动结束后紧跟的那次 Click 不应该切换显示状态。</summary>
+    private bool _suppressToolbarClick;
+
     public SettingsView(AppSettings settings, PathService paths)
     {
         InitializeComponent();
@@ -91,7 +94,6 @@ public partial class SettingsView : UserControl
 
             RefreshHighlightSwatch();
             RefreshHotkeyModeUi();
-            BuildToolbarList();
             BuildToolbarPreview();
         }
         finally
@@ -100,113 +102,9 @@ public partial class SettingsView : UserControl
         }
     }
 
-    /// <summary>选区工具条配置：每行一个按钮，勾选控制显示、↑ ↓ 调顺序。</summary>
-    private void BuildToolbarList()
-    {
-        if (ToolbarListPanel is null) return;
-        ToolbarListPanel.Children.Clear();
-
-        var items = _settings.SelectionToolbar;
-        if (items is null || items.Count == 0) items = _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
-        for (int i = 0; i < items.Count; i++)
-        {
-            int index = i;
-            var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var check = new CheckBox
-            {
-                Content = SelectionToolbarCatalog.DisplayName(items[i].Id),
-                Style = (Style)FindResource("AppCheckBox"),
-                IsChecked = items[i].Visible,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            check.Checked += (_, _) => SetToolbarVisible(index, true);
-            check.Unchecked += (_, _) => SetToolbarVisible(index, false);
-            Grid.SetColumn(check, 0);
-            row.Children.Add(check);
-
-            var up = new Button
-            {
-                Content = "↑",
-                Style = (Style)FindResource("SecondaryButton"),
-                Width = 34,
-                Height = 26,
-                Padding = new Thickness(0),
-                Margin = new Thickness(0, 0, 6, 0),
-                IsEnabled = index > 0,
-                ToolTip = "上移"
-            };
-            up.Click += (_, _) => MoveToolbarItem(index, -1);
-            Grid.SetColumn(up, 1);
-            row.Children.Add(up);
-
-            var down = new Button
-            {
-                Content = "↓",
-                Style = (Style)FindResource("SecondaryButton"),
-                Width = 34,
-                Height = 26,
-                Padding = new Thickness(0),
-                IsEnabled = index < items.Count - 1,
-                ToolTip = "下移"
-            };
-            down.Click += (_, _) => MoveToolbarItem(index, 1);
-            Grid.SetColumn(down, 2);
-            row.Children.Add(down);
-
-            ToolbarListPanel.Children.Add(row);
-        }
-    }
-
-    private void SetToolbarVisible(int index, bool visible)
-    {
-        if (_loading) return;
-        var items = _settings.SelectionToolbar;
-        if (index < 0 || index >= items.Count) return;
-        items[index].Visible = visible;
-        SettingsSaved?.Invoke();
-        BuildToolbarPreview();
-        StatusText.Text = "选区工具条已更新";
-    }
-
-    private void MoveToolbarItem(int index, int delta) => MoveToolbarItemTo(index, index + delta);
-
-    /// <summary>把第 from 个按钮移动到 to（列表内索引）：列表、预览条同步刷新。</summary>
-    internal void MoveToolbarItemTo(int from, int to)
-    {
-        if (_loading) return;
-        var items = _settings.SelectionToolbar;
-        if (items is null || items.Count == 0) return;
-        if (from < 0 || from >= items.Count) return;
-
-        to = Math.Clamp(to, 0, items.Count - 1);
-        if (to == from) return;
-
-        var item = items[from];
-        items.RemoveAt(from);
-        items.Insert(to, item);
-
-        SettingsSaved?.Invoke();
-        BuildToolbarList();
-        BuildToolbarPreview();
-        StatusText.Text = "选区工具条已更新";
-    }
-
-    private void ResetToolbar_Click(object sender, RoutedEventArgs e)
-    {
-        _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
-        SettingsSaved?.Invoke();
-        BuildToolbarList();
-        BuildToolbarPreview();
-        StatusText.Text = "选区工具条已恢复默认";
-    }
-
     /// <summary>
-    /// 工具条预览：按当前顺序横向排出全部按钮（隐藏项半透明），与真实工具条一样按分组插分隔线。
-    /// 按住任意项拖动即可调整顺序。
+    /// 选区工具条配置：直接画成真机的单行图标工具条（隐藏项变暗），
+    /// 点按钮切换显示、按住拖动调整顺序，跨分组自动插分隔线。
     /// </summary>
     private void BuildToolbarPreview()
     {
@@ -226,72 +124,104 @@ public partial class SettingsView : UserControl
                 {
                     Width = 1,
                     Height = 18,
-                    Margin = new Thickness(5, 5, 5, 5),
-                    Background = (Brush)FindResource("BorderBrush")
+                    Margin = new Thickness(4, 4, 5, 4),
+                    Background = (Brush)FindResource("BorderBrush"),
+                    VerticalAlignment = VerticalAlignment.Center
                 });
             }
 
             previousGroup = group;
 
-            var chip = new Border
+            string name = SelectionToolbarCatalog.DisplayName(item.Id);
+            var button = new Button
             {
+                Content = SelectionToolbarIcons.For(item.Id),
+                Style = (Style)FindResource("ToolIconButton"),
                 Tag = item,
-                Margin = new Thickness(0, 2, 0, 2),
-                Padding = new Thickness(9, 4, 9, 4),
-                CornerRadius = new CornerRadius(6),
-                BorderThickness = new Thickness(1),
-                Cursor = Cursors.SizeAll,
-                Opacity = item.Visible ? 1.0 : 0.45,
                 AllowDrop = true,
-                Child = new TextBlock
-                {
-                    Text = SelectionToolbarCatalog.DisplayName(item.Id),
-                    FontSize = 12,
-                    Foreground = (Brush)FindResource(item.Visible ? "TextPrimaryBrush" : "TextSecondaryBrush")
-                },
-                ToolTip = item.Visible
-                    ? $"{SelectionToolbarCatalog.DisplayName(item.Id)}：按住拖动调整顺序"
-                    : $"{SelectionToolbarCatalog.DisplayName(item.Id)}：当前隐藏（勾选后显示），仍可拖动调整位置"
+                Opacity = item.Visible ? 1.0 : 0.35,
+                ToolTip = $"{name}：{(item.Visible ? "已显示，点击隐藏" : "已隐藏，点击显示")}；按住拖动调整顺序"
             };
-            ResetPreviewChipLook(chip);
 
-            chip.MouseLeftButtonDown += PreviewChip_MouseDown;
-            chip.MouseMove += PreviewChip_MouseMove;
-            chip.MouseLeftButtonUp += (_, _) =>
+            if (SelectionToolbarIcons.IsAutoWidth(item.Id))
             {
-                _draggingItem = null;
-                if (chip.IsMouseCaptured) chip.ReleaseMouseCapture();
-            };
-            chip.DragEnter += PreviewChip_DragEnter;
-            chip.DragOver += PreviewChip_DragEnter;
-            chip.DragLeave += (_, _) => ResetPreviewChipLook(chip);
-            chip.Drop += PreviewChip_Drop;
-            ToolbarPreviewPanel.Children.Add(chip);
+                button.Width = double.NaN;
+                button.MinWidth = 0;
+                button.Padding = new Thickness(8, 0, 8, 0);
+            }
+
+            button.Click += (_, _) => ToggleToolbarVisible(item.Id);
+            button.PreviewMouseLeftButtonDown += PreviewItem_MouseDown;
+            button.MouseMove += PreviewItem_MouseMove;
+            button.PreviewMouseLeftButtonUp += (_, _) => _draggingItem = null;
+            button.DragEnter += PreviewItem_DragOver;
+            button.DragOver += PreviewItem_DragOver;
+            button.Drop += PreviewItem_Drop;
+
+            ToolbarPreviewPanel.Children.Add(button);
         }
     }
 
-    /// <summary>恢复预览项的正常外观（按当前可见性）。</summary>
-    private void ResetPreviewChipLook(Border chip)
+    /// <summary>点预览条上的按钮：切换这个按钮在真实工具条里是否出现。</summary>
+    private void ToggleToolbarVisible(string id)
     {
-        if (chip.Tag is not ToolbarItemSetting item) return;
-        chip.BorderThickness = new Thickness(1);
-        chip.Background = (Brush)FindResource(item.Visible ? "SurfaceBrush" : "PanelBrush");
-        chip.BorderBrush = (Brush)FindResource(item.Visible ? "BorderBrush" : "SurfaceHoverBrush");
+        if (_loading || _suppressToolbarClick) return;
+
+        var items = _settings.SelectionToolbar;
+        int index = items?.FindIndex(item => string.Equals(item.Id, id, StringComparison.Ordinal)) ?? -1;
+        if (items is null || index < 0) return;
+
+        items[index].Visible = !items[index].Visible;
+        SettingsSaved?.Invoke();
+        BuildToolbarPreview();
+        StatusText.Text = items[index].Visible
+            ? $"{SelectionToolbarCatalog.DisplayName(id)}：已显示"
+            : $"{SelectionToolbarCatalog.DisplayName(id)}：已隐藏";
     }
 
-    private void PreviewChip_MouseDown(object sender, MouseButtonEventArgs e)
+    private void MoveToolbarItem(int index, int delta) => MoveToolbarItemTo(index, index + delta);
+
+    /// <summary>把第 from 个按钮移动到 to（当前配置内索引）：预览条按新顺序重画。</summary>
+    internal void MoveToolbarItemTo(int from, int to)
+    {
+        if (_loading) return;
+        var items = _settings.SelectionToolbar;
+        if (items is null || items.Count == 0) return;
+        if (from < 0 || from >= items.Count) return;
+
+        to = Math.Clamp(to, 0, items.Count - 1);
+        if (to == from) return;
+
+        var item = items[from];
+        items.RemoveAt(from);
+        items.Insert(to, item);
+
+        SettingsSaved?.Invoke();
+        BuildToolbarPreview();
+        StatusText.Text = "选区工具条已更新";
+    }
+
+    private void ResetToolbar_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
+        SettingsSaved?.Invoke();
+        BuildToolbarPreview();
+        StatusText.Text = "选区工具条已恢复默认";
+    }
+
+    private void PreviewItem_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_loading) return;
         if (sender is FrameworkElement element && element.Tag is ToolbarItemSetting item)
         {
             _draggingItem = item;
             _dragStartPoint = e.GetPosition(this);
-            // 捕获鼠标，快速拖动时也不会在移出预览项后丢掉 MouseMove。
+            // 捕获鼠标，快速拖动时也不会在移出预览按钮后丢掉 MouseMove。
             element.CaptureMouse();
         }
     }
 
-    private void PreviewChip_MouseMove(object sender, MouseEventArgs e)
+    private void PreviewItem_MouseMove(object sender, MouseEventArgs e)
     {
         if (_draggingItem is null || e.LeftButton != MouseButtonState.Pressed) return;
 
@@ -300,44 +230,38 @@ public partial class SettingsView : UserControl
 
         var item = _draggingItem;
         _draggingItem = null;
+        _suppressToolbarClick = true;
         if (sender is UIElement source)
         {
             if (source.IsMouseCaptured) source.ReleaseMouseCapture();
             DragDrop.DoDragDrop(source, new DataObject(typeof(ToolbarItemSetting), item), DragDropEffects.Move);
         }
+
+        // 拖动结束后的那次 Click 不要当成「切换显示」。
+        Dispatcher.BeginInvoke(new Action(() => _suppressToolbarClick = false), DispatcherPriority.Background);
     }
 
-    private void PreviewChip_DragEnter(object sender, DragEventArgs e)
+    private void PreviewItem_DragOver(object sender, DragEventArgs e)
     {
         e.Effects = e.Data.GetDataPresent(typeof(ToolbarItemSetting)) ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
-
-        if (sender is Border chip)
-        {
-            chip.BorderThickness = new Thickness(2);
-            chip.BorderBrush = (Brush)FindResource("AccentBrush");
-        }
     }
 
-    private void PreviewChip_Drop(object sender, DragEventArgs e)
+    private void PreviewItem_Drop(object sender, DragEventArgs e)
     {
-        if (sender is not Border chip || chip.Tag is not ToolbarItemSetting target) return;
+        if (sender is not FrameworkElement element || element.Tag is not ToolbarItemSetting target) return;
         if (e.Data.GetData(typeof(ToolbarItemSetting)) is not ToolbarItemSetting dragged) return;
-
-        ResetPreviewChipLook(chip);
 
         var items = _settings.SelectionToolbar;
         if (items is null) return;
 
         // 设置写回时列表会被整体替换，按 Id 兜底查找更稳。
-        int from = items.IndexOf(dragged);
-        if (from < 0) from = items.FindIndex(i => string.Equals(i.Id, dragged.Id, StringComparison.Ordinal));
-        int to = items.IndexOf(target);
-        if (to < 0) to = items.FindIndex(i => string.Equals(i.Id, target.Id, StringComparison.Ordinal));
+        int from = items.FindIndex(item => string.Equals(item.Id, dragged.Id, StringComparison.Ordinal));
+        int to = items.FindIndex(item => string.Equals(item.Id, target.Id, StringComparison.Ordinal));
         if (from < 0 || to < 0) return;
 
         // 落在目标右半边就插到它后面，左半边插到它前面。
-        if (e.GetPosition(chip).X > chip.ActualWidth / 2) to++;
+        if (e.GetPosition(element).X > element.ActualWidth / 2) to++;
         if (to > from) to--;
         e.Handled = true;
         MoveToolbarItemTo(from, to);
@@ -360,6 +284,8 @@ public partial class SettingsView : UserControl
             };
         }
 
+        foreach (var box in GetHotkeyBoxes()) box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
+
         foreach (var check in new[] { CursorInCaptureCheck, CopyAfterCaptureCheck, AutoSaveCheck, HotkeyWarnCheck, StartupCheck, CheckUpdateCheck, HighlightCheck, TrayHintCheck })
         {
             check.Checked += OnToggle;
@@ -373,6 +299,82 @@ public partial class SettingsView : UserControl
         TrayAutoRadio.Checked += OnToggle;
         TrayColorRadio.Checked += OnToggle;
         TrayLightRadio.Checked += OnToggle;
+    }
+
+    private TextBox[] GetHotkeyBoxes() => new[] { CaptureHotkeyBox, GifHotkeyBox, VideoHotkeyBox, FullScreenHotkeyBox, AllScreensHotkeyBox };
+
+    /// <summary>快捷键输入框：点进去直接按键即可录入（不必手打 Ctrl+Shift+G）。</summary>
+    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_loading || sender is not TextBox box) return;
+
+        // Alt 组合键会以 SystemKey 形式到达。
+        Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        // Tab 留给焦点切换；Esc 放弃这次录入，回到已生效的值。
+        if (key == Key.Tab) return;
+        if (key == Key.Escape)
+        {
+            e.Handled = true;
+            _loading = true;
+            try
+            {
+                SetText(box, CurrentHotkeyText(box));
+            }
+            finally
+            {
+                _loading = false;
+            }
+
+            StatusText.Text = "已取消本次录入";
+            return;
+        }
+
+        if (key is Key.Back or Key.Delete)
+        {
+            e.Handled = true;
+            box.Clear();
+            StatusText.Text = "已清除，按下组合键重新录入";
+            return;
+        }
+
+        // 只按修饰键不算一次录入。
+        if (key == Key.None || IsModifierKey(key) || key is Key.ImeProcessed or Key.DeadCharProcessed) return;
+
+        int virtualKey = KeyInterop.VirtualKeyFromKey(key);
+        if (!HotkeyGesture.TryGetKeyName(virtualKey, out string keyName)) return;
+
+        var gesture = new HotkeyGesture(ToHotkeyModifiers(Keyboard.Modifiers), virtualKey, keyName);
+        e.Handled = true;
+        box.Text = gesture.ToDisplayString();
+        box.CaretIndex = box.Text.Length;
+        StatusText.Text = $"已录入 {box.Text}，稍候即生效";
+    }
+
+    /// <summary>输入框对应动作当前已生效的快捷键（Esc 取消录入时用它回填）。</summary>
+    private string CurrentHotkeyText(TextBox box)
+    {
+        if (box == CaptureHotkeyBox) return _settings.CaptureHotkey;
+        if (box == GifHotkeyBox) return _settings.GifHotkey;
+        if (box == VideoHotkeyBox) return _settings.VideoHotkey;
+        if (box == FullScreenHotkeyBox) return _settings.FullScreenHotkey;
+        return _settings.AllScreensHotkey;
+    }
+
+    private static bool IsModifierKey(Key key) => key
+        is Key.LeftCtrl or Key.RightCtrl
+        or Key.LeftShift or Key.RightShift
+        or Key.LeftAlt or Key.RightAlt
+        or Key.LWin or Key.RWin;
+
+    private static HotkeyModifiers ToHotkeyModifiers(ModifierKeys modifiers)
+    {
+        var result = HotkeyModifiers.None;
+        if ((modifiers & ModifierKeys.Control) != 0) result |= HotkeyModifiers.Control;
+        if ((modifiers & ModifierKeys.Shift) != 0) result |= HotkeyModifiers.Shift;
+        if ((modifiers & ModifierKeys.Alt) != 0) result |= HotkeyModifiers.Alt;
+        if ((modifiers & ModifierKeys.Windows) != 0) result |= HotkeyModifiers.Win;
+        return result;
     }
 
     private void OnToggle(object sender, RoutedEventArgs e)

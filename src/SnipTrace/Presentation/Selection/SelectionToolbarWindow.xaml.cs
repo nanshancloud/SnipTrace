@@ -7,7 +7,6 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using SnipTrace.App.Infrastructure.Capture;
 using SnipTrace.App.Infrastructure.Platform;
 using SnipTrace.App.Presentation.Views;
@@ -30,6 +29,8 @@ public partial class SelectionToolbarWindow : Window
     private ToggleButton? _ratioButton;
     private TextBlock? _ratioLabel;
     private Border? _colorSwatch;
+    private Button? _undoButton;
+    private Button? _redoButton;
 
     public SelectionToolbarWindow()
     {
@@ -93,6 +94,8 @@ public partial class SelectionToolbarWindow : Window
         _ratioButton = null;
         _ratioLabel = null;
         _colorSwatch = null;
+        _undoButton = null;
+        _redoButton = null;
 
         string? previousGroup = null;
         foreach (var item in _items)
@@ -103,6 +106,18 @@ public partial class SelectionToolbarWindow : Window
             previousGroup = group;
             AddItem(item.Id);
         }
+
+        RefreshHistoryState(_overlay?.CanUndoAnnotations == true, _overlay?.CanRedoAnnotations == true);
+    }
+
+    /// <summary>自检用：工具条上是否真的建出了回退 / 前进按钮。</summary>
+    internal bool HasHistoryButtons => _undoButton is not null && _redoButton is not null;
+
+    /// <summary>回退 / 前进按钮的可用状态跟随标注历史。</summary>
+    public void RefreshHistoryState(bool canUndo, bool canRedo)
+    {
+        if (_undoButton is not null) _undoButton.IsEnabled = canUndo;
+        if (_redoButton is not null) _redoButton.IsEnabled = canRedo;
     }
 
     /// <summary>单个按钮：按 Id 生成对应控件（图标、提示与动作集中在 AddItem 里，便于配置顺序）。</summary>
@@ -115,38 +130,37 @@ public partial class SelectionToolbarWindow : Window
                 break;
 
             case SelectionToolbarItems.Select:
-                AddAnnotateToggle(OverlayAnnotateTool.Select, StrokeIcon("M3,2 L3,11.4 L5.5,9 L7.2,12.8 L9.1,12 L7.4,8.2 L10.6,8 Z"),
+                AddAnnotateToggle(OverlayAnnotateTool.Select, SelectionToolbarIcons.For(id),
                     "选择：点选图形 / 文字 / 序号 / 笔迹后拖动移动，滚轮改线宽（矩形 / 椭圆 / 箭头）或字号，Delete 删除");
                 break;
 
             case SelectionToolbarItems.Arrow:
-                AddAnnotateToggle(OverlayAnnotateTool.Arrow, StrokeIcon("M2,12 L11,3 M11,3 L7.5,3.5 M11,3 L10.5,6.5"),
+                AddAnnotateToggle(OverlayAnnotateTool.Arrow, SelectionToolbarIcons.For(id),
                     "箭头标注：在选区内拖动绘制；滚轮改线宽（箭头端头同步放大 / 缩小）");
                 break;
 
             case SelectionToolbarItems.Pen:
-                AddAnnotateToggle(OverlayAnnotateTool.Pen, StrokeIcon("M2.5,11.5 L10,4 L12,2 M2.5,11.5 L2,13 L3.5,12.5"),
+                AddAnnotateToggle(OverlayAnnotateTool.Pen, SelectionToolbarIcons.For(id),
                     "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
                 break;
 
             case SelectionToolbarItems.Eraser:
-                AddAnnotateToggle(OverlayAnnotateTool.Eraser, StrokeIcon("M3.6,9.2 L8.2,4.6 L11.8,8.2 L7.2,12.8 Z M2,13.8 L9.4,13.8"),
+                AddAnnotateToggle(OverlayAnnotateTool.Eraser, SelectionToolbarIcons.For(id),
                     "橡皮：按住拖动擦掉画笔 / 高亮笔画（文本、箭头、序号、图形不受影响）；再点一次退出");
                 break;
 
             case SelectionToolbarItems.Rectangle:
-                AddAnnotateToggle(OverlayAnnotateTool.Rectangle, StrokeIcon("M2.5,3.5 L11.5,3.5 L11.5,10.5 L2.5,10.5 Z"),
+                AddAnnotateToggle(OverlayAnnotateTool.Rectangle, SelectionToolbarIcons.For(id),
                     "矩形标注：在选区内拖出矩形；再点一次退出标注模式");
                 break;
 
             case SelectionToolbarItems.Ellipse:
-                AddAnnotateToggle(OverlayAnnotateTool.Ellipse,
-                    StrokeIcon("M7,3 C10.3,3 12,4.6 12,7 C12,9.4 10.3,11 7,11 C3.7,11 2,9.4 2,7 C2,4.6 3.7,3 7,3 Z"),
+                AddAnnotateToggle(OverlayAnnotateTool.Ellipse, SelectionToolbarIcons.For(id),
                     "椭圆标注：在选区内拖出椭圆；再点一次退出标注模式");
                 break;
 
             case SelectionToolbarItems.Text:
-                AddAnnotateToggle(OverlayAnnotateTool.Text, TextIcon(),
+                AddAnnotateToggle(OverlayAnnotateTool.Text, SelectionToolbarIcons.For(id),
                     "文字标注：在选区内点击后输入，Enter 确认、Esc 取消；滚轮改字号");
                 break;
 
@@ -179,6 +193,14 @@ public partial class SelectionToolbarWindow : Window
                 AddAction("\uE714", "录制 MP4 视频（Ctrl+Shift+R）", SelectionAction.Video);
                 break;
 
+            case SelectionToolbarItems.Undo:
+                AddHistoryButton(undo: true);
+                break;
+
+            case SelectionToolbarItems.Redo:
+                AddHistoryButton(undo: false);
+                break;
+
             case SelectionToolbarItems.Cancel:
                 AddAction("\uE711", "取消本次截图（Esc / 右键）", SelectionAction.Cancel);
                 break;
@@ -195,7 +217,7 @@ public partial class SelectionToolbarWindow : Window
     {
         var button = new ToggleButton
         {
-            Content = BadgeIcon(),
+            Content = SelectionToolbarIcons.Badge(),
             Style = (Style)FindResource("ToolIconToggle"),
             Tag = OverlayAnnotateTool.Number
         };
@@ -224,31 +246,28 @@ public partial class SelectionToolbarWindow : Window
         ButtonRow.Children.Add(button);
     }
 
-    private static FrameworkElement BadgeIcon()
+    /// <summary>回退 / 前进：撤销或恢复覆盖层上的一步标注操作（与 Ctrl+Z / Ctrl+Y 等价）。</summary>
+    private void AddHistoryButton(bool undo)
     {
-        var grid = new Grid { Width = 14, Height = 14 };
-        var circle = new System.Windows.Shapes.Ellipse { StrokeThickness = 1.6 };
-        circle.SetBinding(System.Windows.Shapes.Shape.StrokeProperty, new Binding("Foreground")
+        var button = new Button
         {
-            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ToggleButton), 1)
-        });
-        grid.Children.Add(circle);
-
-        var number = new TextBlock
-        {
-            Text = "1",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
-            FontFamily = new FontFamily("Segoe UI"),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
+            Content = SelectionToolbarIcons.Glyph(undo ? "\uE7A7" : "\uE7A6"),
+            Style = (Style)FindResource("ToolIconButton"),
+            IsEnabled = undo ? _overlay?.CanUndoAnnotations == true : _overlay?.CanRedoAnnotations == true
         };
-        number.SetBinding(TextBlock.ForegroundProperty, new Binding("Foreground")
+        button.Click += (_, _) =>
         {
-            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ToggleButton), 1)
-        });
-        grid.Children.Add(number);
-        return grid;
+            ClosePopups();
+            if (undo) _overlay?.UndoAnnotations();
+            else _overlay?.RedoAnnotations();
+        };
+        AttachHint(button, undo
+            ? "回退：撤销上一步标注（Ctrl+Z）"
+            : "前进：恢复刚撤销的标注（Ctrl+Shift+Z / Ctrl+Y）");
+
+        if (undo) _undoButton = button;
+        else _redoButton = button;
+        ButtonRow.Children.Add(button);
     }
 
     private void AddAnnotateToggle(OverlayAnnotateTool tool, FrameworkElement icon, string hint)
@@ -290,42 +309,6 @@ public partial class SelectionToolbarWindow : Window
         ButtonRow.Children.Add(button);
     }
 
-    private static FrameworkElement StrokeIcon(string data)
-    {
-        var path = new Path
-        {
-            Data = Geometry.Parse(data),
-            Width = 14,
-            Height = 14,
-            Stretch = Stretch.None,
-            StrokeThickness = 1.6,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            StrokeLineJoin = PenLineJoin.Round
-        };
-        path.SetBinding(Shape.StrokeProperty, new Binding("Foreground")
-        {
-            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ToggleButton), 1)
-        });
-        return path;
-    }
-
-    private static FrameworkElement TextIcon()
-    {
-        var text = new TextBlock
-        {
-            Text = "T",
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            FontFamily = new FontFamily("Segoe UI")
-        };
-        text.SetBinding(TextBlock.ForegroundProperty, new Binding("Foreground")
-        {
-            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ToggleButton), 1)
-        });
-        return text;
-    }
-
     /// <summary>刷新标注工具选中态与颜色样本；离开序号工具时收起形状弹出层。</summary>
     public void RefreshAnnotateState(OverlayAnnotateTool tool, uint argb)
     {
@@ -348,31 +331,9 @@ public partial class SelectionToolbarWindow : Window
 
     private void AddRatioButton()
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        _ratioLabel = new TextBlock
-        {
-            Text = "自由",
-            FontSize = 11,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        var chevron = new TextBlock
-        {
-            Text = "\uE70D",
-            FontFamily = new FontFamily("Segoe MDL2 Assets"),
-            FontSize = 9,
-            Margin = new Thickness(4, 1, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        chevron.SetBinding(TextBlock.ForegroundProperty, new System.Windows.Data.Binding("Foreground")
-        {
-            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ButtonBase), 1)
-        });
-        panel.Children.Add(_ratioLabel);
-        panel.Children.Add(chevron);
-
         _ratioButton = new ToggleButton
         {
-            Content = panel,
+            Content = SelectionToolbarIcons.RatioChip(out _ratioLabel),
             Style = (Style)FindResource("ChipToggle"),
             Margin = new Thickness(0, 0, 3, 0),
             Focusable = false

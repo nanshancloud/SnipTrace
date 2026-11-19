@@ -25,6 +25,8 @@ public static class SelectionToolbarCatalog
         SelectionToolbarItems.Pin => "钉图",
         SelectionToolbarItems.Gif => "GIF 录制",
         SelectionToolbarItems.Video => "录屏",
+        SelectionToolbarItems.Undo => "回退",
+        SelectionToolbarItems.Redo => "前进",
         SelectionToolbarItems.Cancel => "取消",
         SelectionToolbarItems.Refine => "精标",
         _ => id
@@ -36,6 +38,7 @@ public static class SelectionToolbarCatalog
         SelectionToolbarItems.Ratio => "ratio",
         SelectionToolbarItems.Copy or SelectionToolbarItems.Save or SelectionToolbarItems.Pin => "action",
         SelectionToolbarItems.Gif or SelectionToolbarItems.Video => "record",
+        SelectionToolbarItems.Undo or SelectionToolbarItems.Redo => "history",
         SelectionToolbarItems.Cancel or SelectionToolbarItems.Refine => "decision",
         _ => "tool"
     };

@@ -53,23 +53,28 @@
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Text="区域截图" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
-                <TextBox Grid.Row="0" Grid.Column="1" x:Name="CaptureHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10" />
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="CaptureHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10"
+                         ToolTip="点击后直接按下组合键即可录入；Backspace 清除，Esc 取消" />
 
                 <TextBlock Grid.Row="1" Text="GIF 录制" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
-                <TextBox Grid.Row="1" Grid.Column="1" x:Name="GifHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10" />
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="GifHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10"
+                         ToolTip="点击后直接按下组合键即可录入；Backspace 清除，Esc 取消" />
 
                 <TextBlock Grid.Row="2" Text="屏幕录制" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
-                <TextBox Grid.Row="2" Grid.Column="1" x:Name="VideoHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10" />
+                <TextBox Grid.Row="2" Grid.Column="1" x:Name="VideoHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10"
+                         ToolTip="点击后直接按下组合键即可录入；Backspace 清除，Esc 取消" />
 
                 <TextBlock Grid.Row="3" Text="当前屏全屏截图" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
-                <TextBox Grid.Row="3" Grid.Column="1" x:Name="FullScreenHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10" />
+                <TextBox Grid.Row="3" Grid.Column="1" x:Name="FullScreenHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10"
+                         ToolTip="点击后直接按下组合键即可录入；Backspace 清除，Esc 取消" />
 
                 <TextBlock Grid.Row="4" Text="所有显示器截图" VerticalAlignment="Center" Style="{StaticResource CaptionText}" />
-                <TextBox Grid.Row="4" Grid.Column="1" x:Name="AllScreensHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10" />
+                <TextBox Grid.Row="4" Grid.Column="1" x:Name="AllScreensHotkeyBox" Style="{StaticResource AppTextBox}" Margin="0,0,20,10"
+                         ToolTip="点击后直接按下组合键即可录入；Backspace 清除，Esc 取消" />
 
-                <TextBlock Grid.Row="0" Grid.Column="2" Text="格式：Ctrl+Shift+G" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
-                <TextBlock Grid.Row="1" Grid.Column="2" Text="快捷键被占用时会立即提示" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
-                <TextBlock Grid.Row="2" Grid.Column="2" Text="托盘菜单始终可用" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="点输入框后按键录入" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="Backspace 清除" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="2" Grid.Column="2" Text="Esc 取消本次录入" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
             </Grid>
 
             <TextBlock Text="外观" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,10" />
@@ -94,14 +99,13 @@
                       ToolTip="关闭后不再弹出「已最小化到托盘」提示（也可在提示上点「不再提示」）" />
 
             <TextBlock Text="选区工具条" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,6" />
-            <TextBlock Text="在预览条上按住拖动即可调整顺序（也可用列表里的 ↑ ↓）；勾选控制是否显示，改动立即生效。"
+            <TextBlock Text="下面是工具条的真实外观：点按钮切换显示（变暗即隐藏），按住拖动调整顺序，改动立即生效。"
                        Style="{StaticResource CaptionText}" Margin="0,0,0,10" TextWrapping="Wrap" />
             <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="10" Padding="6,4" HorizontalAlignment="Left" Margin="0,0,0,10">
+                    BorderThickness="1" CornerRadius="9" Padding="5,3" HorizontalAlignment="Left" Margin="0,0,0,8">
                 <WrapPanel x:Name="ToolbarPreviewPanel" />
             </Border>
-            <StackPanel x:Name="ToolbarListPanel" />
-            <Button Content="恢复默认工具条" Style="{StaticResource SecondaryButton}" Margin="0,6,0,0"
+            <Button Content="恢复默认工具条" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"
                     Click="ResetToolbar_Click" ToolTip="恢复全部按钮并按默认顺序排列" />
 
             <TextBlock Text="截图与录制" FontSize="15" FontWeight="SemiBold" Margin="0,24,0,10" />

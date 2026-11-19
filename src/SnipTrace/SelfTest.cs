@@ -588,6 +588,9 @@ internal static class SelfTest
 
             check("工具条有选择按钮", hasSelect, null);
             check("工具条有橡皮按钮", hasEraser, null);
+            check("工具条有回退与前进按钮", toolbar.HasHistoryButtons, null);
+            check("回退前进初始不可用", !overlay.CanUndoAnnotations && !overlay.CanRedoAnnotations,
+                $"undo={overlay.CanUndoAnnotations} redo={overlay.CanRedoAnnotations}");
             check("复制与精标有文字标签", labels.Contains("复制") && labels.Contains("精标"),
                 string.Join("/", labels.Where(t => t is "复制" or "精标")));
 
@@ -726,11 +729,22 @@ internal static class SelfTest
                 settings.TrayIconMode == TrayIconModes.Color && settings.SuppressTrayHint,
                 $"{settings.TrayIconMode} suppress={settings.SuppressTrayHint}");
 
-            int rows = view.ToolbarListPanel.Children.Count;
-            check("设置页可增删排序工具条按钮", rows == SelectionToolbarItems.All.Length, rows.ToString());
-
-            int previewItems = view.ToolbarPreviewPanel.Children.OfType<Border>().Count(b => b.Tag is ToolbarItemSetting);
+            // 工具条配置区改成真机样式的图标按钮：每个按钮都是可点（显隐）、可拖（排序）的。
+            int previewItems = view.ToolbarPreviewPanel.Children.OfType<Button>().Count(b => b.Tag is ToolbarItemSetting);
             check("工具条预览显示全部按钮", previewItems == SelectionToolbarItems.All.Length, previewItems.ToString());
+            check("工具条预览含回退与前进",
+                view.ToolbarPreviewPanel.Children.OfType<Button>().Count(b =>
+                    b.Tag is ToolbarItemSetting item && item.Id is SelectionToolbarItems.Undo or SelectionToolbarItems.Redo) == 2,
+                null);
+
+            // 快捷键按键录入：虚拟键码能反查回规范按键名（按键录入 → 文本 → 再解析要能对上）。
+            check("快捷键按键名反查",
+                HotkeyGesture.TryGetKeyName(0x47, out string g) && g == "G"
+                && HotkeyGesture.TryGetKeyName(0x70, out string f1) && f1 == "F1"
+                && HotkeyGesture.TryGetKeyName(0x0D, out string enter) && enter == "Enter"
+                && HotkeyGesture.TryParse(new HotkeyGesture(HotkeyModifiers.Control, 0x47, g).ToDisplayString(), out var parsed)
+                && parsed.VirtualKey == 0x47 && parsed.Modifiers == HotkeyModifiers.Control,
+                "G / F1 / Enter");
 
             // 拖动排序与真实拖动共用 MoveToolbarItemTo：顺序要变、数量不变。
             string firstId = settings.SelectionToolbar[0].Id;

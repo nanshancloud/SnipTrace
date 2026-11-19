@@ -230,6 +230,20 @@ internal static class Program
         Check("快捷键解析 F1", HotkeyGesture.TryParse("F1", out var f1) && f1.VirtualKey == 0x70);
         Check("非法快捷键被拒绝", !HotkeyGesture.TryParse("Ctrl+", out _));
 
+        // 按键录入：虚拟键码反查按键名，再拼成文本还要能被解析回同一手势。
+        Check("按键名反查字母", HotkeyGesture.TryGetKeyName('G', out string gName) && gName == "G", gName);
+        Check("按键名反查功能键", HotkeyGesture.TryGetKeyName(0x70, out string f1Name) && f1Name == "F1", f1Name);
+        Check("按键名反查小键盘", HotkeyGesture.TryGetKeyName(0x61, out string numName)
+            && numName == "NumPad1" && HotkeyGesture.TryParse(numName, out var numPad) && numPad.VirtualKey == 0x61, numName);
+        Check("按键名反查回车", HotkeyGesture.TryGetKeyName(0x0D, out string enterName) && enterName == "Enter", enterName);
+        Check("按键名反查找不到的键返回 false", !HotkeyGesture.TryGetKeyName(0xFF, out _));
+
+        var recorded = new HotkeyGesture(HotkeyModifiers.Control | HotkeyModifiers.Shift, 'G', gName);
+        Check("录入手势可被解析回原文", HotkeyGesture.TryParse(recorded.ToDisplayString(), out var reparsed)
+            && reparsed.VirtualKey == 'G'
+            && reparsed.Modifiers == (HotkeyModifiers.Control | HotkeyModifiers.Shift),
+            recorded.ToDisplayString());
+
         var settings = new AppSettings
         {
             ScreenshotDirectory = string.Empty,
@@ -592,6 +606,24 @@ internal static class Program
             && Index(filled, SelectionToolbarItems.Eraser) < Index(filled, SelectionToolbarItems.Copy)
             && filled.Count == SelectionToolbarItems.All.Length,
             string.Join(",", filled.Select(i => i.Id).Take(6)));
+
+        // 回退 / 前进：默认就这么排（录屏之后、取消之前），旧配置升级后也会被插回这里。
+        Check("工具条含回退与前进", Index(defaults, SelectionToolbarItems.Undo) >= 0 && Index(defaults, SelectionToolbarItems.Redo) >= 0);
+        Check("回退前进默认排在录屏与取消之间",
+            Index(defaults, SelectionToolbarItems.Undo) > Index(defaults, SelectionToolbarItems.Video)
+            && Index(defaults, SelectionToolbarItems.Redo) > Index(defaults, SelectionToolbarItems.Undo)
+            && Index(defaults, SelectionToolbarItems.Redo) < Index(defaults, SelectionToolbarItems.Cancel));
+        var legacy = new List<ToolbarItemSetting>
+        {
+            new() { Id = SelectionToolbarItems.Ratio },
+            new() { Id = SelectionToolbarItems.Video },
+            new() { Id = SelectionToolbarItems.Cancel }
+        };
+        var upgraded = SelectionToolbarItems.Normalize(legacy);
+        Check("旧配置升级补上回退与前进",
+            Index(upgraded, SelectionToolbarItems.Undo) > Index(upgraded, SelectionToolbarItems.Video)
+            && Index(upgraded, SelectionToolbarItems.Redo) > Index(upgraded, SelectionToolbarItems.Undo)
+            && Index(upgraded, SelectionToolbarItems.Redo) < Index(upgraded, SelectionToolbarItems.Cancel));
 
         // 橡皮：只擦画笔 / 高亮，文本、箭头、图形不动。
         var eraseDoc = new AnnotationDocument(300, 200);

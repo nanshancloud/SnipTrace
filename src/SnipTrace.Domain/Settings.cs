@@ -44,7 +44,17 @@ public readonly record struct HotkeyGesture(HotkeyModifiers Modifiers, int Virtu
         ["Backslash"] = 0xDC,
         ["LeftBracket"] = 0xDB,
         ["RightBracket"] = 0xDD,
-        ["Tilde"] = 0xC0
+        ["Tilde"] = 0xC0,
+        ["NumPad0"] = 0x60,
+        ["NumPad1"] = 0x61,
+        ["NumPad2"] = 0x62,
+        ["NumPad3"] = 0x63,
+        ["NumPad4"] = 0x64,
+        ["NumPad5"] = 0x65,
+        ["NumPad6"] = 0x66,
+        ["NumPad7"] = 0x67,
+        ["NumPad8"] = 0x68,
+        ["NumPad9"] = 0x69
     };
 
     public string ToDisplayString()
@@ -145,6 +155,50 @@ public readonly record struct HotkeyGesture(HotkeyModifiers Modifiers, int Virtu
                 canonical = pair.Key;
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 虚拟键码 → 规范按键名（<see cref="TryResolveVirtualKey"/> 的逆向），
+    /// 供设置页「按下按键即录入」使用；不认识的键返回 false。
+    /// </summary>
+    public static bool TryGetKeyName(int virtualKey, out string keyName)
+    {
+        keyName = string.Empty;
+
+        if (virtualKey is >= 0x41 and <= 0x5A)
+        {
+            keyName = ((char)virtualKey).ToString();
+            return true;
+        }
+
+        if (virtualKey is >= 0x30 and <= 0x39)
+        {
+            keyName = ((char)virtualKey).ToString();
+            return true;
+        }
+
+        if (virtualKey is >= 0x70 and <= 0x87)
+        {
+            keyName = $"F{virtualKey - 0x70 + 1}";
+            return true;
+        }
+
+        if (virtualKey is >= 0x60 and <= 0x69)
+        {
+            keyName = "NumPad" + (virtualKey - 0x60);
+            return true;
+        }
+
+        // 别名（Return / Escape）跳过，只回最短的规范名。
+        foreach (var pair in NamedKeys)
+        {
+            if (pair.Value != virtualKey) continue;
+            if (pair.Key is "Return" or "Escape") continue;
+            keyName = pair.Key;
+            return true;
         }
 
         return false;
@@ -270,6 +324,8 @@ public static class SelectionToolbarItems
     public const string Pin = "pin";
     public const string Gif = "gif";
     public const string Video = "video";
+    public const string Undo = "undo";
+    public const string Redo = "redo";
     public const string Cancel = "cancel";
     public const string Refine = "refine";
 
@@ -277,7 +333,7 @@ public static class SelectionToolbarItems
     public static readonly string[] All =
     {
         Ratio, Select, Arrow, Pen, Eraser, Rectangle, Ellipse, Text, Number, Color,
-        Copy, Save, Pin, Gif, Video, Cancel, Refine
+        Copy, Save, Pin, Gif, Video, Undo, Redo, Cancel, Refine
     };
 
     public static bool IsKnown(string? id) => id is not null && Array.IndexOf(All, id) >= 0;

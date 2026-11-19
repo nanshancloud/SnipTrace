@@ -482,6 +482,36 @@ public sealed class SelectionOverlay : IDisposable
         _toolbar.RefreshAnnotateState(_annotateTool, AnnotatePalette[_paletteIndex]);
     }
 
+    /// <summary>覆盖层标注是否还有可回退的步骤。</summary>
+    public bool CanUndoAnnotations => _overlayAnnotations?.CanUndo == true;
+
+    /// <summary>覆盖层标注是否有被撤销、可重新前进的步骤。</summary>
+    public bool CanRedoAnnotations => _overlayAnnotations?.CanRedo == true;
+
+    /// <summary>回退一步标注（工具条「回退」按钮与 Ctrl+Z）。</summary>
+    public void UndoAnnotations() => ApplyAnnotationHistory(undo: true);
+
+    /// <summary>前进一步标注（工具条「前进」按钮与 Ctrl+Y / Ctrl+Shift+Z）。</summary>
+    public void RedoAnnotations() => ApplyAnnotationHistory(undo: false);
+
+    private void ApplyAnnotationHistory(bool undo)
+    {
+        if (_overlayAnnotations is null) return;
+        if (undo ? !_overlayAnnotations.CanUndo : !_overlayAnnotations.CanRedo) return;
+
+        if (undo) _overlayAnnotations.Undo();
+        else _overlayAnnotations.Redo();
+
+        // 撤销掉的标注可能正是当前选中项，选中态一并清掉。
+        if (_selectedAnnotation is not null && !_overlayAnnotations.Annotations.Contains(_selectedAnnotation))
+        {
+            _selectedAnnotation = null;
+        }
+
+        RefreshAnnotations();
+        UpdateToolbar();
+    }
+
     private AnnotationStyle CurrentAnnotateStyle() => new(AnnotatePalette[_paletteIndex], _strokeWidth, 1);
 
     private PointD DocPoint(PixelPoint point) => new(point.X - _selection.Left, point.Y - _selection.Top);
@@ -713,6 +743,9 @@ public sealed class SelectionOverlay : IDisposable
         {
             window.UpdateAnnotations(_overlayAnnotations, _selection, selected);
         }
+
+        // 回退 / 前进按钮的可用状态跟着标注历史走。
+        _toolbar.RefreshHistoryState(CanUndoAnnotations, CanRedoAnnotations);
     }
 
     public void OnKeyDown(Key key, ModifierKeys modifiers)
@@ -732,6 +765,13 @@ public sealed class SelectionOverlay : IDisposable
                 return;
             case Key.Enter:
                 if (!_selection.IsEmpty) Complete(SelectionAction.Edit);
+                return;
+            case Key.Z when (modifiers & ModifierKeys.Control) != 0 && (modifiers & ModifierKeys.Shift) != 0:
+            case Key.Y when (modifiers & ModifierKeys.Control) != 0:
+                RedoAnnotations();
+                return;
+            case Key.Z when (modifiers & ModifierKeys.Control) != 0:
+                UndoAnnotations();
                 return;
             case Key.C when (modifiers & ModifierKeys.Control) != 0:
                 if (!_selection.IsEmpty) Complete(SelectionAction.Copy);
