@@ -27,7 +27,10 @@ public partial class SettingsView : UserControl
 
     /// <summary>预览条上按下但还没开始拖动的按钮，以及按下时的屏幕位置。</summary>
     private ToolbarItemSetting? _draggingItem;
+    private Button? _dragSource;
+    private Border? _dragMarker;
     private Point _dragStartPoint;
+    private bool _isToolbarDragging;
 
     public SettingsView(AppSettings settings, PathService paths)
     {
@@ -55,11 +58,11 @@ public partial class SettingsView : UserControl
         {
             SetText(ScreenshotDirBox, settings.ScreenshotDirectory);
             SetText(VideoDirBox, settings.VideoDirectory);
-            SetText(CaptureHotkeyBox, settings.CaptureHotkey);
-            SetText(GifHotkeyBox, settings.GifHotkey);
-            SetText(VideoHotkeyBox, settings.VideoHotkey);
-            SetText(FullScreenHotkeyBox, settings.FullScreenHotkey);
-            SetText(AllScreensHotkeyBox, settings.AllScreensHotkey);
+            CaptureHotkeyInput.Value = settings.CaptureHotkey;
+            GifHotkeyInput.Value = settings.GifHotkey;
+            VideoHotkeyInput.Value = settings.VideoHotkey;
+            FullScreenHotkeyInput.Value = settings.FullScreenHotkey;
+            AllScreensHotkeyInput.Value = settings.AllScreensHotkey;
             SetText(TextFontBox, settings.TextFontFamily);
             SetText(HighlightColorBox, settings.Highlight.Color);
             SetText(HighlightSizeBox, settings.Highlight.Diameter.ToString(CultureInfo.InvariantCulture));
@@ -148,10 +151,6 @@ public partial class SettingsView : UserControl
                 button.Padding = new Thickness(8, 0, 8, 0);
             }
 
-            button.PreviewMouseLeftButtonDown += PreviewItem_MouseDown;
-            button.MouseMove += PreviewItem_MouseMove;
-            button.PreviewMouseLeftButtonUp += (_, _) => EndPreviewItemPress(button, item.Id);
-
             ToolbarPreviewPanel.Children.Add(button);
         }
     }
@@ -203,82 +202,154 @@ public partial class SettingsView : UserControl
         StatusText.Text = "选区工具条已恢复默认";
     }
 
-    private void PreviewItem_MouseDown(object sender, MouseButtonEventArgs e)
+    /// <summary>按下预览条上的按钮：记下起点，后续移动/抬手都交给预览条自己处理。</summary>
+    private void ToolbarPanel_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_loading) return;
-        if (sender is FrameworkElement element && element.Tag is ToolbarItemSetting item)
-        {
-            _draggingItem = item;
-            _dragStartPoint = e.GetPosition(this);
-            // 捕获鼠标，快速拖动时也不会在移出预览按钮后丢掉 MouseMove。
-            element.CaptureMouse();
-        }
-    }
 
-    private void PreviewItem_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (_draggingItem is null || e.LeftButton != MouseButtonState.Pressed) return;
+        Button? button = FindPreviewButton(e.OriginalSource as DependencyObject);
+        if (button?.Tag is not ToolbarItemSetting item) return;
 
-        Point position = e.GetPosition(this);
-        if (Math.Abs(position.X - _dragStartPoint.X) < 4 && Math.Abs(position.Y - _dragStartPoint.Y) < 4) return;
+        _draggingItem = item;
+        _dragSource = button;
+        _dragStartPoint = e.GetPosition(ToolbarPreviewPanel);
+        _isToolbarDragging = false;
 
-        var item = _draggingItem;
-        _draggingItem = null; // 已进入拖动：抬手时不再切换显隐
-        if (sender is UIElement source)
-        {
-            if (source.IsMouseCaptured) source.ReleaseMouseCapture();
-            DragDrop.DoDragDrop(source, new DataObject(typeof(ToolbarItemSetting), item), DragDropEffects.Move);
-        }
-    }
-
-    /// <summary>抬手：没拖动过才算一次点击（切换显隐）；拖动过则什么都不做，顺序已在 Drop 里改好。</summary>
-    private void EndPreviewItemPress(UIElement element, string id)
-    {
-        bool wasClick = _draggingItem is not null;
-        _draggingItem = null;
-        if (element.IsMouseCaptured) element.ReleaseMouseCapture();
-        if (wasClick) ToggleToolbarVisible(id);
-    }
-
-    private void ToolbarPanel_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(typeof(ToolbarItemSetting)) ? DragDropEffects.Move : DragDropEffects.None;
+        // 在面板上捕获鼠标：拖出按钮范围也照样收到 MouseMove / 抬手。
+        ToolbarPreviewPanel.CaptureMouse();
         e.Handled = true;
     }
 
-    /// <summary>
-    /// 整条预览条都是放置目标：按落点 X 与各按钮中线的比较算插入位置，
-    /// 落在按钮之间的空隙、分隔线上也能正确换位（只在按钮上放手会漏掉空档）。
-    /// </summary>
-    private void ToolbarPanel_Drop(object sender, DragEventArgs e)
+    private void ToolbarPanel_MouseMove(object sender, MouseEventArgs e)
     {
-        if (e.Data.GetData(typeof(ToolbarItemSetting)) is not ToolbarItemSetting dragged) return;
+        if (_draggingItem is null || _dragSource is null || e.LeftButton != MouseButtonState.Pressed) return;
 
+        Point position = e.GetPosition(ToolbarPreviewPanel);
+
+        if (!_isToolbarDragging)
+        {
+            if (Math.Abs(position.X - _dragStartPoint.X) < 4 && Math.Abs(position.Y - _dragStartPoint.Y) < 4) return;
+
+            _isToolbarDragging = true;
+            _dragSource.Opacity = 0.4;
+            Panel.SetZIndex(_dragSource, 1);
+            _dragMarker = new Border
+            {
+                Width = 2,
+                Height = 18,
+                Margin = new Thickness(1, 0, 1, 0),
+                CornerRadius = new CornerRadius(1),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _dragMarker.SetResourceReference(BackgroundProperty, "AccentBrush");
+        }
+
+        _dragSource.RenderTransform = new TranslateTransform(position.X - _dragStartPoint.X, 0);
+        UpdateDragMarker(position.X);
+    }
+
+    private void ToolbarPanel_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_draggingItem is null || _dragSource is null) return;
+
+        var item = _draggingItem;
+        bool dragged = _isToolbarDragging;
+        double x = e.GetPosition(ToolbarPreviewPanel).X;
+
+        if (ToolbarPreviewPanel.IsMouseCaptured) ToolbarPreviewPanel.ReleaseMouseCapture();
+        ResetToolbarDrag();
+
+        if (dragged)
+        {
+            CommitToolbarDrop(item.Id, x);
+        }
+        else
+        {
+            ToggleToolbarVisible(item.Id);
+        }
+    }
+
+    /// <summary>拖动中的插入指示线：落在哪个按钮中线左侧就插到它前面。</summary>
+    private void UpdateDragMarker(double x)
+    {
+        if (_dragMarker is null) return;
+
+        Button? before = FindButtonAfter(x);
+
+        int index = before is null ? ToolbarPreviewPanel.Children.Count : ToolbarPreviewPanel.Children.IndexOf(before);
+        int current = ToolbarPreviewPanel.Children.IndexOf(_dragMarker);
+        if (current >= 0)
+        {
+            if (current == index || index == current + 1) return;
+            ToolbarPreviewPanel.Children.RemoveAt(current);
+            if (index > current) index--;
+        }
+
+        ToolbarPreviewPanel.Children.Insert(Math.Clamp(index, 0, ToolbarPreviewPanel.Children.Count), _dragMarker);
+    }
+
+    /// <summary>落点右侧第一个按钮（跳过被拖动的自己与指示线）。</summary>
+    private Button? FindButtonAfter(double x)
+    {
+        foreach (var child in ToolbarPreviewPanel.Children)
+        {
+            if (child is not Button button || ReferenceEquals(button, _dragSource)) continue;
+            if (button.Tag is not ToolbarItemSetting) continue;
+
+            double center = button.TranslatePoint(new Point(button.ActualWidth / 2, 0), ToolbarPreviewPanel).X;
+            if (x < center) return button;
+        }
+
+        return null;
+    }
+
+    /// <summary>按落点算目标序号并写回设置（预览条会按新顺序重画）。</summary>
+    private void CommitToolbarDrop(string id, double x)
+    {
         var items = _settings.SelectionToolbar;
         if (items is null || items.Count == 0) return;
 
-        int from = items.FindIndex(item => string.Equals(item.Id, dragged.Id, StringComparison.Ordinal));
+        int from = items.FindIndex(item => string.Equals(item.Id, id, StringComparison.Ordinal));
         if (from < 0) return;
 
-        double x = e.GetPosition(ToolbarPreviewPanel).X;
+        Button? before = FindButtonAfter(x);
         int targetIndex = items.Count;
-        foreach (var child in ToolbarPreviewPanel.Children)
+        if (before?.Tag is ToolbarItemSetting target)
         {
-            if (child is not Button button || button.Tag is not ToolbarItemSetting target) continue;
-            if (string.Equals(target.Id, dragged.Id, StringComparison.Ordinal)) continue;
-
-            Point center = button.TranslatePoint(new Point(button.ActualWidth / 2, 0), ToolbarPreviewPanel);
-            if (x < center.X)
-            {
-                int index = items.FindIndex(item => string.Equals(item.Id, target.Id, StringComparison.Ordinal));
-                if (index >= 0) targetIndex = index;
-                break;
-            }
+            int index = items.FindIndex(item => string.Equals(item.Id, target.Id, StringComparison.Ordinal));
+            if (index >= 0) targetIndex = index;
         }
 
         int to = Math.Clamp(targetIndex > from ? targetIndex - 1 : targetIndex, 0, items.Count - 1);
-        e.Handled = true;
         MoveToolbarItemTo(from, to);
+    }
+
+    private void ResetToolbarDrag()
+    {
+        if (_dragSource is not null)
+        {
+            _dragSource.RenderTransform = Transform.Identity;
+            Panel.SetZIndex(_dragSource, 0);
+        }
+
+        if (_dragMarker is not null) ToolbarPreviewPanel.Children.Remove(_dragMarker);
+
+        _dragMarker = null;
+        _dragSource = null;
+        _draggingItem = null;
+        _isToolbarDragging = false;
+    }
+
+    /// <summary>从事件源往上找预览按钮（图标是 Path/TextBlock，点到的往往不是 Button 本身）。</summary>
+    private static Button? FindPreviewButton(DependencyObject? source)
+    {
+        for (DependencyObject? node = source; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is Button button && button.Tag is ToolbarItemSetting) return button;
+            if (node is WrapPanel) return null;
+        }
+
+        return null;
     }
 
     private static void SetText(TextBox box, string value)
@@ -288,7 +359,7 @@ public partial class SettingsView : UserControl
 
     private void HookEvents()
     {
-        foreach (var box in new[] { ScreenshotDirBox, VideoDirBox, TextFontBox, CaptureHotkeyBox, GifHotkeyBox, VideoHotkeyBox, FullScreenHotkeyBox, AllScreensHotkeyBox, HighlightColorBox, HighlightSizeBox, HighlightOpacityBox })
+        foreach (var box in new[] { ScreenshotDirBox, VideoDirBox, TextFontBox, HighlightColorBox, HighlightSizeBox, HighlightOpacityBox })
         {
             box.TextChanged += (_, _) =>
             {
@@ -298,12 +369,16 @@ public partial class SettingsView : UserControl
             };
         }
 
-        foreach (var box in GetHotkeyBoxes()) box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
+        // 快捷键控件自己负责按键录入，这里只接「值变了」。
+        foreach (var input in new[] { CaptureHotkeyInput, GifHotkeyInput, VideoHotkeyInput, FullScreenHotkeyInput, AllScreensHotkeyInput })
+        {
+            input.ValueChanged += (_, _) => Queue();
+        }
 
-        // 整条预览条作为拖放目标（见 ToolbarPanel_Drop）。
-        ToolbarPreviewPanel.AllowDrop = true;
-        ToolbarPreviewPanel.DragOver += ToolbarPanel_DragOver;
-        ToolbarPreviewPanel.Drop += ToolbarPanel_Drop;
+        // 预览条的拖动换位自己做（不用 OLE 拖放，避免落点判定丢失）。
+        ToolbarPreviewPanel.PreviewMouseLeftButtonDown += ToolbarPanel_MouseDown;
+        ToolbarPreviewPanel.MouseMove += ToolbarPanel_MouseMove;
+        ToolbarPreviewPanel.PreviewMouseLeftButtonUp += ToolbarPanel_MouseUp;
 
         foreach (var check in new[] { CursorInCaptureCheck, CopyAfterCaptureCheck, AutoSaveCheck, HotkeyWarnCheck, StartupCheck, CheckUpdateCheck, HighlightCheck, TrayHintCheck })
         {
@@ -318,82 +393,6 @@ public partial class SettingsView : UserControl
         TrayAutoRadio.Checked += OnToggle;
         TrayColorRadio.Checked += OnToggle;
         TrayLightRadio.Checked += OnToggle;
-    }
-
-    private TextBox[] GetHotkeyBoxes() => new[] { CaptureHotkeyBox, GifHotkeyBox, VideoHotkeyBox, FullScreenHotkeyBox, AllScreensHotkeyBox };
-
-    /// <summary>快捷键输入框：点进去直接按键即可录入（不必手打 Ctrl+Shift+G）。</summary>
-    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (_loading || sender is not TextBox box) return;
-
-        // Alt 组合键会以 SystemKey 形式到达。
-        Key key = e.Key == Key.System ? e.SystemKey : e.Key;
-
-        // Tab 留给焦点切换；Esc 放弃这次录入，回到已生效的值。
-        if (key == Key.Tab) return;
-        if (key == Key.Escape)
-        {
-            e.Handled = true;
-            _loading = true;
-            try
-            {
-                SetText(box, CurrentHotkeyText(box));
-            }
-            finally
-            {
-                _loading = false;
-            }
-
-            StatusText.Text = "已取消本次录入";
-            return;
-        }
-
-        if (key is Key.Back or Key.Delete)
-        {
-            e.Handled = true;
-            box.Clear();
-            StatusText.Text = "已清除，按下组合键重新录入";
-            return;
-        }
-
-        // 只按修饰键不算一次录入。
-        if (key == Key.None || IsModifierKey(key) || key is Key.ImeProcessed or Key.DeadCharProcessed) return;
-
-        int virtualKey = KeyInterop.VirtualKeyFromKey(key);
-        if (!HotkeyGesture.TryGetKeyName(virtualKey, out string keyName)) return;
-
-        var gesture = new HotkeyGesture(ToHotkeyModifiers(Keyboard.Modifiers), virtualKey, keyName);
-        e.Handled = true;
-        box.Text = gesture.ToDisplayString();
-        box.CaretIndex = box.Text.Length;
-        StatusText.Text = $"已录入 {box.Text}，稍候即生效";
-    }
-
-    /// <summary>输入框对应动作当前已生效的快捷键（Esc 取消录入时用它回填）。</summary>
-    private string CurrentHotkeyText(TextBox box)
-    {
-        if (box == CaptureHotkeyBox) return _settings.CaptureHotkey;
-        if (box == GifHotkeyBox) return _settings.GifHotkey;
-        if (box == VideoHotkeyBox) return _settings.VideoHotkey;
-        if (box == FullScreenHotkeyBox) return _settings.FullScreenHotkey;
-        return _settings.AllScreensHotkey;
-    }
-
-    private static bool IsModifierKey(Key key) => key
-        is Key.LeftCtrl or Key.RightCtrl
-        or Key.LeftShift or Key.RightShift
-        or Key.LeftAlt or Key.RightAlt
-        or Key.LWin or Key.RWin;
-
-    private static HotkeyModifiers ToHotkeyModifiers(ModifierKeys modifiers)
-    {
-        var result = HotkeyModifiers.None;
-        if ((modifiers & ModifierKeys.Control) != 0) result |= HotkeyModifiers.Control;
-        if ((modifiers & ModifierKeys.Shift) != 0) result |= HotkeyModifiers.Shift;
-        if ((modifiers & ModifierKeys.Alt) != 0) result |= HotkeyModifiers.Alt;
-        if ((modifiers & ModifierKeys.Windows) != 0) result |= HotkeyModifiers.Win;
-        return result;
     }
 
     private void OnToggle(object sender, RoutedEventArgs e)
@@ -414,18 +413,18 @@ public partial class SettingsView : UserControl
     {
         if (_loading) return;
 
-        var hotkeys = new (string Name, TextBox Box)[]
+        var hotkeys = new (string Name, string Value)[]
         {
-            ("区域截图", CaptureHotkeyBox),
-            ("GIF 录制", GifHotkeyBox),
-            ("屏幕录制", VideoHotkeyBox),
-            ("全屏截图", FullScreenHotkeyBox),
-            ("所有显示器截图", AllScreensHotkeyBox)
+            ("区域截图", CaptureHotkeyInput.Value),
+            ("GIF 录制", GifHotkeyInput.Value),
+            ("屏幕录制", VideoHotkeyInput.Value),
+            ("全屏截图", FullScreenHotkeyInput.Value),
+            ("所有显示器截图", AllScreensHotkeyInput.Value)
         };
 
-        foreach (var (name, box) in hotkeys)
+        foreach (var (name, value) in hotkeys)
         {
-            if (!HotkeyGesture.TryParse(box.Text.Trim(), out _))
+            if (!HotkeyGesture.TryParse(value.Trim(), out _))
             {
                 StatusText.Text = $"{name} 快捷键格式不正确，例如 Ctrl+Shift+G";
                 return;
@@ -459,11 +458,11 @@ public partial class SettingsView : UserControl
                 Diameter = highlightDiameter,
                 OpacityPercent = highlightOpacity
             },
-            CaptureHotkey = CaptureHotkeyBox.Text.Trim(),
-            GifHotkey = GifHotkeyBox.Text.Trim(),
-            VideoHotkey = VideoHotkeyBox.Text.Trim(),
-            FullScreenHotkey = FullScreenHotkeyBox.Text.Trim(),
-            AllScreensHotkey = AllScreensHotkeyBox.Text.Trim(),
+            CaptureHotkey = CaptureHotkeyInput.Value.Trim(),
+            GifHotkey = GifHotkeyInput.Value.Trim(),
+            VideoHotkey = VideoHotkeyInput.Value.Trim(),
+            FullScreenHotkey = FullScreenHotkeyInput.Value.Trim(),
+            AllScreensHotkey = AllScreensHotkeyInput.Value.Trim(),
             RenumberBadgesOnStyleChange = _settings.RenumberBadgesOnStyleChange,
             SelectionToolbar = SelectionToolbarItems.Clone(_settings.SelectionToolbar),
             Gif = _settings.Gif,
@@ -567,11 +566,18 @@ public partial class SettingsView : UserControl
         }
     }
 
+    /// <summary>统一快捷键模式下 GIF / 录屏键不会注册，直接把这两行藏起来，免得看起来像能用。</summary>
     private void RefreshHotkeyModeUi()
     {
         bool unified = HotkeyUnifiedRadio.IsChecked == true;
-        GifHotkeyBox.IsEnabled = !unified;
-        VideoHotkeyBox.IsEnabled = !unified;
+        Visibility visibility = unified ? Visibility.Collapsed : Visibility.Visible;
+
+        GifHotkeyInput.IsEnabled = !unified;
+        VideoHotkeyInput.IsEnabled = !unified;
+        GifHotkeyInput.Visibility = visibility;
+        GifHotkeyInputLabel.Visibility = visibility;
+        VideoHotkeyInput.Visibility = visibility;
+        VideoHotkeyInputLabel.Visibility = visibility;
     }
 
     private void BrowseScreenshot_Click(object sender, RoutedEventArgs e) => Browse(ScreenshotDirBox);

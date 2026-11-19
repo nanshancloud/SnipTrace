@@ -737,6 +737,24 @@ internal static class SelfTest
                     b.Tag is ToolbarItemSetting item && item.Id is SelectionToolbarItems.Undo or SelectionToolbarItems.Redo) == 2,
                 null);
 
+            // 快捷键用键帽展示：Ctrl+Shift+G 应拆成三个圆角矩形。
+            check("快捷键以键帽展示", view.GifHotkeyInput.KeyCapCount == 3, view.GifHotkeyInput.KeyCapCount.ToString());
+
+            // 统一快捷键模式下 GIF / 录屏两行整体藏起来（不会注册，别让人以为能用）。
+            view.HotkeyUnifiedRadio.IsChecked = true;
+            check("统一模式隐藏 GIF/录屏快捷键行",
+                view.GifHotkeyInput.Visibility == Visibility.Collapsed
+                && view.GifHotkeyInputLabel.Visibility == Visibility.Collapsed
+                && view.VideoHotkeyInput.Visibility == Visibility.Collapsed
+                && view.VideoHotkeyInputLabel.Visibility == Visibility.Collapsed
+                && view.CaptureHotkeyInput.Visibility == Visibility.Visible,
+                $"{view.GifHotkeyInput.Visibility}/{view.VideoHotkeyInput.Visibility}");
+            view.HotkeyIndividualRadio.IsChecked = true;
+            check("独立模式恢复显示 GIF/录屏快捷键行",
+                view.GifHotkeyInput.Visibility == Visibility.Visible
+                && view.VideoHotkeyInput.Visibility == Visibility.Visible,
+                $"{view.GifHotkeyInput.Visibility}/{view.VideoHotkeyInput.Visibility}");
+
             // 默认外观为白色（浅色）；文本字体有默认值。
             var defaults = AppSettings.CreateDefault();
             defaults.Normalize(paths.DefaultScreenshotDirectory, paths.DefaultVideoDirectory);
