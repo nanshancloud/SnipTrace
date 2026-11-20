@@ -804,6 +804,18 @@ internal static class Program
         var highlight = new ShapeAnnotation(AnnotationKind.Highlight, new[] { new PointD(0, 0), new PointD(40, 0) });
         Check("高亮滚轮不改已画笔迹",
             !AnnotationEditing.AdjustOnWheel(highlight, true) && Math.Abs(highlight.Points[1].X - 40) < 0.001);
+
+        // 下一笔笔刷大小：画笔每格 ±1、钳在 1–16；马赛克每格 ±1、钳在 4–24（块 8–48 px）。
+        Check("画笔下一笔线宽每格 ±1",
+            Math.Abs(AnnotationEditing.AdjustBrushWidth(3, false, true) - 4) < 0.001
+            && Math.Abs(AnnotationEditing.AdjustBrushWidth(3, false, false) - 2) < 0.001);
+        Check("画笔下一笔钳在 1–16",
+            Math.Abs(AnnotationEditing.AdjustBrushWidth(1, false, false) - 1) < 0.001
+            && Math.Abs(AnnotationEditing.AdjustBrushWidth(16, false, true) - 16) < 0.001);
+        Check("马赛克下一笔线宽每格 ±1、钳在 4–24",
+            Math.Abs(AnnotationEditing.AdjustBrushWidth(12, true, true) - 13) < 0.001
+            && Math.Abs(AnnotationEditing.AdjustBrushWidth(4, true, false) - 4) < 0.001
+            && Math.Abs(AnnotationEditing.AdjustBrushWidth(24, true, true) - 24) < 0.001);
     }
 
     private static NumberBadgeAnnotation Badge(AnnotationDocument doc, double x, double y)

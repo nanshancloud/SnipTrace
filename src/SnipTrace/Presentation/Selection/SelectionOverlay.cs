@@ -609,21 +609,22 @@ public sealed class SelectionOverlay : IDisposable
     /// <summary>
     /// 滚轮：矩形 / 椭圆 / 箭头改已画标注的线宽，文字 / 序号改字号；
     /// 画笔与马赛克是笔刷——只改下一笔的笔刷大小 / 块大小，不触碰已经输出的笔迹。
+    /// 光标在选区外（含工具条按钮上）时也能改下一笔笔刷大小，方便连续调整。
     /// </summary>
     public void OnMouseWheel(int delta)
     {
         if (_completed || _selection.IsEmpty) return;
-        _cursor = MonitorService.GetCursorPosition();
-        if (!_selection.Contains(_cursor)) return;
-
         bool increase = delta > 0;
 
-        // 画笔 / 马赛克工具下：滚轮直接调笔刷大小，最后画的那笔保持原样。
+        // 画笔 / 马赛克工具下：滚轮直接调笔刷大小，不受光标是否在选区内限制。
         if (_annotateTool is OverlayAnnotateTool.Pen or OverlayAnnotateTool.Mosaic)
         {
             AdjustBrushSize(_annotateTool, increase);
             return;
         }
+
+        _cursor = MonitorService.GetCursorPosition();
+        if (!_selection.Contains(_cursor)) return;
 
         var annotations = _overlayAnnotations;
         if (annotations is null || annotations.Annotations.Count == 0) return;
@@ -656,21 +657,22 @@ public sealed class SelectionOverlay : IDisposable
     public double CurrentStrokeWidth => _strokeWidth;
     public double CurrentMosaicWidth => _mosaicWidth;
 
+    /// <summary>下一笔笔刷大小变化：(笔头类型, 线宽, 是否马赛克)。工具条据此显示当前尺寸。</summary>
+    public event Action<OverlayAnnotateTool, double, bool>? BrushSizeChanged;
+
     /// <summary>只改下一笔的笔刷大小：画笔用线宽状态，马赛克用独立的块大小状态。</summary>
     public void AdjustBrushSize(OverlayAnnotateTool tool, bool increase)
     {
         if (tool is not (OverlayAnnotateTool.Pen or OverlayAnnotateTool.Mosaic)) return;
 
-        int step = increase ? 1 : -1;
-        if (tool == OverlayAnnotateTool.Mosaic)
-        {
-            _mosaicWidth = Math.Clamp(_mosaicWidth + step, 4, 24);
-        }
-        else
-        {
-            _strokeWidth = Math.Clamp(_strokeWidth + step,
-                AnnotationEditing.MinStrokeWidth, AnnotationEditing.MaxStrokeWidth);
-        }
+        bool mosaic = tool == OverlayAnnotateTool.Mosaic;
+        double updated = AnnotationEditing.AdjustBrushWidth(
+            mosaic ? _mosaicWidth : _strokeWidth, mosaic, increase);
+
+        if (mosaic) _mosaicWidth = updated;
+        else _strokeWidth = updated;
+
+        BrushSizeChanged?.Invoke(tool, updated, mosaic);
     }
 
     private void ShowTextPopup(PointD point)

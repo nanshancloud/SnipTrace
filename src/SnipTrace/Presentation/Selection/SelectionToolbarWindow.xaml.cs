@@ -46,6 +46,7 @@ public partial class SelectionToolbarWindow : Window
         _ratioPopup.Attach(overlay);
         _badgePopup.Attach(overlay);
         _variantPopup.Attach(overlay);
+        overlay.BrushSizeChanged += OnBrushSizeChanged;
         BuildActions();
         IsVisibleChanged += (_, _) =>
         {
@@ -276,6 +277,17 @@ public partial class SelectionToolbarWindow : Window
             ClosePopups();
             _overlay?.SetAnnotateTool(tool);
         };
+
+        // 工具条是独立顶层窗口，光标停在按钮上时滚轮不会到覆盖层窗口，这里直接转发。
+        if (tool is OverlayAnnotateTool.Pen or OverlayAnnotateTool.Mosaic)
+        {
+            button.MouseWheel += (_, e) =>
+            {
+                _overlay?.AdjustBrushSize(tool, e.Delta > 0);
+                e.Handled = true;
+            };
+        }
+
         AttachHint(button, hint);
         _annotateButtons.Add(button);
         ButtonRow.Children.Add(button);
@@ -307,6 +319,19 @@ public partial class SelectionToolbarWindow : Window
         _variantButtons[id] = button;
         _annotateButtons.Add(button);
         ButtonRow.Children.Add(button);
+    }
+
+    /// <summary>滚轮调整下一笔笔刷大小后在工具条上方显示当前尺寸，给出可见反馈。</summary>
+    private void OnBrushSizeChanged(OverlayAnnotateTool tool, double width, bool mosaic)
+    {
+        int block = Math.Clamp((int)Math.Round(width * 2), ShapeAnnotation.MinMosaicBlock, ShapeAnnotation.MaxMosaicBlock);
+        string text = mosaic
+            ? $"马赛克笔刷：下一笔块大小 {block} px（线宽 {width:0}）"
+            : $"画笔笔刷：下一笔线宽 {width:0} px";
+
+        var anchor = _annotateButtons.FirstOrDefault(b => Equals(b.Tag, tool));
+        if (anchor is not null) ShowHint(anchor, text);
+        else _hint.ShowHint(text);
     }
 
     /// <summary>当前记住的子选项（覆盖层为准，未接通时退回默认值）。</summary>

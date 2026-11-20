@@ -750,6 +750,9 @@ internal static class SelfTest
             // 画笔 / 马赛克滚轮：只改下一笔的笔刷大小，不改已画出的笔迹（领域单测另有断言）。
             double brushBefore = overlay.CurrentStrokeWidth;
             double mosaicBefore = overlay.CurrentMosaicWidth;
+            int brushWheelNotices = 0;
+            void OnBrushWheel(OverlayAnnotateTool tool, double width, bool mosaic) => brushWheelNotices++;
+            overlay.BrushSizeChanged += OnBrushWheel;
             overlay.AdjustBrushSize(OverlayAnnotateTool.Pen, true);
             check("画笔滚轮只改下一笔线宽",
                 Math.Abs(overlay.CurrentStrokeWidth - (brushBefore + 1)) < 0.001
@@ -760,6 +763,8 @@ internal static class SelfTest
                 Math.Abs(overlay.CurrentMosaicWidth - (mosaicBefore + 1)) < 0.001
                 && Math.Abs(overlay.CurrentStrokeWidth - (brushBefore + 1)) < 0.001,
                 $"{overlay.CurrentMosaicWidth:0.##}");
+            check("滚轮调整笔头有可见反馈事件", brushWheelNotices == 2, brushWheelNotices.ToString());
+            overlay.BrushSizeChanged -= OnBrushWheel;
 
             // 增删 + 排序：只留 图形 / 复制 / 精标，三组各一个按钮 + 两条分隔线。
             var custom = SelectionToolbarItems.CreateDefault();

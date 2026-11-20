@@ -94,6 +94,7 @@ public partial class EditorWindow : Window
         Canvas.SelectionChanged += (_, _) => SyncFromSelection();
         Canvas.ContentMoved += (_, _) => PositionStyleBar();
         Canvas.TextEditRequested += BeginTextEdit;
+        Canvas.BrushWheelChanged += AdjustBrushWidth;
         TextEditorBox.IsVisibleChanged += (_, _) => UpdateStyleBar();
 
         // 具名 handler：共享文档时窗口关闭必须退订，否则存活的钉图/其它窗口编辑会回调已关闭窗口。
@@ -552,6 +553,23 @@ public partial class EditorWindow : Window
         Canvas.CurrentStyle = _style;
         Canvas.ApplyToSelection(a => a.Style = a.Style.WithWidth(width));
         RefreshPanels();
+    }
+
+    /// <summary>
+    /// 笔刷工具滚轮：只调下一笔的笔刷大小（马赛克块大小随线宽），不动已画出的笔迹。
+    /// 与右侧面板共用 _style，改完刷新面板高亮与状态栏给出可见反馈。
+    /// </summary>
+    private void AdjustBrushWidth(bool increase)
+    {
+        bool mosaic = Canvas.Tool == EditorTool.Mosaic;
+        double updated = AnnotationEditing.AdjustBrushWidth(_style.StrokeWidth, mosaic, increase);
+        if (Math.Abs(updated - _style.StrokeWidth) < 0.001) return;
+
+        _style = _style.WithWidth(updated);
+        Canvas.CurrentStyle = _style;
+        RefreshPanels();
+        RefreshStyleBarStates();
+        UpdateStatus();
     }
 
     private void SetOpacity(double opacity)
@@ -1028,7 +1046,15 @@ public partial class EditorWindow : Window
             _ => "序号"
         };
 
-        StatusLeft.Text = $"{_document.ImageWidth} × {_document.ImageHeight} · 缩放 {Math.Round(Canvas.Zoom * 100)}% · {toolName}";
+        string brush = Canvas.Tool switch
+        {
+            EditorTool.Pen => $" · 画笔 {_style.StrokeWidth:0} px",
+            EditorTool.Highlight => $" · 高亮 {_style.StrokeWidth:0} px",
+            EditorTool.Mosaic => $" · 块 {Math.Clamp((int)Math.Round(_style.StrokeWidth * 2),
+                ShapeAnnotation.MinMosaicBlock, ShapeAnnotation.MaxMosaicBlock)} px",
+            _ => ""
+        };
+        StatusLeft.Text = $"{_document.ImageWidth} × {_document.ImageHeight} · 缩放 {Math.Round(Canvas.Zoom * 100)}% · {toolName}{brush}";
         NumberHintText.Text = $"下一个序号：{_document.NextNumber}";
     }
 

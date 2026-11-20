@@ -8,6 +8,8 @@ public static class AnnotationEditing
 {
     public const double MinStrokeWidth = 1;
     public const double MaxStrokeWidth = 16;
+    public const double MinMosaicStrokeWidth = 4;
+    public const double MaxMosaicStrokeWidth = 24;
     public const double MinFontSize = 10;
     public const double MaxTextFontSize = 200;
     public const double MaxBadgeFontSize = 160;
@@ -39,6 +41,17 @@ public static class AnnotationEditing
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// 滚轮调整「下一笔」笔刷大小（画笔 / 高亮 1–16，马赛克线宽 4–24 → 块 8–48 px），每格 ±1。
+    /// 覆盖层工具状态与编辑器当前样式共用这一份边界，返回调整后的线宽；到边界保持不变。
+    /// </summary>
+    public static double AdjustBrushWidth(double width, bool mosaic, bool increase)
+    {
+        double min = mosaic ? MinMosaicStrokeWidth : MinStrokeWidth;
+        double max = mosaic ? MaxMosaicStrokeWidth : MaxStrokeWidth;
+        return Math.Clamp(width + (increase ? 1 : -1), min, max);
     }
 
     /// <summary>

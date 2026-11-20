@@ -326,9 +326,21 @@ public sealed class AnnotationCanvas : FrameworkElement
         yield return new Point(rect.Left, cy);
     }
 
+    /// <summary>笔刷工具下滚轮改下一笔笔刷大小：(是否增大)。其余工具滚轮仍用于画布缩放。</summary>
+    public event Action<bool>? BrushWheelChanged;
+
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         if (Image is null) return;
+
+        // 画笔 / 高亮 / 马赛克：滚轮只改下一笔笔刷大小，不缩放画布、不动已画笔迹。
+        if (Tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Mosaic)
+        {
+            BrushWheelChanged?.Invoke(e.Delta > 0);
+            e.Handled = true;
+            return;
+        }
+
         var screen = e.GetPosition(this);
         var imagePoint = ToImage(screen);
         double factor = e.Delta > 0 ? 1.1 : 1 / 1.1;
