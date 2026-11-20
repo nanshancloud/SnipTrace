@@ -1,7 +1,8 @@
 namespace SnipTrace.Domain;
 
 /// <summary>
-/// 标注编辑的纯逻辑（命中、滚轮微调、等比缩放），供覆盖层与编辑器复用，也便于单测。
+/// 标注编辑的纯逻辑（命中、橡皮、几何缩放），供覆盖层与编辑器复用，也便于单测。
+/// 滚轮只微调「已画出的非笔刷标注」；画笔 / 高亮 / 马赛克的笔刷大小由工具状态管理，不改笔迹。
 /// </summary>
 public static class AnnotationEditing
 {
@@ -41,8 +42,9 @@ public static class AnnotationEditing
     }
 
     /// <summary>
-    /// 滚轮微调：矩形 / 椭圆 / 箭头改线宽（1–16），马赛克笔刷改块大小（线宽 4–24 → 块 8–48），
-    /// 文字 / 序号改字号，画笔与高亮按比例缩放。返回是否发生变化。
+    /// 滚轮微调**已画出的标注**：矩形 / 椭圆 / 箭头改线宽（1–16），文字 / 序号改字号。
+    /// 画笔 / 高亮 / 马赛克是笔刷：滚轮只调整「下一笔」的笔刷大小（由调用方的工具状态管理），
+    /// 不会改动已经输出的笔迹，这里一律返回 false。
     /// </summary>
     public static bool AdjustOnWheel(Annotation annotation, bool increase, double factor = 1.1)
     {
@@ -60,13 +62,6 @@ public static class AnnotationEditing
                 badge.FontSize = badgeFont;
                 return true;
 
-            // 马赛克笔刷的线宽只用来换算块大小，范围放宽到 4–24（块 8–48 px）。
-            case ShapeAnnotation mosaic when mosaic.Kind == AnnotationKind.Mosaic:
-                double mosaicWidth = Math.Clamp(mosaic.Style.Width + (increase ? 1 : -1), 4, 24);
-                if (Math.Abs(mosaicWidth - mosaic.Style.Width) < 0.001) return false;
-                mosaic.Style = mosaic.Style.WithWidth(mosaicWidth);
-                return true;
-
             case ShapeAnnotation shape when shape.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse
                 or AnnotationKind.Arrow:
                 double width = Math.Clamp(shape.Style.Width + (increase ? 1 : -1), MinStrokeWidth, MaxStrokeWidth);
@@ -74,9 +69,7 @@ public static class AnnotationEditing
                 shape.Style = shape.Style.WithWidth(width);
                 return true;
 
-            case ShapeAnnotation shape:
-                return Scale(shape, increase ? factor : 1 / factor);
-
+            // 笔刷类（画笔 / 高亮 / 马赛克）：不碰已输出笔迹。
             default:
                 return false;
         }

@@ -750,8 +750,9 @@ internal static class Program
 
         var mosaic = new ShapeAnnotation(AnnotationKind.Mosaic,
             new[] { new PointD(0, 0), new PointD(60, 40) }, new AnnotationStyle(0xFFFF6B5F, 12, 1));
-        AnnotationEditing.AdjustOnWheel(mosaic, true);
-        Check("马赛克滚轮改块大小", Math.Abs(mosaic.Style.Width - 13) < 0.001, mosaic.Style.Width.ToString("0.##"));
+        Check("马赛克滚轮不改已画块大小",
+            !AnnotationEditing.AdjustOnWheel(mosaic, true) && Math.Abs(mosaic.Style.Width - 12) < 0.001,
+            mosaic.Style.Width.ToString("0.##"));
         Check("马赛克按笔迹命中",
             mosaic.HitTest(new PointD(30, 20), 0) && !mosaic.HitTest(new PointD(10, 40), 0));
         Check("马赛克是折线笔刷", mosaic.IsPolyline);
@@ -796,12 +797,13 @@ internal static class Program
         Check("文字滚轮改字号", text.FontSize > 20, text.FontSize.ToString("0.##"));
 
         var pen = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(0, 0), new PointD(100, 0) });
-        AnnotationEditing.AdjustOnWheel(pen, false);
-        Check("画笔滚轮仍是缩放", pen.Points[1].X < 100, pen.Points[1].X.ToString("0.##"));
+        Check("画笔滚轮不改已画笔迹",
+            !AnnotationEditing.AdjustOnWheel(pen, false) && Math.Abs(pen.Points[1].X - 100) < 0.001,
+            pen.Points[1].X.ToString("0.##"));
 
-        var tiny = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(0, 0), new PointD(5, 0) });
-        AnnotationEditing.AdjustOnWheel(tiny, false);
-        Check("缩小到 6 px 以下即停止", Math.Abs(tiny.Points[1].X - 5) < 0.001, tiny.Points[1].X.ToString("0.##"));
+        var highlight = new ShapeAnnotation(AnnotationKind.Highlight, new[] { new PointD(0, 0), new PointD(40, 0) });
+        Check("高亮滚轮不改已画笔迹",
+            !AnnotationEditing.AdjustOnWheel(highlight, true) && Math.Abs(highlight.Points[1].X - 40) < 0.001);
     }
 
     private static NumberBadgeAnnotation Badge(AnnotationDocument doc, double x, double y)

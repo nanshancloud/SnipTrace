@@ -607,8 +607,8 @@ public sealed class SelectionOverlay : IDisposable
     }
 
     /// <summary>
-    /// 滚轮微调最后一个标注：矩形、椭圆、箭头改「线宽」，马赛克改块大小；
-    /// 文字、序号改字号；画笔、高亮仍按 10% 缩放。
+    /// 滚轮：矩形 / 椭圆 / 箭头改已画标注的线宽，文字 / 序号改字号；
+    /// 画笔与马赛克是笔刷——只改下一笔的笔刷大小 / 块大小，不触碰已经输出的笔迹。
     /// </summary>
     public void OnMouseWheel(int delta)
     {
@@ -616,25 +616,61 @@ public sealed class SelectionOverlay : IDisposable
         _cursor = MonitorService.GetCursorPosition();
         if (!_selection.Contains(_cursor)) return;
 
+        bool increase = delta > 0;
+
+        // 画笔 / 马赛克工具下：滚轮直接调笔刷大小，最后画的那笔保持原样。
+        if (_annotateTool is OverlayAnnotateTool.Pen or OverlayAnnotateTool.Mosaic)
+        {
+            AdjustBrushSize(_annotateTool, increase);
+            return;
+        }
+
         var annotations = _overlayAnnotations;
         if (annotations is null || annotations.Annotations.Count == 0) return;
-
         var target = annotations.Annotations[^1];
 
-        // 矩形 / 椭圆 / 箭头改线宽（箭头端头随线宽缩放），文字 / 序号改字号，画笔 / 高亮等比缩放。
-        if (!AnnotationEditing.AdjustOnWheel(target, delta > 0)) return;
-
-        // 尺寸记住下来，后续新画的同类标注沿用。
-        if (target is ShapeAnnotation { Kind: AnnotationKind.Mosaic } mosaic)
+        // 非绘制模式下若最后画的是笔刷笔迹，同样只调笔刷大小，不缩放已有笔迹。
+        if (target is ShapeAnnotation { Kind: AnnotationKind.Mosaic })
         {
-            _mosaicWidth = mosaic.Style.Width;
+            AdjustBrushSize(OverlayAnnotateTool.Mosaic, increase);
+            return;
         }
-        else if (target is ShapeAnnotation { Kind: AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Arrow } shape)
+
+        if (target is ShapeAnnotation { Kind: AnnotationKind.Pen or AnnotationKind.Highlight })
+        {
+            AdjustBrushSize(OverlayAnnotateTool.Pen, increase);
+            return;
+        }
+
+        // 矩形 / 椭圆 / 箭头改线宽（箭头端头随线宽缩放），文字 / 序号改字号。
+        if (!AnnotationEditing.AdjustOnWheel(target, increase)) return;
+        if (target is ShapeAnnotation { Kind: AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Arrow } shape)
         {
             _strokeWidth = shape.Style.Width;
         }
 
         RefreshAnnotations();
+    }
+
+    /// <summary>当前画笔笔刷线宽 / 马赛克块大小对应的线宽（滚轮调整的是它们，不是已画笔迹）。</summary>
+    public double CurrentStrokeWidth => _strokeWidth;
+    public double CurrentMosaicWidth => _mosaicWidth;
+
+    /// <summary>只改下一笔的笔刷大小：画笔用线宽状态，马赛克用独立的块大小状态。</summary>
+    public void AdjustBrushSize(OverlayAnnotateTool tool, bool increase)
+    {
+        if (tool is not (OverlayAnnotateTool.Pen or OverlayAnnotateTool.Mosaic)) return;
+
+        int step = increase ? 1 : -1;
+        if (tool == OverlayAnnotateTool.Mosaic)
+        {
+            _mosaicWidth = Math.Clamp(_mosaicWidth + step, 4, 24);
+        }
+        else
+        {
+            _strokeWidth = Math.Clamp(_strokeWidth + step,
+                AnnotationEditing.MinStrokeWidth, AnnotationEditing.MaxStrokeWidth);
+        }
     }
 
     private void ShowTextPopup(PointD point)

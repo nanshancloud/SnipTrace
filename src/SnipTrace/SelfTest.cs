@@ -747,6 +747,20 @@ internal static class SelfTest
             overlay.SetAnnotateVariant(SelectionToolbarItems.Shape, "乱写");
             check("图形子选项收敛到矩形", overlay.ShapeVariant == SelectionToolbarItems.VariantRectangle, overlay.ShapeVariant);
 
+            // 画笔 / 马赛克滚轮：只改下一笔的笔刷大小，不改已画出的笔迹（领域单测另有断言）。
+            double brushBefore = overlay.CurrentStrokeWidth;
+            double mosaicBefore = overlay.CurrentMosaicWidth;
+            overlay.AdjustBrushSize(OverlayAnnotateTool.Pen, true);
+            check("画笔滚轮只改下一笔线宽",
+                Math.Abs(overlay.CurrentStrokeWidth - (brushBefore + 1)) < 0.001
+                && Math.Abs(overlay.CurrentMosaicWidth - mosaicBefore) < 0.001,
+                $"{overlay.CurrentStrokeWidth:0.##}/{overlay.CurrentMosaicWidth:0.##}");
+            overlay.AdjustBrushSize(OverlayAnnotateTool.Mosaic, true);
+            check("马赛克滚轮只改下一笔块大小",
+                Math.Abs(overlay.CurrentMosaicWidth - (mosaicBefore + 1)) < 0.001
+                && Math.Abs(overlay.CurrentStrokeWidth - (brushBefore + 1)) < 0.001,
+                $"{overlay.CurrentMosaicWidth:0.##}");
+
             // 增删 + 排序：只留 图形 / 复制 / 精标，三组各一个按钮 + 两条分隔线。
             var custom = SelectionToolbarItems.CreateDefault();
             foreach (var item in custom)
