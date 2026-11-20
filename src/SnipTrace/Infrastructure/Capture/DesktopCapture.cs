@@ -282,7 +282,8 @@ public static class ImageUtil
         int half = cells / 2;
         var area = new PixelRect(center.X - half, center.Y - half, cells, cells);
         using var source = snapshot.Crop(area);
-        var result = new Bitmap(cells * cellSize, cells * cellSize, PixelFormat.Format32bppPArgb);
+        // ToBitmapSource 只接管 HBitmap，传入的 Bitmap 必须在这里释放；放大镜拖动时按 ~80ms 反复调用。
+        using var result = new Bitmap(cells * cellSize, cells * cellSize, PixelFormat.Format32bppPArgb);
         using var graphics = Graphics.FromImage(result);
         graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;

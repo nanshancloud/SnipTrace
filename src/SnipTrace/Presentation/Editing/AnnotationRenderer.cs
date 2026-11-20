@@ -58,10 +58,16 @@ public static class AnnotationRenderer
         }
     }
 
+    /// <summary>马赛克块的采样键：块网格锚定标注坐标，取样时再按图像原点换算到源图。</summary>
+    private readonly record struct MosaicCellKey(int Block, int Col, int Row, int OriginX, int OriginY);
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BitmapSource, Dictionary<MosaicCellKey, uint>> MosaicColorCache = new();
+    private static readonly Dictionary<uint, SolidColorBrush> MosaicBrushCache = new();
+
     /// <summary>
-    /// 马赛克笔刷：沿笔迹把扫到的方块（按图像像素网格对齐）取源图平均色铺满。
-    /// <paramref name="imageOrigin"/> 是图像左上角在标注坐标中的位置：导出与编辑器为 (0,0)，
-    /// 覆盖层则为本显示器切片相对选区的偏移，保证两条渲染链路结果一致。
+    /// 马赛克笔刷：沿笔迹把扫到的方块取源图平均色铺满。块网格锚定在**标注坐标**（选区/文档原点），
+    /// <paramref name="imageOrigin"/> 只用于把取样矩形换算到源图像素——这样覆盖层跨屏切片与导出/编辑器
+    /// 得到完全相同的块边界和颜色。
     /// </summary>
     public static void DrawMosaic(DrawingContext dc, BitmapSource? image, ShapeAnnotation shape, PointD imageOrigin = default)
     {
@@ -71,7 +77,7 @@ public static class AnnotationRenderer
         int originX = (int)Math.Round(imageOrigin.X);
         int originY = (int)Math.Round(imageOrigin.Y);
 
-        var cells = CollectMosaicCells(shape.Points, originX, originY, block, image.PixelWidth, image.PixelHeight);
+        var cells = CollectMosaicCells(shape.Points, block, originX, originY, image.PixelWidth, image.PixelHeight);
         if (cells.Count == 0) return;
 
         BitmapSource source;
@@ -84,60 +90,72 @@ public static class AnnotationRenderer
             return;
         }
 
-        // 每个块单独取样：笔迹可能很长很细，按块取比整块外接矩形更省。
+        var cache = MosaicColorCache.GetValue(image, _ => new Dictionary<MosaicCellKey, uint>());
         var buffer = new byte[block * block * 4];
+
         foreach (var (col, row) in cells)
         {
-            int left = Math.Max(col * block, 0);
-            int top = Math.Max(row * block, 0);
-            int right = Math.Min((col + 1) * block, image.PixelWidth);
-            int bottom = Math.Min((row + 1) * block, image.PixelHeight);
+            // 块在标注坐标的范围，跟源图可见范围取交集。
+            int left = Math.Max(col * block, originX);
+            int top = Math.Max(row * block, originY);
+            int right = Math.Min((col + 1) * block, originX + image.PixelWidth);
+            int bottom = Math.Min((row + 1) * block, originY + image.PixelHeight);
             int width = right - left;
             int height = bottom - top;
             if (width <= 0 || height <= 0) continue;
 
-            if (!TryAverageColor(source, left, top, width, height, buffer, out var color)) continue;
+            var key = new MosaicCellKey(block, col, row, originX, originY);
+            uint argb;
+            lock (cache)
+            {
+                if (!cache.TryGetValue(key, out argb))
+                {
+                    // 取样矩形换算到源图像素（带偏移的块不一定是整块）。
+                    if (!TryAverageColor(source, left - originX, top - originY, width, height, buffer, out var color))
+                        continue;
+                    argb = ((uint)color.A << 24) | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B;
+                    cache[key] = argb;
+                }
+            }
 
-            // 块坐标是图像像素，加回图像原点才是标注坐标。
-            // 多铺 0.5 px，减少非整数缩放下块之间的细缝。
-            var brush = Freeze(new SolidColorBrush(color));
-            dc.DrawRectangle(brush, null, new Rect(left + originX, top + originY, width + 0.5, height + 0.5));
+            dc.DrawRectangle(MosaicBrush(argb), null, new Rect(left, top, width + 0.5, height + 0.5));
         }
     }
 
     /// <summary>
-    /// 笔迹扫过的块集合：沿折线按小块步进取样，块按图像像素网格对齐（拖动过程中块边界稳定不抖）。
+    /// 笔迹扫过的块集合。块按标注坐标网格对齐，且只选中心距笔迹 ≤ 半块的 cell，
+    /// 因此实际绘制足迹 ≤ 1 块，与 Bounds / HitTest 的外扩一致。
     /// </summary>
     private static HashSet<(int Col, int Row)> CollectMosaicCells(
-        IReadOnlyList<PointD> points, int originX, int originY, int block, int imageWidth, int imageHeight)
+        IReadOnlyList<PointD> points, int block, int originX, int originY, int imageWidth, int imageHeight)
     {
         var cells = new HashSet<(int, int)>();
-        double radius = block / 2.0;
         double step = Math.Max(2, block / 4.0);
 
         void Mark(double x, double y)
         {
-            int minCol = (int)Math.Floor((x - radius) / block);
-            int maxCol = (int)Math.Floor((x + radius) / block);
-            int minRow = (int)Math.Floor((y - radius) / block);
-            int maxRow = (int)Math.Floor((y + radius) / block);
+            // cell 中心 (col+0.5)*block 与点的距离不超过半块。
+            int minCol = (int)Math.Ceiling((x - block) / block);
+            int maxCol = (int)Math.Floor(x / block);
+            int minRow = (int)Math.Ceiling((y - block) / block);
+            int maxRow = (int)Math.Floor(y / block);
 
             for (int row = minRow; row <= maxRow; row++)
             {
-                if ((row + 1) * block <= 0 || row * block >= imageHeight) continue;
+                if ((row + 1) * block <= originY || row * block >= originY + imageHeight) continue;
                 for (int col = minCol; col <= maxCol; col++)
                 {
-                    if ((col + 1) * block <= 0 || col * block >= imageWidth) continue;
+                    if ((col + 1) * block <= originX || col * block >= originX + imageWidth) continue;
                     cells.Add((col, row));
                 }
             }
         }
 
-        var prev = new PointD(points[0].X - originX, points[0].Y - originY);
-        Mark(prev.X, prev.Y);
+        Mark(points[0].X, points[0].Y);
         for (int i = 1; i < points.Count; i++)
         {
-            var current = new PointD(points[i].X - originX, points[i].Y - originY);
+            var prev = points[i - 1];
+            var current = points[i];
             double dx = current.X - prev.X;
             double dy = current.Y - prev.Y;
             double distance = Math.Sqrt(dx * dx + dy * dy);
@@ -146,14 +164,12 @@ public static class AnnotationRenderer
             {
                 Mark(prev.X + dx * s / steps, prev.Y + dy * s / steps);
             }
-
-            prev = current;
         }
 
         return cells;
     }
 
-    /// <summary>取一个块的平均色（只算图像内交集部分）。</summary>
+    /// <summary>取一个矩形的平均色（按源图像素）。</summary>
     private static bool TryAverageColor(
         BitmapSource source, int x, int y, int width, int height, byte[] buffer, out Color color)
     {
@@ -184,6 +200,22 @@ public static class AnnotationRenderer
         int count = width * height;
         color = Color.FromRgb((byte)(sumR / count), (byte)(sumG / count), (byte)(sumB / count));
         return true;
+    }
+
+    /// <summary>按颜色复用冻结画刷，避免每帧每块都新建。</summary>
+    private static SolidColorBrush MosaicBrush(uint argb)
+    {
+        lock (MosaicBrushCache)
+        {
+            if (!MosaicBrushCache.TryGetValue(argb, out var brush))
+            {
+                brush = Freeze(new SolidColorBrush(Color.FromArgb(
+                    (byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb)));
+                MosaicBrushCache[argb] = brush;
+            }
+
+            return brush;
+        }
     }
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BitmapSource, BitmapSource> BgraCache = new();

@@ -49,22 +49,28 @@ public static class AnnotationEditing
         switch (annotation)
         {
             case TextAnnotation text:
-                text.FontSize = Math.Clamp(text.FontSize * (increase ? factor : 1 / factor), MinFontSize, MaxTextFontSize);
+                double font = Math.Clamp(text.FontSize * (increase ? factor : 1 / factor), MinFontSize, MaxTextFontSize);
+                if (Math.Abs(font - text.FontSize) < 0.001) return false;
+                text.FontSize = font;
                 return true;
 
             case NumberBadgeAnnotation badge:
-                badge.FontSize = Math.Clamp(badge.FontSize * (increase ? factor : 1 / factor), MinFontSize, MaxBadgeFontSize);
+                double badgeFont = Math.Clamp(badge.FontSize * (increase ? factor : 1 / factor), MinFontSize, MaxBadgeFontSize);
+                if (Math.Abs(badgeFont - badge.FontSize) < 0.001) return false;
+                badge.FontSize = badgeFont;
                 return true;
 
             // 马赛克笔刷的线宽只用来换算块大小，范围放宽到 4–24（块 8–48 px）。
             case ShapeAnnotation mosaic when mosaic.Kind == AnnotationKind.Mosaic:
                 double mosaicWidth = Math.Clamp(mosaic.Style.Width + (increase ? 1 : -1), 4, 24);
+                if (Math.Abs(mosaicWidth - mosaic.Style.Width) < 0.001) return false;
                 mosaic.Style = mosaic.Style.WithWidth(mosaicWidth);
                 return true;
 
             case ShapeAnnotation shape when shape.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse
                 or AnnotationKind.Arrow:
                 double width = Math.Clamp(shape.Style.Width + (increase ? 1 : -1), MinStrokeWidth, MaxStrokeWidth);
+                if (Math.Abs(width - shape.Style.Width) < 0.001) return false;
                 shape.Style = shape.Style.WithWidth(width);
                 return true;
 
@@ -77,7 +83,7 @@ public static class AnnotationEditing
     }
 
     /// <summary>
-    /// 橡皮：沿 from→to 的轨迹擦掉画笔 / 高亮笔画（文本、箭头、序号、图形不参与），
+    /// 橡皮：沿 from→to 的轨迹擦掉画笔 / 高亮 / 马赛克笔迹（文本、箭头、序号、图形不参与），
     /// 返回被移除的标注。编辑器与覆盖层共用这一套规则。
     /// </summary>
     public static List<Annotation> EraseStrokes(AnnotationDocument? document, PointD from, PointD to, double radius = 3)
@@ -93,7 +99,7 @@ public static class AnnotationEditing
             var point = new PointD(from.X + (to.X - from.X) * i / steps, from.Y + (to.Y - from.Y) * i / steps);
             var hits = document.Annotations
                 .Where(a => a is ShapeAnnotation shape
-                            && shape.Kind is AnnotationKind.Pen or AnnotationKind.Highlight
+                            && shape.Kind is AnnotationKind.Pen or AnnotationKind.Highlight or AnnotationKind.Mosaic
                             && shape.HitTest(point, radius))
                 .ToList();
 

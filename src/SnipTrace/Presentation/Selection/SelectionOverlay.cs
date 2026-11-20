@@ -824,8 +824,10 @@ public sealed class SelectionOverlay : IDisposable
     {
         try
         {
-            _toolbar.Hide();
-            _magnifier.SetShown(false);
+            // 应用是 OnExplicitShutdown，Hide 会让这两个 Window 永远留在 Application.Windows 里，
+            // 每次截图泄漏两个窗口；这里必须 Close。
+            _toolbar.Close();
+            _magnifier.Close();
             _textPopup?.Close();
             _textPopup = null;
             foreach (var window in _windows) window.Close();

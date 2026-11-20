@@ -178,8 +178,9 @@ public sealed class ShapeAnnotation : Annotation
         {
             var raw = RawBounds;
             if (raw.IsEmpty) return raw;
+            // 马赛克笔迹的绘制足迹最大为 1 个块（见 AnnotationRenderer.CollectMosaicCells），选框要盖住它。
             int pad = _kind == AnnotationKind.Mosaic
-                ? (int)Math.Ceiling(MosaicBlockSize / 2.0) + 1
+                ? MosaicBlockSize + 1
                 : (int)Math.Ceiling(Style.Width / 2) + 1;
             return raw.Inflate(pad);
         }
@@ -192,7 +193,7 @@ public sealed class ShapeAnnotation : Annotation
         // 马赛克笔刷：按块大小给半径，整条笔迹附近都算命中。
         if (_kind == AnnotationKind.Mosaic)
         {
-            double mosaicPad = tolerance + MosaicBlockSize / 2.0;
+            double mosaicPad = tolerance + MosaicBlockSize;
             if (Points.Count == 1) return point.DistanceTo(Points[0]) <= mosaicPad;
             for (int i = 1; i < Points.Count; i++)
             {
@@ -257,13 +258,21 @@ public sealed class ShapeAnnotation : Annotation
     public override void Resize(PixelRect target)
     {
         var raw = RawBounds;
-        if (raw.IsEmpty || target.IsEmpty) return;
-        double scaleX = (double)target.Width / raw.Width;
-        double scaleY = (double)target.Height / raw.Height;
+        if (target.IsEmpty || Points.Count == 0) return;
+
+        // 水平 / 垂直笔迹或单点点按的某一维为 0：给 1 px 的基准并居中，
+        // 避免 scale 除零（直接 return）或 1 px 抖动被放大成整块高度。
+        double baseWidth = Math.Max(1, raw.Width);
+        double baseHeight = Math.Max(1, raw.Height);
+        double left = raw.Left - (baseWidth - raw.Width) / 2.0;
+        double top = raw.Top - (baseHeight - raw.Height) / 2.0;
+        double scaleX = (double)target.Width / baseWidth;
+        double scaleY = (double)target.Height / baseHeight;
+
         for (int i = 0; i < Points.Count; i++)
         {
-            double x = target.Left + (Points[i].X - raw.Left) * scaleX;
-            double y = target.Top + (Points[i].Y - raw.Top) * scaleY;
+            double x = target.Left + (Points[i].X - left) * scaleX;
+            double y = target.Top + (Points[i].Y - top) * scaleY;
             Points[i] = new PointD(x, y);
         }
     }

@@ -24,6 +24,11 @@ public partial class PinWindow : Window
     /// <summary>右键唤出的工具条是否常驻（不随鼠标移出隐藏）。</summary>
     private bool _toolbarPinned;
 
+    /// <summary>ApplyZoom 改窗口尺寸期间抑制 SizeChanged → ZoomToFit 反向改写画布缩放。</summary>
+    private bool _applyingZoom;
+
+    private TextAnnotation? _editingText;
+
     public PinWindow(BitmapSource image, string baseName, AnnotationDocument? annotations = null,
         string? textFontFamily = null)
     {
@@ -55,7 +60,10 @@ public partial class PinWindow : Window
 
         // 窗口尺寸变化后让画布按窗口大小重新贴合，标注跟着一起缩放。
         Loaded += (_, _) => Canvas.ZoomToFit(0);
-        SizeChanged += (_, _) => Canvas.ZoomToFit(0);
+        SizeChanged += (_, _) =>
+        {
+            if (!_applyingZoom) Canvas.ZoomToFit(0);
+        };
 
         MouseEnter += (_, _) => ShowToolbar(true);
         MouseLeave += (_, _) =>
@@ -63,6 +71,7 @@ public partial class PinWindow : Window
             if (!_toolbarPinned) ShowToolbar(false);
         };
 
+        Canvas.TextEditRequested += (annotation, _) => BeginTextEdit(annotation);
         PreviewMouseLeftButtonDown += PinWindow_PreviewMouseLeftButtonDown;
         PreviewMouseWheel += PinWindow_MouseWheel;
         MouseRightButtonUp += (_, e) =>
@@ -73,7 +82,8 @@ public partial class PinWindow : Window
             e.Handled = true;
         };
 
-        KeyDown += PinWindow_KeyDown;
+        // PreviewKeyDown：焦点在工具条按钮 / 弹出层时也能收到快捷键，不依赖冒泡时机。
+        PreviewKeyDown += PinWindow_KeyDown;
     }
 
     private static AppServices Services => AppServices.Current!;
@@ -82,6 +92,9 @@ public partial class PinWindow : Window
 
     private void PinWindow_KeyDown(object sender, KeyEventArgs e)
     {
+        // 文本编辑中：回车 / Esc 交给 TextEditorBox，别被这里的快捷键抢走。
+        if (_editingText is not null) return;
+
         switch (e.Key)
         {
             case Key.Escape:
@@ -97,9 +110,13 @@ public partial class PinWindow : Window
 
                 e.Handled = true;
                 break;
-            case Key.Delete:
-                Close();
-                e.Handled = true;
+            case Key.Delete or Key.Back:
+                // 与编辑器一致：删选中标注；没有选中时什么都不做，关闭只用 Esc / 关闭按钮。
+                if (Canvas.Selection.Count > 0)
+                {
+                    Canvas.DeleteSelection();
+                    e.Handled = true;
+                }
                 break;
             case Key.C when Keyboard.Modifiers == ModifierKeys.Control:
                 Copy();
@@ -147,10 +164,18 @@ public partial class PinWindow : Window
 
     private void ApplyZoom(double zoom)
     {
-        _zoom = zoom;
-        Width = Math.Max(60, _baseWidth * zoom);
-        Height = Math.Max(40, _baseHeight * zoom) + 2;
-        if (ZoomText is not null) ZoomText.Text = $"{zoom * 100:0}%";
+        _applyingZoom = true;
+        try
+        {
+            _zoom = zoom;
+            Width = Math.Max(60, _baseWidth * zoom);
+            Height = Math.Max(40, _baseHeight * zoom) + 2;
+            if (ZoomText is not null) ZoomText.Text = $"{zoom * 100:0}%";
+        }
+        finally
+        {
+            _applyingZoom = false;
+        }
     }
 
     private void ZoomReset_Click(object sender, RoutedEventArgs e) => ApplyZoom(1);
@@ -196,6 +221,58 @@ public partial class PinWindow : Window
     private BitmapSource FlatImage()
         => _document.Annotations.Count > 0 ? AnnotationRenderer.Render(_image, _document) : _image;
 
+    private void BeginTextEdit(TextAnnotation annotation)
+    {
+        _editingText = annotation;
+        Canvas.SelectAnnotation(annotation);
+
+        var origin = Canvas.ToScreen(annotation.Origin);
+        TextEditorBox.Margin = new Thickness(origin.X + 2, origin.Y + 2, 0, 0);
+        TextEditorBox.FontSize = Math.Max(12, annotation.FontSize * Canvas.Zoom);
+        TextEditorBox.Width = Math.Max(180, Math.Min(560, annotation.EstimatedWidth * Canvas.Zoom + 24));
+        TextEditorBox.MinHeight = Math.Max(38, annotation.EstimatedHeight * Canvas.Zoom);
+        TextEditorBox.Text = annotation.Text;
+        TextEditorBox.Visibility = Visibility.Visible;
+        TextEditorBox.Focus();
+        TextEditorBox.SelectAll();
+    }
+
+    private void CommitText(bool cancel = false)
+    {
+        if (_editingText is null) return;
+        var annotation = _editingText;
+        _editingText = null;
+        string text = TextEditorBox.Text;
+        TextEditorBox.Visibility = Visibility.Collapsed;
+
+        if (!cancel && annotation.Text != text)
+        {
+            _document.BeginEdit();
+            annotation.Text = text;
+            _document.MarkChanged();
+            _document.EndEdit(true);
+        }
+    }
+
+    private void TextEditor_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        {
+            CommitText();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CommitText(true);
+            e.Handled = true;
+        }
+    }
+
+    private void TextEditor_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_editingText is not null) CommitText();
+    }
+
     private void Copy_Click(object sender, RoutedEventArgs e) => Copy();
 
     private void Save_Click(object sender, RoutedEventArgs e) => SaveAs();
@@ -209,7 +286,8 @@ public partial class PinWindow : Window
         {
             bool wasTopmost = Topmost;
             Topmost = false;
-            var editor = new EditorWindow(_image, _baseName, _document, Canvas.TextFontFamily);
+            // 共享同一份文档：精修里的增删改 / 撤销会实时反映到钉图，复制保存也用最新内容。
+            var editor = new EditorWindow(_image, _baseName, _document, Canvas.TextFontFamily, shareDocument: true);
             editor.Closed += (_, _) => Topmost = wasTopmost;
             editor.Show();
             editor.Activate();
@@ -249,8 +327,9 @@ public partial class PinWindow : Window
             };
 
             if (dialog.ShowDialog(this) != true) return;
-            ImageUtil.SavePng(FlatImage(), dialog.FileName);
-            AddRecent(dialog.FileName);
+            var flat = FlatImage();
+            ImageUtil.SavePng(flat, dialog.FileName);
+            AddRecent(dialog.FileName, flat);
             Services.Toasts.Info("已保存", dialog.FileName);
         }
         catch (Exception ex)
@@ -273,11 +352,11 @@ public partial class PinWindow : Window
         }
     }
 
-    private void AddRecent(string path)
+    private void AddRecent(string path, BitmapSource image)
     {
         try
         {
-            using var thumbnail = ImageUtil.ToBitmap(FlatImage());
+            using var thumbnail = ImageUtil.ToBitmap(image);
             Services.Recent.Add(path, RecentItemKind.Screenshot, _image.PixelWidth, _image.PixelHeight, 0, thumbnail);
         }
         catch (Exception)

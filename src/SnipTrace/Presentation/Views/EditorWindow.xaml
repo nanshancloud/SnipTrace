@@ -64,7 +64,7 @@
                     <ToggleButton Style="{StaticResource ToolButton}" Content="文本" Tag="Text" Click="Tool_Click" ToolTip="文本 (T)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="序号" Tag="Number" Click="Tool_Click" ToolTip="序号标签 (N)" />
                     <ToggleButton Style="{StaticResource ToolButton}" Content="橡皮" Tag="Eraser" Click="Tool_Click"
-                                  ToolTip="橡皮：擦除画笔 / 高亮笔画（X）；文本、箭头、序号不参与" />
+                                  ToolTip="橡皮：擦除画笔 / 高亮 / 马赛克笔迹（X）；文本、箭头、序号、图形不参与" />
                     <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="8,10" />
                     <ToggleButton x:Name="FitButton" Style="{StaticResource ToolButton}" Content="适应" Click="Fit_Click" ToolTip="适应窗口" />
                     <ToggleButton x:Name="PropertiesToggle" Style="{StaticResource ToolButton}" Content="属性" Visibility="Collapsed"

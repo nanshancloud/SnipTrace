@@ -22,7 +22,22 @@ public partial class EditorWindow : Window
     };
 
     private static readonly double[] StrokeWidths = { 1, 2, 3, 5, 8 };
+    private static readonly double[] MosaicWidths = { 4, 6, 10 }; // 块 8 / 12 / 20 px
     private static readonly double[] FontSizes = { 12, 16, 20, 28, 40 };
+
+    /// <summary>样式条只展示三档，但取值来自同一组常量，保证与右侧面板语义一致。</summary>
+    private static readonly double[] StyleBarFontSizes = { FontSizes[0], FontSizes[2], FontSizes[4] };
+    private static readonly double[] StyleBarShapeWidths = { StrokeWidths[0], StrokeWidths[2], StrokeWidths[4] };
+
+    /// <summary>当前线宽档位：马赛克工具 / 选中马赛克时用块大小档，避免两处档位对不上。</summary>
+    private double[] ActiveWidths =>
+        Canvas.Tool == EditorTool.Mosaic
+        || Canvas.Selection.FirstOrDefault() is ShapeAnnotation { Kind: AnnotationKind.Mosaic }
+            ? MosaicWidths
+            : StrokeWidths;
+
+    private static double Nearest(double value, IEnumerable<double> candidates)
+        => candidates.OrderBy(v => Math.Abs(v - value)).First();
     private static readonly double[] Opacities = { 0.25, 0.5, 0.75, 1.0 };
 
     private readonly BitmapSource _image;
@@ -40,18 +55,25 @@ public partial class EditorWindow : Window
     private bool _arrowElbow;
     private BadgeShape _badgeShape = BadgeShape.Circle;
     private BadgeFillMode _badgeFill = BadgeFillMode.Fill;
+    private EventHandler? _documentChangedHandler;
 
+    /// <param name="shareDocument">
+    /// true：直接复用传入的文档实例（钉图「精修」用，编辑结果实时回写钉图）；
+    /// false：克隆一份独立文档（覆盖层直标进编辑器）。
+    /// </param>
     public EditorWindow(BitmapSource image, string baseName, AnnotationDocument? initialAnnotations = null,
-        string? textFontFamily = null)
+        string? textFontFamily = null, bool shareDocument = false)
     {
         InitializeComponent();
         _image = image;
         _baseName = baseName;
-        _document = new AnnotationDocument(image.PixelWidth, image.PixelHeight);
+        _document = shareDocument && initialAnnotations is not null
+            ? initialAnnotations
+            : new AnnotationDocument(image.PixelWidth, image.PixelHeight);
         if (!string.IsNullOrWhiteSpace(textFontFamily)) Canvas.TextFontFamily = textFontFamily.Trim();
 
-        // 覆盖层上已画的标注带进编辑器继续精标。
-        if (initialAnnotations is not null)
+        // 覆盖层上已画的标注带进编辑器继续精标；钉图精修则共享同一份文档。
+        if (initialAnnotations is not null && !shareDocument)
         {
             foreach (var annotation in initialAnnotations.Annotations)
             {
@@ -74,10 +96,16 @@ public partial class EditorWindow : Window
         Canvas.TextEditRequested += BeginTextEdit;
         TextEditorBox.IsVisibleChanged += (_, _) => UpdateStyleBar();
 
-        _document.Changed += (_, _) =>
+        // 具名 handler：共享文档时窗口关闭必须退订，否则存活的钉图/其它窗口编辑会回调已关闭窗口。
+        _documentChangedHandler = (_, _) =>
         {
             UpdateStatus();
             SyncHistoryButtons();
+        };
+        _document.Changed += _documentChangedHandler;
+        Closed += (_, _) =>
+        {
+            if (_documentChangedHandler is not null) _document.Changed -= _documentChangedHandler;
         };
 
         FileNameText.Text = baseName + ".png";
@@ -248,7 +276,7 @@ public partial class EditorWindow : Window
             ColorPanel.Children.Add(picker);
 
             WidthPanel.Children.Clear();
-            foreach (double width in StrokeWidths)
+            foreach (double width in ActiveWidths)
             {
                 double captured = width;
                 WidthPanel.Children.Add(Chip($"{width:0}", Math.Abs(_style.StrokeWidth - width) < 0.01, () => SetWidth(captured)));
@@ -312,6 +340,14 @@ public partial class EditorWindow : Window
             BadgeFillPanel.Children.Add(Chip("填充", badgeFill == BadgeFillMode.Fill, () => SetBadgeFillMode(BadgeFillMode.Fill)));
             BadgeFillPanel.Children.Add(Chip("边框", badgeFill == BadgeFillMode.Outline, () => SetBadgeFillMode(BadgeFillMode.Outline)));
 
+            // 马赛克按源图取样，颜色 / 透明度对它无效；禁用以免改了却看不到效果还写入撤销栈。
+            bool mosaicActive = Canvas.Tool == EditorTool.Mosaic
+                                || Canvas.Selection.FirstOrDefault() is ShapeAnnotation { Kind: AnnotationKind.Mosaic };
+            ColorPanel.IsEnabled = !mosaicActive;
+            OpacityPanel.IsEnabled = !mosaicActive;
+            ColorPanel.ToolTip = mosaicActive ? "马赛克按源图取样，颜色不适用" : null;
+            OpacityPanel.ToolTip = mosaicActive ? "马赛克按源图取样，透明度不适用" : null;
+
             RefreshStyleBarStates();
         }
         finally
@@ -359,24 +395,29 @@ public partial class EditorWindow : Window
                 NumberBadgeAnnotation badge => badge.FontSize,
                 _ => 20
             };
-            foreach (var (size, label) in new (double Size, string Label)[] { (12, "小"), (20, "中"), (28, "大") })
+            double nearest = Nearest(current, StyleBarFontSizes);
+            foreach (var (size, label) in new (double Size, string Label)[]
+                     { (StyleBarFontSizes[0], "小"), (StyleBarFontSizes[1], "中"), (StyleBarFontSizes[2], "大") })
             {
                 double captured = size;
-                var chip = Chip(label, Math.Abs(current - size) <= 3, () => SetFontSize(captured));
+                var chip = Chip(label, Math.Abs(nearest - size) < 0.01, () => SetFontSize(captured));
+                chip.ToolTip = $"字号 {size:0}";
                 StyleChip(chip, size);
                 StyleBarSizePanel.Children.Add(chip);
             }
         }
         else if (target is ShapeAnnotation shape)
         {
-            var widths = shape.Kind == AnnotationKind.Mosaic
-                ? new (double Width, string Label)[] { (4, "小"), (6, "中"), (10, "大") }
-                : new (double Width, string Label)[] { (1, "细"), (3, "中"), (6, "粗") };
-            foreach (var (width, label) in widths)
+            bool mosaic = shape.Kind == AnnotationKind.Mosaic;
+            var widths = mosaic ? MosaicWidths : StyleBarShapeWidths;
+            double nearest = Nearest(shape.Style.StrokeWidth, mosaic ? MosaicWidths : StrokeWidths);
+            for (int i = 0; i < widths.Length; i++)
             {
-                double captured = width;
-                var chip = Chip(label, Math.Abs(shape.Style.StrokeWidth - width) < 0.01, () => SetWidth(captured));
-                StyleChip(chip, width);
+                double captured = widths[i];
+                string label = mosaic ? new[] { "小", "中", "大" }[i] : new[] { "细", "中", "粗" }[i];
+                var chip = Chip(label, Math.Abs(nearest - captured) < 0.01, () => SetWidth(captured));
+                chip.ToolTip = mosaic ? $"块大小 {ShapeAnnotation.MinMosaicBlock * captured / 4:0} px" : $"线宽 {captured:0}";
+                StyleChip(chip, captured);
                 StyleBarSizePanel.Children.Add(chip);
             }
         }
@@ -422,16 +463,23 @@ public partial class EditorWindow : Window
     {
         if (_styleBarTarget is null || StyleBar.Visibility != Visibility.Visible) return;
 
-        foreach (var chip in StyleBarSizePanel.Children.OfType<ToggleButton>())
+        double? current = _styleBarTarget switch
         {
-            if (chip.Tag is not double value) continue;
-            chip.IsChecked = _styleBarTarget switch
+            TextAnnotation text => text.FontSize,
+            NumberBadgeAnnotation badge => badge.FontSize,
+            ShapeAnnotation shape => shape.Style.StrokeWidth,
+            _ => null
+        };
+        if (current is not null)
+        {
+            IEnumerable<double> choices = _styleBarTarget is TextAnnotation or NumberBadgeAnnotation
+                ? StyleBarFontSizes
+                : ActiveWidths;
+            double nearest = Nearest(current.Value, choices);
+            foreach (var chip in StyleBarSizePanel.Children.OfType<ToggleButton>())
             {
-                TextAnnotation text => Math.Abs(text.FontSize - value) <= 3,
-                NumberBadgeAnnotation badge => Math.Abs(badge.FontSize - value) <= 3,
-                ShapeAnnotation shape => Math.Abs(shape.Style.StrokeWidth - value) < 0.01,
-                _ => chip.IsChecked
-            };
+                chip.IsChecked = chip.Tag is double value && Math.Abs(value - nearest) < 0.01;
+            }
         }
 
         foreach (var swatch in StyleBarColorPanel.Children.OfType<Border>())
@@ -450,7 +498,8 @@ public partial class EditorWindow : Window
         var bounds = _styleBarTarget.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0) return;
 
-        StyleBar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        // 用画布实际宽度约束测量，避免无约束测量后实际换行导致定位偏差。
+        StyleBar.Measure(new Size(Math.Max(100, Canvas.ActualWidth - 8), Math.Max(100, Canvas.ActualHeight)));
         var size = StyleBar.DesiredSize;
         var top = Canvas.ToScreen(new PointD(bounds.Left, bounds.Top));
         var bottom = Canvas.ToScreen(new PointD(bounds.Right, bounds.Bottom));
@@ -459,7 +508,13 @@ public partial class EditorWindow : Window
         double y = top.Y - size.Height - 8;
         if (y < 4) y = bottom.Y + 8;
 
-        double maxX = Math.Max(4, Canvas.ActualWidth - size.Width - 4);
+        // 窄屏属性面板是覆盖在画布右侧的浮层（ZIndex 更高），样式条要避让它。
+        double rightInset = PropertiesPanel.Visibility == Visibility.Visible
+                            && Grid.GetColumn(PropertiesPanel) == 1
+                            && PropertiesPanel.ActualWidth > 0
+            ? PropertiesPanel.ActualWidth + 8
+            : 0;
+        double maxX = Math.Max(4, Canvas.ActualWidth - size.Width - rightInset - 4);
         double maxY = Math.Max(4, Canvas.ActualHeight - size.Height - 4);
         StyleBar.Margin = new Thickness(Math.Clamp(x, 4, maxX), Math.Clamp(y, 4, maxY), 0, 0);
     }
@@ -603,8 +658,10 @@ public partial class EditorWindow : Window
         var selected = Canvas.Selection.FirstOrDefault();
         if (selected is not null) _style = selected.Style;
         Canvas.CurrentStyle = _style;
-        RefreshPanels();
+        // 先让样式条放弃可能已失效的旧 target（撤销/重做会 Clone 掉全部标注），
+        // 再刷新面板——否则会用撤销前的旧样式回写刚清空的选中项。
         UpdateStyleBar();
+        RefreshPanels();
         UpdateStatus();
     }
 

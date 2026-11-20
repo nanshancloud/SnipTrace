@@ -429,8 +429,9 @@ internal static class SelfTest
             bool textVisible = editor.StyleBar.Visibility == Visibility.Visible;
             bool textSizes = editor.StyleBarSizePanel.Children.Count == 3;
             bool textColors = editor.StyleBarColorPanel.Children.Count > 0;
-            check("选中文本弹出字号 + 颜色条", textVisible && textSizes && textColors,
-                $"visible={textVisible} sizes={editor.StyleBarSizePanel.Children.Count} colors={editor.StyleBarColorPanel.Children.Count}");
+            bool textChecked = editor.StyleBarSizePanel.Children.OfType<ToggleButton>().Any(t => t.IsChecked == true);
+            check("选中文本弹出字号 + 颜色条", textVisible && textSizes && textColors && textChecked,
+                $"visible={textVisible} sizes={editor.StyleBarSizePanel.Children.Count} colors={editor.StyleBarColorPanel.Children.Count} checked={textChecked}");
 
             var shape = new ShapeAnnotation(AnnotationKind.Rectangle,
                 new[] { new PointD(40, 120), new PointD(140, 180) },
@@ -441,8 +442,9 @@ internal static class SelfTest
 
             bool shapeVisible = editor.StyleBar.Visibility == Visibility.Visible;
             bool shapeChips = editor.StyleBarSizePanel.Children.Count == 3;
-            check("选中图形弹出线宽 + 颜色条", shapeVisible && shapeChips && editor.StyleBarColorPanel.Children.Count > 0,
-                $"visible={shapeVisible} sizes={editor.StyleBarSizePanel.Children.Count} colors={editor.StyleBarColorPanel.Children.Count}");
+            bool shapeChecked = editor.StyleBarSizePanel.Children.OfType<ToggleButton>().Any(t => t.IsChecked == true);
+            check("选中图形弹出线宽 + 颜色条", shapeVisible && shapeChips && shapeChecked && editor.StyleBarColorPanel.Children.Count > 0,
+                $"visible={shapeVisible} sizes={editor.StyleBarSizePanel.Children.Count} checked={shapeChecked} colors={editor.StyleBarColorPanel.Children.Count}");
         }
         catch (Exception ex)
         {

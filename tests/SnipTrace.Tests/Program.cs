@@ -760,6 +760,29 @@ internal static class Program
                 new AnnotationStyle(0xFFFF6B5F, 1, 1)).MosaicBlockSize == 8
             && new ShapeAnnotation(AnnotationKind.Mosaic, new[] { new PointD(0, 0) },
                 new AnnotationStyle(0xFFFF6B5F, 30, 1)).MosaicBlockSize == 48);
+        Check("马赛克滚轮到上限返回未变化",
+            !AnnotationEditing.AdjustOnWheel(
+                new ShapeAnnotation(AnnotationKind.Mosaic, new[] { new PointD(0, 0) },
+                    new AnnotationStyle(0xFFFF6B5F, 24, 1)), true));
+
+        // 命中半径与绘制足迹（≤1 块）一致：块 48 时 70px 外不应命中。
+        var bigBlock = new ShapeAnnotation(AnnotationKind.Mosaic, new[] { new PointD(0, 0) },
+            new AnnotationStyle(0xFFFF6B5F, 24, 1));
+        Check("马赛克块半径外不误命中",
+            bigBlock.HitTest(new PointD(20, 0), 0) && !bigBlock.HitTest(new PointD(70, 0), 0));
+
+        var eraseDoc = new AnnotationDocument(200, 100);
+        eraseDoc.Add(new ShapeAnnotation(AnnotationKind.Mosaic,
+            new[] { new PointD(10, 10), new PointD(60, 10) }, new AnnotationStyle(0xFFFF6B5F, 6, 1)));
+        Check("橡皮可擦马赛克笔迹",
+            AnnotationEditing.EraseStrokes(eraseDoc, new PointD(30, 10), new PointD(35, 10)).Count == 1
+            && eraseDoc.Annotations.Count == 0);
+
+        var dot = new ShapeAnnotation(AnnotationKind.Pen, new[] { new PointD(50, 50), new PointD(50, 50) });
+        dot.Resize(PixelRect.FromLtrb(100, 100, 120, 120));
+        Check("零尺寸笔迹仍可缩放",
+            Math.Abs(dot.Points[0].X - 110) < 0.01 && Math.Abs(dot.Points[0].Y - 110) < 0.01,
+            $"{dot.Points[0].X:0.##},{dot.Points[0].Y:0.##}");
 
         var arrow = new ShapeAnnotation(AnnotationKind.Arrow, new[] { new PointD(0, 0), new PointD(80, 0) });
         double before = arrow.Style.Width;

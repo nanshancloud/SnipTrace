@@ -57,6 +57,10 @@
         <Grid>
             <!-- 可交互画布：悬浮即选中标注，拖动移动、四角调整；空白处按下仍拖整个钉图 -->
             <editing:AnnotationCanvas x:Name="Canvas" Focusable="False" />
+            <TextBox x:Name="TextEditorBox" Style="{StaticResource AppTextBox}" Visibility="Collapsed"
+                     AcceptsReturn="True" TextWrapping="Wrap" VerticalAlignment="Top" HorizontalAlignment="Left"
+                     MinWidth="160" Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource AccentBrush}"
+                     KeyDown="TextEditor_KeyDown" LostFocus="TextEditor_LostFocus" />
 
             <!-- Snipaste 式工具条：悬停或右键唤出，图标不占画面 -->
             <Border x:Name="ToolBar" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,6,0,0"
