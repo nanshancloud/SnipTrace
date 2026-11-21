@@ -46,6 +46,9 @@ public partial class EditorWindow : Window
     private readonly Dictionary<EditorTool, ToggleButton> _toolButtons = new();
 
     private AnnotationStyle _style = AnnotationStyle.Default;
+
+    /// <summary>马赛克笔头线宽独立于画笔（块 = 线宽 × 2），避免两种笔头互相串扰。</summary>
+    private double _mosaicWidth = 12;
     private TextAnnotation? _editingText;
     private bool _editingNewText;
     private bool _updatingPanels;
@@ -79,6 +82,16 @@ public partial class EditorWindow : Window
             {
                 _document.Add(annotation.Clone());
             }
+        }
+
+        // 继承覆盖层最后一次调的马赛克笔头（取最后一笔马赛克的线宽），避免进编辑器后退回默认值。
+        var inheritedMosaic = _document.Annotations
+            .OfType<ShapeAnnotation>()
+            .LastOrDefault(a => a.Kind == AnnotationKind.Mosaic);
+        if (inheritedMosaic is not null)
+        {
+            _mosaicWidth = Math.Clamp(inheritedMosaic.Style.StrokeWidth,
+                AnnotationEditing.MinMosaicStrokeWidth, AnnotationEditing.MaxMosaicStrokeWidth);
         }
 
         Canvas.Image = image;
@@ -277,10 +290,12 @@ public partial class EditorWindow : Window
             ColorPanel.Children.Add(picker);
 
             WidthPanel.Children.Clear();
+            bool mosaicMode = Canvas.Tool == EditorTool.Mosaic;
+            double activeWidth = mosaicMode ? _mosaicWidth : _style.StrokeWidth;
             foreach (double width in ActiveWidths)
             {
                 double captured = width;
-                WidthPanel.Children.Add(Chip($"{width:0}", Math.Abs(_style.StrokeWidth - width) < 0.01, () => SetWidth(captured)));
+                WidthPanel.Children.Add(Chip($"{width:0}", Math.Abs(activeWidth - width) < 0.01, () => SetWidth(captured)));
             }
 
             FontSizePanel.Children.Clear();
@@ -547,26 +562,45 @@ public partial class EditorWindow : Window
         RefreshPanels();
     }
 
+    /// <summary>当前工具的笔头线宽：马赛克用独立值，其余走 _style。避免两种笔头串扰。</summary>
+    private double CurrentBrushWidth => IsMosaicMode ? _mosaicWidth : _style.StrokeWidth;
+
+    private bool IsMosaicMode => Canvas.Tool == EditorTool.Mosaic
+        || Canvas.Selection.FirstOrDefault() is ShapeAnnotation { Kind: AnnotationKind.Mosaic };
+
     private void SetWidth(double width)
     {
-        _style = _style.WithWidth(width);
-        Canvas.CurrentStyle = _style;
+        if (IsMosaicMode) _mosaicWidth = width;
+        else _style = _style.WithWidth(width);
+
+        SyncCurrentStyleWidth();
         Canvas.ApplyToSelection(a => a.Style = a.Style.WithWidth(width));
         RefreshPanels();
     }
 
     /// <summary>
+    /// 把当前工具对应的笔头线宽写进画布样式供下一笔绘制取用；_style 始终保留画笔宽度，
+    /// 马赛克只临时换画布样式，切回画笔时自然恢复，两种笔头不互相覆盖。
+    /// </summary>
+    private void SyncCurrentStyleWidth()
+    {
+        Canvas.CurrentStyle = IsMosaicMode ? _style.WithWidth(_mosaicWidth) : _style;
+    }
+
+    /// <summary>
     /// 笔刷工具滚轮：只调下一笔的笔刷大小（马赛克块大小随线宽），不动已画出的笔迹。
-    /// 与右侧面板共用 _style，改完刷新面板高亮与状态栏给出可见反馈。
+    /// 马赛克与画笔 / 高亮各存各的宽度，改完刷新面板高亮与状态栏给出可见反馈。
     /// </summary>
     private void AdjustBrushWidth(bool increase)
     {
         bool mosaic = Canvas.Tool == EditorTool.Mosaic;
-        double updated = AnnotationEditing.AdjustBrushWidth(_style.StrokeWidth, mosaic, increase);
-        if (Math.Abs(updated - _style.StrokeWidth) < 0.001) return;
+        double current = mosaic ? _mosaicWidth : _style.StrokeWidth;
+        double updated = AnnotationEditing.AdjustBrushWidth(current, mosaic, increase);
+        if (Math.Abs(updated - current) < 0.001) return;
 
-        _style = _style.WithWidth(updated);
-        Canvas.CurrentStyle = _style;
+        if (mosaic) _mosaicWidth = updated;
+        else _style = _style.WithWidth(updated);
+        SyncCurrentStyleWidth();
         RefreshPanels();
         RefreshStyleBarStates();
         UpdateStatus();
@@ -674,8 +708,16 @@ public partial class EditorWindow : Window
     private void SyncFromSelection()
     {
         var selected = Canvas.Selection.FirstOrDefault();
-        if (selected is not null) _style = selected.Style;
-        Canvas.CurrentStyle = _style;
+        if (selected is ShapeAnnotation { Kind: AnnotationKind.Mosaic } mosaic)
+        {
+            _mosaicWidth = Math.Clamp(mosaic.Style.StrokeWidth,
+                AnnotationEditing.MinMosaicStrokeWidth, AnnotationEditing.MaxMosaicStrokeWidth);
+        }
+        else if (selected is not null)
+        {
+            _style = selected.Style;
+        }
+        SyncCurrentStyleWidth();
         // 先让样式条放弃可能已失效的旧 target（撤销/重做会 Clone 掉全部标注），
         // 再刷新面板——否则会用撤销前的旧样式回写刚清空的选中项。
         UpdateStyleBar();
@@ -768,13 +810,9 @@ public partial class EditorWindow : Window
         Canvas.FinishArrowDraft();
         Canvas.Tool = tool;
 
-        // 马赛克笔刷默认给一个看得见块大小的线宽（块 = 线宽 × 2）。
-        if (tool == EditorTool.Mosaic && _style.StrokeWidth < 4)
-        {
-            _style = _style.WithWidth(6);
-            Canvas.CurrentStyle = _style;
-            RefreshPanels();
-        }
+        // 画布样式按当前工具切换到对应笔头宽度（马赛克独立，画笔 / 高亮共用 _style）。
+        SyncCurrentStyleWidth();
+        RefreshPanels();
 
         foreach (var pair in _toolButtons) pair.Value.IsChecked = pair.Key == tool;
         Canvas.Focus();
@@ -1041,6 +1079,7 @@ public partial class EditorWindow : Window
             EditorTool.Arrow => _arrowElbow ? "箭头（直角）" : "箭头",
             EditorTool.Pen => "画笔",
             EditorTool.Highlight => "高亮",
+            EditorTool.Mosaic => "马赛克",
             EditorTool.Text => "文本",
             EditorTool.Eraser => "橡皮",
             _ => "序号"
@@ -1050,7 +1089,7 @@ public partial class EditorWindow : Window
         {
             EditorTool.Pen => $" · 画笔 {_style.StrokeWidth:0} px",
             EditorTool.Highlight => $" · 高亮 {_style.StrokeWidth:0} px",
-            EditorTool.Mosaic => $" · 块 {Math.Clamp((int)Math.Round(_style.StrokeWidth * 2),
+            EditorTool.Mosaic => $" · 块 {Math.Clamp((int)Math.Round(_mosaicWidth * 2),
                 ShapeAnnotation.MinMosaicBlock, ShapeAnnotation.MaxMosaicBlock)} px",
             _ => ""
         };

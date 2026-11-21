@@ -764,6 +764,15 @@ internal static class SelfTest
                 && Math.Abs(overlay.CurrentStrokeWidth - (brushBefore + 1)) < 0.001,
                 $"{overlay.CurrentMosaicWidth:0.##}");
             check("滚轮调整笔头有可见反馈事件", brushWheelNotices == 2, brushWheelNotices.ToString());
+
+            // 到边界后继续滚不再触发反馈，避免浮层反复弹出；两笔头仍互不影响。
+            for (int i = 0; i < 40; i++) overlay.AdjustBrushSize(OverlayAnnotateTool.Pen, true);
+            int noticesAtMax = brushWheelNotices;
+            overlay.AdjustBrushSize(OverlayAnnotateTool.Pen, true);
+            check("笔头到边界后不再弹反馈",
+                brushWheelNotices == noticesAtMax
+                && Math.Abs(overlay.CurrentStrokeWidth - AnnotationEditing.MaxStrokeWidth) < 0.001,
+                $"{brushWheelNotices}/{overlay.CurrentStrokeWidth:0.##}");
             overlay.BrushSizeChanged -= OnBrushWheel;
 
             // 增删 + 排序：只留 图形 / 复制 / 精标，三组各一个按钮 + 两条分隔线。

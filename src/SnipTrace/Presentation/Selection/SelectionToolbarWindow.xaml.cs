@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Media;
 using SnipTrace.App.Infrastructure.Capture;
 using SnipTrace.App.Infrastructure.Platform;
@@ -47,6 +48,7 @@ public partial class SelectionToolbarWindow : Window
         _badgePopup.Attach(overlay);
         _variantPopup.Attach(overlay);
         overlay.BrushSizeChanged += OnBrushSizeChanged;
+        PreviewMouseWheel += Toolbar_PreviewMouseWheel;
         BuildActions();
         IsVisibleChanged += (_, _) =>
         {
@@ -319,6 +321,28 @@ public partial class SelectionToolbarWindow : Window
         _variantButtons[id] = button;
         _annotateButtons.Add(button);
         ButtonRow.Children.Add(button);
+    }
+
+    /// <summary>
+    /// 窗口级滚轮兜底：工具条是独立顶层窗口，按钮间隙 / 边框处滚轮到不了按钮，
+    /// 这里在预览阶段补一手——当前是画笔 / 马赛克工具时改笔头，颜色按钮除外（它自己切预设色）。
+    /// </summary>
+    private void Toolbar_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var tool = _overlay?.AnnotateTool;
+        if (tool is not (OverlayAnnotateTool.Pen or OverlayAnnotateTool.Mosaic)) return;
+
+        // 命中工具条内任一按钮时交给按钮自己的 handler，避免重复调整。
+        if (e.OriginalSource is DependencyObject source)
+        {
+            for (DependencyObject? node = source; node is not null; node = VisualTreeHelper.GetParent(node))
+            {
+                if (node is ButtonBase) return;
+            }
+        }
+
+        _overlay?.AdjustBrushSize(tool.Value, e.Delta > 0);
+        e.Handled = true;
     }
 
     /// <summary>滚轮调整下一笔笔刷大小后在工具条上方显示当前尺寸，给出可见反馈。</summary>

@@ -623,14 +623,10 @@ public sealed class SelectionOverlay : IDisposable
             return;
         }
 
-        _cursor = MonitorService.GetCursorPosition();
-        if (!_selection.Contains(_cursor)) return;
-
         var annotations = _overlayAnnotations;
-        if (annotations is null || annotations.Annotations.Count == 0) return;
-        var target = annotations.Annotations[^1];
+        var target = annotations is { Annotations.Count: > 0 } ? annotations.Annotations[^1] : null;
 
-        // 非绘制模式下若最后画的是笔刷笔迹，同样只调笔刷大小，不缩放已有笔迹。
+        // 非绘制模式下若最后画的是笔刷笔迹，同样只调笔刷大小，不受光标守卫限制。
         if (target is ShapeAnnotation { Kind: AnnotationKind.Mosaic })
         {
             AdjustBrushSize(OverlayAnnotateTool.Mosaic, increase);
@@ -642,6 +638,11 @@ public sealed class SelectionOverlay : IDisposable
             AdjustBrushSize(OverlayAnnotateTool.Pen, increase);
             return;
         }
+
+        // 其余标注只在光标位于选区内时微调；没有标注则不处理。
+        if (target is null) return;
+        _cursor = MonitorService.GetCursorPosition();
+        if (!_selection.Contains(_cursor)) return;
 
         // 矩形 / 椭圆 / 箭头改线宽（箭头端头随线宽缩放），文字 / 序号改字号。
         if (!AnnotationEditing.AdjustOnWheel(target, increase)) return;
@@ -666,8 +667,9 @@ public sealed class SelectionOverlay : IDisposable
         if (tool is not (OverlayAnnotateTool.Pen or OverlayAnnotateTool.Mosaic)) return;
 
         bool mosaic = tool == OverlayAnnotateTool.Mosaic;
-        double updated = AnnotationEditing.AdjustBrushWidth(
-            mosaic ? _mosaicWidth : _strokeWidth, mosaic, increase);
+        double current = mosaic ? _mosaicWidth : _strokeWidth;
+        double updated = AnnotationEditing.AdjustBrushWidth(current, mosaic, increase);
+        if (Math.Abs(updated - current) < 0.001) return;
 
         if (mosaic) _mosaicWidth = updated;
         else _strokeWidth = updated;
