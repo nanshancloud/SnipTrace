@@ -375,7 +375,7 @@ public sealed class RecordingEngine : IDisposable
         }
         catch (Exception ex)
         {
-            Fail("无法写入目标文件：" + ex.Message);
+            Fail(L.T("无法写入目标文件：") + ex.Message);
         }
     }
 
@@ -399,14 +399,14 @@ public sealed class RecordingEngine : IDisposable
                     if (drive.IsReady && drive.AvailableFreeSpace < DiskHardFloorBytes)
                     {
                         // 空间见底时停止录制并交给正常封装流程，尽量保住已录内容。
-                        RaiseWarning("磁盘剩余空间不足 300 MB，正在停止录制并封装已录制内容。");
+                        RaiseWarning(L.T("磁盘剩余空间不足 300 MB，正在停止录制并封装已录制内容。"));
                         return true;
                     }
 
                     if (!_spaceWarningRaised && drive.IsReady && drive.AvailableFreeSpace < DiskSoftFloorBytes)
                     {
                         _spaceWarningRaised = true;
-                        RaiseWarning("磁盘剩余空间不足 1 GB，请及时清理磁盘或停止录制。");
+                        RaiseWarning(L.T("磁盘剩余空间不足 1 GB，请及时清理磁盘或停止录制。"));
                     }
                 }
             }

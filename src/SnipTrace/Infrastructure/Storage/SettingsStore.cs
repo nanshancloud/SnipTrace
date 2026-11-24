@@ -89,12 +89,12 @@ public sealed class SettingsStore
         AppSettings? backup = ReadFile(BackupFile);
         if (backup is not null)
         {
-            LastLoadWarning = "设置文件损坏，已从最近一次备份恢复";
+            LastLoadWarning = L.T("设置文件损坏，已从最近一次备份恢复");
             TryMoveCorruptedFile();
             return backup;
         }
 
-        LastLoadWarning = "设置文件无法读取，已恢复默认值";
+        LastLoadWarning = L.T("设置文件无法读取，已恢复默认值");
         TryMoveCorruptedFile();
         return AppSettings.CreateDefault();
     }

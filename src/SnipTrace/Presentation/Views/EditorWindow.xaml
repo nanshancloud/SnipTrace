@@ -1,8 +1,8 @@
-﻿<Window x:Class="SnipTrace.App.Presentation.Views.EditorWindow"
+<Window x:Class="SnipTrace.App.Presentation.Views.EditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:editing="clr-namespace:SnipTrace.App.Presentation.Editing"
-        Title="标注编辑器" Width="1080" Height="720" MinWidth="780" MinHeight="520"
+        Title="{DynamicResource 标注编辑器}" Width="1080" Height="720" MinWidth="780" MinHeight="520"
         Icon="pack://application:,,,/Assets/app.ico"
         WindowStyle="None" Background="{DynamicResource BgBrush}" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
@@ -26,18 +26,18 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,8,0" VerticalAlignment="Center">
-                <Button x:Name="UndoButton" Content="撤销" Style="{StaticResource GhostButton}" Click="Undo_Click"
+                <Button x:Name="UndoButton" Content="{DynamicResource 撤销}" Style="{StaticResource GhostButton}" Click="Undo_Click"
                         ToolTip="Ctrl+Z" ToolTipService.ShowOnDisabled="True" />
-                <Button x:Name="RedoButton" Content="重做" Style="{StaticResource GhostButton}" Click="Redo_Click"
+                <Button x:Name="RedoButton" Content="{DynamicResource 重做}" Style="{StaticResource GhostButton}" Click="Redo_Click"
                         ToolTip="Ctrl+Shift+Z" ToolTipService.ShowOnDisabled="True" />
-                <Button x:Name="ClearAllButton" Content="清除全部" Style="{StaticResource GhostButton}" Click="ClearAll_Click"
-                        ToolTip="清除全部标记（可撤销）" ToolTipService.ShowOnDisabled="True" />
+                <Button x:Name="ClearAllButton" Content="{DynamicResource 清除全部}" Style="{StaticResource GhostButton}" Click="ClearAll_Click"
+                        ToolTip="{DynamicResource 清除全部标记（可撤销）}" ToolTipService.ShowOnDisabled="True" />
                 <Border Width="1" Background="{DynamicResource BorderBrush}" Margin="8,10" />
-                <Button x:Name="CopyButton" Content="复制" Style="{StaticResource GhostButton}" Click="Copy_Click" ToolTip="Ctrl+C" />
-                <Button x:Name="SaveButton" Content="保存" Style="{StaticResource PrimaryButton}" Padding="14,6" MinHeight="30" Margin="6,0"
+                <Button x:Name="CopyButton" Content="{DynamicResource 复制}" Style="{StaticResource GhostButton}" Click="Copy_Click" ToolTip="Ctrl+C" />
+                <Button x:Name="SaveButton" Content="{DynamicResource 保存}" Style="{StaticResource PrimaryButton}" Padding="14,6" MinHeight="30" Margin="6,0"
                         Click="Save_Click" ToolTip="Ctrl+S" />
-                <Button x:Name="PinButton" Content="钉图" Style="{StaticResource GhostButton}" Click="Pin_Click" ToolTip="钉图置顶" />
-                <Button x:Name="FullscreenButton" Content="全屏" Style="{StaticResource GhostButton}" Click="Fullscreen_Click" ToolTip="F11" />
+                <Button x:Name="PinButton" Content="{DynamicResource 钉图}" Style="{StaticResource GhostButton}" Click="Pin_Click" ToolTip="{DynamicResource 钉图置顶}" />
+                <Button x:Name="FullscreenButton" Content="{DynamicResource 全屏}" Style="{StaticResource GhostButton}" Click="Fullscreen_Click" ToolTip="F11" />
                 <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" FontSize="12" />
             </StackPanel>
         </Grid>
@@ -52,23 +52,23 @@
             <Border Grid.Column="0" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,1,0">
                 <StackPanel x:Name="ToolPanel" Margin="4,8">
-                    <ToggleButton x:Name="SelectToolButton" Style="{StaticResource ToolButton}" Content="选择" Tag="Select"
-                                  IsChecked="True" Click="Tool_Click" ToolTip="选择 / 移动 / 缩放 (V)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="矩形" Tag="Rectangle" Click="Tool_Click" ToolTip="矩形 (R)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="椭圆" Tag="Ellipse" Click="Tool_Click" ToolTip="椭圆 (E)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="箭头" Tag="Arrow" Click="Tool_Click" ToolTip="箭头 (A)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="画笔" Tag="Pen" Click="Tool_Click" ToolTip="画笔 (P)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="高亮" Tag="Highlight" Click="Tool_Click" ToolTip="高亮笔 (H)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="马赛克" Tag="Mosaic" Click="Tool_Click"
-                                  ToolTip="马赛克笔刷 (M)：沿拖动轨迹打码，右侧「线宽」控制块大小" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="文本" Tag="Text" Click="Tool_Click" ToolTip="文本 (T)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="序号" Tag="Number" Click="Tool_Click" ToolTip="序号标签 (N)" />
-                    <ToggleButton Style="{StaticResource ToolButton}" Content="橡皮" Tag="Eraser" Click="Tool_Click"
-                                  ToolTip="橡皮：擦除画笔 / 高亮 / 马赛克笔迹（X）；文本、箭头、序号、图形不参与" />
+                    <ToggleButton x:Name="SelectToolButton" Style="{StaticResource ToolButton}" Content="{DynamicResource 选择}" Tag="Select"
+                                  IsChecked="True" Click="Tool_Click" ToolTip="{DynamicResource 选择 / 移动 / 缩放 (V)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 矩形}" Tag="Rectangle" Click="Tool_Click" ToolTip="{DynamicResource 矩形 (R)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 椭圆}" Tag="Ellipse" Click="Tool_Click" ToolTip="{DynamicResource 椭圆 (E)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 箭头}" Tag="Arrow" Click="Tool_Click" ToolTip="{DynamicResource 箭头 (A)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 画笔}" Tag="Pen" Click="Tool_Click" ToolTip="{DynamicResource 画笔 (P)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 高亮}" Tag="Highlight" Click="Tool_Click" ToolTip="{DynamicResource 高亮笔 (H)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 马赛克}" Tag="Mosaic" Click="Tool_Click"
+                                  ToolTip="{DynamicResource 马赛克笔刷 (M)：沿拖动轨迹打码，右侧「线宽」控制块大小}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 文本}" Tag="Text" Click="Tool_Click" ToolTip="{DynamicResource 文本 (T)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 序号}" Tag="Number" Click="Tool_Click" ToolTip="{DynamicResource 序号标签 (N)}" />
+                    <ToggleButton Style="{StaticResource ToolButton}" Content="{DynamicResource 橡皮}" Tag="Eraser" Click="Tool_Click"
+                                  ToolTip="{DynamicResource 橡皮：擦除画笔 / 高亮 / 马赛克笔迹（X）；文本、箭头、序号、图形不参与}" />
                     <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="8,10" />
-                    <ToggleButton x:Name="FitButton" Style="{StaticResource ToolButton}" Content="适应" Click="Fit_Click" ToolTip="适应窗口" />
-                    <ToggleButton x:Name="PropertiesToggle" Style="{StaticResource ToolButton}" Content="属性" Visibility="Collapsed"
-                                  Click="PropertiesToggle_Click" ToolTip="属性面板" />
+                    <ToggleButton x:Name="FitButton" Style="{StaticResource ToolButton}" Content="{DynamicResource 适应}" Click="Fit_Click" ToolTip="{DynamicResource 适应窗口}" />
+                    <ToggleButton x:Name="PropertiesToggle" Style="{StaticResource ToolButton}" Content="{DynamicResource 属性}" Visibility="Collapsed"
+                                  Click="PropertiesToggle_Click" ToolTip="{DynamicResource 属性面板}" />
                 </StackPanel>
             </Border>
 
@@ -97,35 +97,35 @@
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="14,14">
-                        <TextBlock Text="颜色" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <TextBlock Text="{DynamicResource 颜色}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8" />
                         <WrapPanel x:Name="ColorPanel" Margin="0,0,0,6" />
 
-                        <TextBlock Text="线宽" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
+                        <TextBlock Text="{DynamicResource 线宽}" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
                         <WrapPanel x:Name="WidthPanel" />
 
-                        <TextBlock Text="箭头模式" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
+                        <TextBlock Text="{DynamicResource 箭头模式}" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
                         <WrapPanel x:Name="ArrowModePanel" />
 
-                        <TextBlock Text="字号" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
+                        <TextBlock Text="{DynamicResource 字号}" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
                         <WrapPanel x:Name="FontSizePanel" />
 
-                        <TextBlock Text="透明度" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
+                        <TextBlock Text="{DynamicResource 透明度}" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
                         <WrapPanel x:Name="OpacityPanel" />
 
-                        <TextBlock Text="序号形状" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
+                        <TextBlock Text="{DynamicResource 序号形状}" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,8" />
                         <WrapPanel x:Name="BadgePanel" />
 
-                        <TextBlock Text="填充方式" FontSize="13" FontWeight="SemiBold" Margin="0,12,0,8" />
+                        <TextBlock Text="{DynamicResource 填充方式}" FontSize="13" FontWeight="SemiBold" Margin="0,12,0,8" />
                         <WrapPanel x:Name="BadgeFillPanel" />
 
                         <CheckBox x:Name="RenumberStyleCheck" Style="{StaticResource AppCheckBox}" FontSize="12"
-                                  Content="改样式后重新计数" Margin="0,12,0,0" Click="RenumberStyle_Click"
-                                  ToolTip="打开后：修改任一号标的形状或填充方式，会按阅读顺序把序号重排为 1、2、3…" />
+                                  Content="{DynamicResource 改样式后重新计数}" Margin="0,12,0,0" Click="RenumberStyle_Click"
+                                  ToolTip="{DynamicResource 打开后：修改任一号标的形状或填充方式，会按阅读顺序把序号重排为 1、2、3…}" />
 
                         <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,18" />
-                        <Button Content="重排编号（阅读顺序）" Style="{StaticResource SecondaryButton}" MinHeight="34"
+                        <Button Content="{DynamicResource 重排编号（阅读顺序）}" Style="{StaticResource SecondaryButton}" MinHeight="34"
                                 FontSize="12" Click="Renumber_Click" />
-                        <Button Content="重置编号（下一个为 1）" Style="{StaticResource GhostButton}" Margin="0,6,0,0"
+                        <Button Content="{DynamicResource 重置编号（下一个为 1）}" Style="{StaticResource GhostButton}" Margin="0,6,0,0"
                                 FontSize="12" Click="ResetNumbering_Click" />
                         <TextBlock x:Name="NumberHintText" Style="{StaticResource CaptionText}" Margin="0,10,0,0"
                                    TextWrapping="Wrap" />
@@ -139,7 +139,7 @@
             <Grid Margin="14,0">
                 <TextBlock x:Name="StatusLeft" Style="{StaticResource CaptionText}" FontSize="11" VerticalAlignment="Center" />
                 <TextBlock x:Name="StatusRight" Style="{StaticResource CaptionText}" FontSize="11" VerticalAlignment="Center"
-                           HorizontalAlignment="Right" Text="双击文本改内容 · Delete 删除 · 滚轮缩放 · Esc 关闭" />
+                           HorizontalAlignment="Right" Text="{DynamicResource 双击文本改内容 · Delete 删除 · 滚轮缩放 · Esc 关闭}" />
             </Grid>
         </Border>
     </Grid>

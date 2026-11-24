@@ -1,32 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  屏迹 SnipTrace 安装包定义（WiX v5）。
-  由 tools/package.ps1 调用：
-    wix build SnipTrace.wxs -arch x64 -d Version=1.0.1 -bindpath publish=<发布目录> -o <输出.msi>
-  两种分发方式（内置运行时 / 框架依赖）共用 UpgradeCode，二选一安装并互相升级。
+  SnipTrace installer definition (WiX v5).
+  Invoked by tools/package.ps1:
+    wix build SnipTrace.wxs -arch x64 -d Version=<version> -bindpath publish=<publish dir>
+      -bindpath installer=<installer dir> -ext <WixToolset.UI.wixext.dll> -o <output.msi>
+  Both distributions share one UpgradeCode and can upgrade each other.
 -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="屏迹 SnipTrace"
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="SnipTrace"
            Manufacturer="EricYeung"
            Version="$(var.Version)"
            UpgradeCode="6E1C7A4B-9D2F-4C58-9B3A-71D5E8C24F60"
            Scope="perMachine"
+           Codepage="65001"
            Compressed="yes"
            InstallerVersion="500">
 
-    <MajorUpgrade DowngradeErrorMessage="已安装更新版本的屏迹 SnipTrace，请先卸载当前版本。" />
+    <Property Id="WIXUI_LANGUAGE" Value="en-US" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of SnipTrace is already installed. Please uninstall it first." />
     <MediaTemplate EmbedCab="yes" />
+
+    <WixVariable Id="WixUILicenseRtf" Value="!(bindpath.installer)License.multilingual.rtf" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+    <UI>
+      <Dialog Id="LanguageDlg" Width="370" Height="270" Title="[ProductName]">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="20" Y="60" Width="330" Height="20" Transparent="yes" NoPrefix="yes"
+                 Text="{\WixUI_Font_Title}Select language" />
+        <Control Id="Description" Type="Text" X="20" Y="85" Width="330" Height="32"
+                 Text="Choose the language shown in the license agreement and used on first run." />
+        <Control Id="LanguageCombo" Type="ComboBox" X="20" Y="125" Width="330" Height="18" Property="WIXUI_LANGUAGE">
+          <ListBox Property="WIXUI_LANGUAGE">
+            <ListItem Value="en-US" Text="English" />
+            <ListItem Value="zh-CN" Text="简体中文" />
+            <ListItem Value="zh-TW" Text="繁體中文" />
+            <ListItem Value="ja-JP" Text="日本語" />
+            <ListItem Value="ko-KR" Text="한국어" />
+            <ListItem Value="fr-FR" Text="Français" />
+            <ListItem Value="es-ES" Text="Español" />
+            <ListItem Value="it-IT" Text="Italiano" />
+          </ListBox>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="WelcomeDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Text="!(loc.WixUINext)" Default="yes">
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Condition="1" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LanguageDlg" Condition="1" Order="0" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="LanguageDlg" Condition="1" Order="0" />
+    </UI>
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="SnipTrace" />
     </StandardDirectory>
 
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="LanguageSetting" Guid="*">
+        <RegistryValue Root="HKLM" Key="Software\SnipTrace" Name="Language" Type="string"
+                       Value="[WIXUI_LANGUAGE]" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ProgramMenuDir" Name="屏迹 SnipTrace">
+      <Directory Id="ProgramMenuDir" Name="SnipTrace">
         <Component Id="MenuShortcut" Guid="*">
           <Shortcut Id="MenuShortcut"
-                    Name="屏迹 SnipTrace"
-                    Description="截图、标注、钉图与录屏"
+                    Name="SnipTrace"
+                    Description="Screenshot, annotation, pinning and screen recording"
                     Target="[INSTALLFOLDER]SnipTrace.exe"
                     WorkingDirectory="INSTALLFOLDER" />
           <RemoveFolder Id="MenuDirRemove" On="uninstall" />
@@ -38,16 +87,17 @@
     <StandardDirectory Id="DesktopFolder">
       <Component Id="DesktopShortcut" Guid="*">
         <Shortcut Id="DesktopShortcut"
-                  Name="屏迹 SnipTrace"
-                  Description="截图、标注、钉图与录屏"
+                  Name="SnipTrace"
+                  Description="Screenshot, annotation, pinning and screen recording"
                   Target="[INSTALLFOLDER]SnipTrace.exe"
                   WorkingDirectory="INSTALLFOLDER" />
         <RegistryValue Root="HKCU" Key="Software\SnipTrace" Name="desktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </StandardDirectory>
 
-    <Feature Id="Main" Title="屏迹 SnipTrace" Level="1">
+    <Feature Id="Main" Title="SnipTrace" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="LanguageSetting" />
       <ComponentRef Id="MenuShortcut" />
       <ComponentRef Id="DesktopShortcut" />
     </Feature>

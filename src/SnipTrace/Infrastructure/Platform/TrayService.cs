@@ -30,24 +30,24 @@ public sealed class TrayService : IDisposable
     public TrayService()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add(CreateItem("区域截图", () => ScreenshotRequested?.Invoke()));
-        menu.Items.Add(CreateItem("全屏截图（当前显示器）", () => FullScreenRequested?.Invoke()));
-        menu.Items.Add(CreateItem("全屏截图（所有显示器）", () => AllScreensRequested?.Invoke()));
-        menu.Items.Add(CreateItem("GIF 录制", () => GifRequested?.Invoke()));
-        menu.Items.Add(CreateItem("屏幕录制", () => VideoRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("区域截图"), () => ScreenshotRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("全屏截图（当前显示器）"), () => FullScreenRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("全屏截图（所有显示器）"), () => AllScreensRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("GIF 录制"), () => GifRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("屏幕录制"), () => VideoRequested?.Invoke()));
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(CreateItem("主窗口", () => OpenRequested?.Invoke()));
-        menu.Items.Add(CreateItem("设置", () => SettingsRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("主窗口"), () => OpenRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("设置"), () => SettingsRequested?.Invoke()));
         menu.Items.Add(new ToolStripSeparator());
-        _statusItem = new ToolStripMenuItem("就绪") { Enabled = false };
+        _statusItem = new ToolStripMenuItem(L.T("就绪")) { Enabled = false };
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(CreateItem("退出", () => ExitRequested?.Invoke()));
+        menu.Items.Add(CreateItem(L.T("退出"), () => ExitRequested?.Invoke()));
 
         _notifyIcon = new NotifyIcon
         {
             Icon = ResolveIcon(),
-            Text = "屏迹 SnipTrace",
+            Text = "SnipTrace",
             Visible = true,
             ContextMenuStrip = menu
         };
@@ -91,8 +91,8 @@ public sealed class TrayService : IDisposable
     {
         _recording = recording;
         _notifyIcon.Icon = ResolveIcon();
-        _notifyIcon.Text = Truncate(recording ? text ?? "屏迹 SnipTrace · 正在录制" : "屏迹 SnipTrace");
-        if (_statusItem is not null) _statusItem.Text = recording ? "正在录制" : "就绪";
+        _notifyIcon.Text = Truncate(recording ? text ?? L.T("SnipTrace · 正在录制") : "SnipTrace");
+        if (_statusItem is not null) _statusItem.Text = recording ? L.T("正在录制") : L.T("就绪");
     }
 
     public void ShowMessage(string title, string text, bool warning = false)

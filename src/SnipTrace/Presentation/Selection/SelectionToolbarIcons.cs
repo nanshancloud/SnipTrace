@@ -177,7 +177,7 @@ internal static class SelectionToolbarIcons
 
         label = new TextBlock
         {
-            Text = "自由",
+            Text = L.T("自由"),
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center
         };

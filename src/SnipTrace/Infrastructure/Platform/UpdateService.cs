@@ -67,15 +67,15 @@ public static class UpdateService
                 return new UpdateCheckResult
                 {
                     Succeeded = false,
-                    Error = "仓库还没有形如 v1.0.0 的版本标签"
+                    Error = L.T("仓库还没有形如 v1.0.0 的版本标签")
                 };
             }
 
-            return new UpdateCheckResult { Succeeded = false, Error = "无法访问 GitHub，请检查网络" };
+            return new UpdateCheckResult { Succeeded = false, Error = L.T("无法访问 GitHub，请检查网络") };
         }
         catch (OperationCanceledException)
         {
-            return new UpdateCheckResult { Succeeded = false, Error = "请求超时" };
+            return new UpdateCheckResult { Succeeded = false, Error = L.T("请求超时") };
         }
         catch (Exception ex)
         {
@@ -106,7 +106,7 @@ public static class UpdateService
             using var document = JsonDocument.Parse(json);
             if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
-                return new UpdateCheckResult { Succeeded = false, Error = "响应格式异常" };
+                return new UpdateCheckResult { Succeeded = false, Error = L.T("响应格式异常") };
             }
 
             Version? newest = null;
@@ -127,12 +127,12 @@ public static class UpdateService
             }
 
             return newest is null
-                ? new UpdateCheckResult { Succeeded = false, Error = "没有可识别的版本标签" }
+                ? new UpdateCheckResult { Succeeded = false, Error = L.T("没有可识别的版本标签") }
                 : CreateResult(newest, url, current);
         }
         catch (JsonException ex)
         {
-            return new UpdateCheckResult { Succeeded = false, Error = "响应格式异常：" + ex.Message };
+            return new UpdateCheckResult { Succeeded = false, Error = L.T("响应格式异常：") + ex.Message };
         }
     }
 
@@ -144,7 +144,7 @@ public static class UpdateService
             using var document = JsonDocument.Parse(json);
             if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
-                return new UpdateCheckResult { Succeeded = false, Error = "响应格式异常" };
+                return new UpdateCheckResult { Succeeded = false, Error = L.T("响应格式异常") };
             }
 
             Version? newest = null;
@@ -156,12 +156,12 @@ public static class UpdateService
             }
 
             return newest is null
-                ? new UpdateCheckResult { Succeeded = false, Error = "没有可识别的版本标签" }
+                ? new UpdateCheckResult { Succeeded = false, Error = L.T("没有可识别的版本标签") }
                 : CreateResult(newest, ReleasesPageUrl, current);
         }
         catch (JsonException ex)
         {
-            return new UpdateCheckResult { Succeeded = false, Error = "响应格式异常：" + ex.Message };
+            return new UpdateCheckResult { Succeeded = false, Error = L.T("响应格式异常：") + ex.Message };
         }
     }
 
@@ -177,14 +177,14 @@ public static class UpdateService
             Version? latest = ParseTag(tag) ?? ParseTag(ReadString(root, "name"));
             if (latest is null)
             {
-                return new UpdateCheckResult { Succeeded = false, Error = "无法解析版本号：" + (tag ?? "空") };
+                return new UpdateCheckResult { Succeeded = false, Error = L.T("无法解析版本号：") + (tag ?? L.T("空")) };
             }
 
             return CreateResult(latest, ReadString(root, "html_url") ?? ReleasesPageUrl, current);
         }
         catch (JsonException ex)
         {
-            return new UpdateCheckResult { Succeeded = false, Error = "响应格式异常：" + ex.Message };
+            return new UpdateCheckResult { Succeeded = false, Error = L.T("响应格式异常：") + ex.Message };
         }
     }
 

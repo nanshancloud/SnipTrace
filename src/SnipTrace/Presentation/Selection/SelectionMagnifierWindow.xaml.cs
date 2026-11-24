@@ -33,7 +33,7 @@ public partial class SelectionMagnifierWindow : Window
 
     public void UpdateInfo(PixelRect selection, PixelPoint cursor, string ratioLabel, bool hasGap, Color color)
     {
-        SizeText.Text = selection.IsEmpty ? "拖动框选" : $"{selection.Width} × {selection.Height}";
+        SizeText.Text = selection.IsEmpty ? L.T("拖动框选") : $"{selection.Width} × {selection.Height}";
         RatioText.Text = $"比例 {ratioLabel}";
         OriginText.Text = selection.IsEmpty ? string.Empty : $"选区 {selection.Left}, {selection.Top}";
         CoordText.Text = $"光标 {cursor.X}, {cursor.Y}";

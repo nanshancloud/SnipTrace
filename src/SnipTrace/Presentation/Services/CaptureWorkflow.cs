@@ -32,7 +32,7 @@ public sealed class CaptureWorkflow
     {
         if (_busy || _services.Recording.IsRecording)
         {
-            _services.Toasts.Warn("正在处理其他捕获任务", "请先完成当前截图或录制。");
+            _services.Toasts.Warn(L.T("正在处理其他捕获任务"), L.T("请先完成当前截图或录制。"));
             return;
         }
 
@@ -45,7 +45,7 @@ public sealed class CaptureWorkflow
             using var snapshot = DesktopSnapshot.Capture(_services.Settings.IncludeCursorInCapture);
             if (snapshot.FailedMonitors > 0)
             {
-                _services.Toasts.Warn("部分显示器捕获失败", "失败区域已填充黑色，可尝试重新截图。");
+                _services.Toasts.Warn(L.T("部分显示器捕获失败"), L.T("失败区域已填充黑色，可尝试重新截图。"));
             }
 
             using var overlay = new SelectionOverlay(snapshot, _services.Settings.SelectionToolbar,
@@ -58,7 +58,7 @@ public sealed class CaptureWorkflow
         }
         catch (Exception ex)
         {
-            _services.Toasts.Warn("截图失败", ex.Message);
+            _services.Toasts.Warn(L.T("截图失败"), ex.Message);
         }
         finally
         {
@@ -71,7 +71,7 @@ public sealed class CaptureWorkflow
     {
         if (_busy || _services.Recording.IsRecording)
         {
-            _services.Toasts.Warn("正在处理其他捕获任务", "请先完成当前截图或录制。");
+            _services.Toasts.Warn(L.T("正在处理其他捕获任务"), L.T("请先完成当前截图或录制。"));
             return;
         }
 
@@ -95,7 +95,7 @@ public sealed class CaptureWorkflow
         }
         catch (Exception ex)
         {
-            _services.Toasts.Warn("全屏截图失败", ex.Message);
+            _services.Toasts.Warn(L.T("全屏截图失败"), ex.Message);
         }
         finally
         {
@@ -114,13 +114,13 @@ public sealed class CaptureWorkflow
             var area = PixelRect.Intersect(result.Area, monitor.Bounds);
             if (area.IsEmpty)
             {
-                _services.Toasts.Warn("录制区域无效", "屏幕录制仅支持单显示器内的选区。");
+                _services.Toasts.Warn(L.T("录制区域无效"), L.T("屏幕录制仅支持单显示器内的选区。"));
                 return;
             }
 
             if (area.Area != result.Area.Area)
             {
-                _services.Toasts.Info("录屏仅限单显示器", "选区已裁剪到当前显示器范围。");
+                _services.Toasts.Info(L.T("录屏仅限单显示器"), L.T("选区已裁剪到当前显示器范围。"));
             }
 
             await _services.Recording.StartAsync(kind, area, monitor);
@@ -169,11 +169,11 @@ public sealed class CaptureWorkflow
         try
         {
             string path = _services.SaveScreenshot(image, NewBaseName(), out _);
-            _services.Toasts.Info("已自动保存", path);
+            _services.Toasts.Info(L.T("已自动保存"), path);
         }
         catch (Exception ex)
         {
-            _services.Toasts.Warn("自动保存失败", ex.Message);
+            _services.Toasts.Warn(L.T("自动保存失败"), ex.Message);
         }
     }
 
@@ -185,8 +185,8 @@ public sealed class CaptureWorkflow
 
     private void CopyImage(BitmapSource image)
     {
-        if (ClipboardService.SetImage(image)) _services.Toasts.Info("已复制到剪贴板", $"{image.PixelWidth} × {image.PixelHeight}");
-        else _services.Toasts.Warn("复制失败", "剪贴板被其他程序占用，请稍后重试。");
+        if (ClipboardService.SetImage(image)) _services.Toasts.Info(L.T("已复制到剪贴板"), $"{image.PixelWidth} × {image.PixelHeight}");
+        else _services.Toasts.Warn(L.T("复制失败"), L.T("剪贴板被其他程序占用，请稍后重试。"));
     }
 
     private void SaveImage(BitmapSource image, SelectionOverlay overlay)
@@ -197,7 +197,7 @@ public sealed class CaptureWorkflow
             {
                 // 自动保存开关打开：与自动保存一致，直接存入截图目录，不打断流程。
                 string path = _services.SaveScreenshot(image, NewBaseName(), out _);
-                _services.Toasts.Info("已保存", path);
+                _services.Toasts.Info(L.T("已保存"), path);
                 return;
             }
 
@@ -206,10 +206,10 @@ public sealed class CaptureWorkflow
             overlay.BeginSaveDialog();
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "保存截图",
+                Title = L.T("保存截图"),
                 FileName = NewBaseName(),
                 DefaultExt = ".png",
-                Filter = "PNG 图片 (*.png)|*.png",
+                Filter = L.T("PNG 图片 (*.png)|*.png"),
                 InitialDirectory = _services.ScreenshotDirectory
             };
 
@@ -226,11 +226,11 @@ public sealed class CaptureWorkflow
             {
             }
 
-            _services.Toasts.Info("已保存", dialog.FileName);
+            _services.Toasts.Info(L.T("已保存"), dialog.FileName);
         }
         catch (Exception ex)
         {
-            _services.Toasts.Warn("保存失败", ex.Message);
+            _services.Toasts.Warn(L.T("保存失败"), ex.Message);
         }
     }
 

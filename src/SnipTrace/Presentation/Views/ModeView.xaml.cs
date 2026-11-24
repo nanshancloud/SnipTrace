@@ -32,10 +32,10 @@ public partial class ModeView : UserControl
         Mode = mode;
         bool gif = mode == RecordingMode.Gif;
 
-        TitleText.Text = gif ? "GIF 录制" : "屏幕录制";
+        TitleText.Text = gif ? L.T("GIF 录制") : L.T("屏幕录制");
         SubtitleText.Text = gif
-            ? "选区录制循环动图，中位切分量化与 LZW 流式编码，边编码边写盘。"
-            : "单显示器选区录制 H.264 MP4，暂停时间不计入成片，失败自动清理临时文件。";
+            ? L.T("选区录制循环动图，中位切分量化与 LZW 流式编码，边编码边写盘。")
+            : L.T("单显示器选区录制 H.264 MP4，暂停时间不计入成片，失败自动清理临时文件。");
         GifOnlyPanel.Visibility = gif ? Visibility.Visible : Visibility.Collapsed;
 
         _selectedFps = gif ? settings.Gif.Fps : settings.Video.Fps;
@@ -47,8 +47,8 @@ public partial class ModeView : UserControl
         CursorCheck.Visibility = gif ? Visibility.Collapsed : Visibility.Visible;
 
         HintText.Text = gif
-            ? "GIF 帧延迟以 10 ms 为单位，界面显示近似帧率。"
-            : "H.264 要求偶数宽高，奇数尺寸会从右侧或底部裁去 1 像素。";
+            ? L.T("GIF 帧延迟以 10 ms 为单位，界面显示近似帧率。")
+            : L.T("H.264 要求偶数宽高，奇数尺寸会从右侧或底部裁去 1 像素。");
 
         RulesText.Text = gif
             ? "· 连续相同帧自动合并并累计延迟，减小体积\n· 时长与帧数上限均可调整，默认 120 秒 / 2400 帧\n· 录制边框位于画面外侧，不会进入成片\n· 停止后完成封装并提供预览、另存为与打开文件夹"
@@ -113,7 +113,7 @@ public partial class ModeView : UserControl
         {
             var chip = new ToggleButton
             {
-                Content = edge == 0 ? "原始" : $"{edge} px",
+                Content = edge == 0 ? L.T("原始") : $"{edge} px",
                 Style = (Style)FindResource("ChipToggle"),
                 Margin = new Thickness(0, 0, 8, 0),
                 Tag = edge,

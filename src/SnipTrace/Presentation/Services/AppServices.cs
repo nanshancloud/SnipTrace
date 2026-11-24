@@ -25,6 +25,23 @@ public sealed class AppServices
         SettingsStore = new SettingsStore(Paths);
         Settings = SettingsStore.Load();
 
+        // 首次运行沿用安装器里选择的语言；之后以用户设置为准。
+        if (!File.Exists(Path.Combine(Paths.RootDirectory, "settings.json")))
+        {
+            try
+            {
+                if (Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\Software\SnipTrace", "Language", null) is string installed
+                    && LanguageModes.All.Contains(installed, StringComparer.Ordinal))
+                {
+                    Settings.Language = installed;
+                }
+            }
+            catch (Exception)
+            {
+                // 无注册表权限时保持默认语言。
+            }
+        }
+
         // 首选输出目录不可写时回退到应用数据目录，保证保存与录制始终可用。
         string screenshotDirectory = Settings.ScreenshotDirectory;
         if (!PathService.IsWritable(screenshotDirectory))
@@ -115,6 +132,7 @@ public sealed class AppServices
     public void NotifySettingsChanged()
     {
         ThemeManager.Apply(Settings.Theme);
+        LanguageManager.Apply(Settings.Language);
         Tray.ApplySettings(Settings.TrayIconMode);
         SaveSettings();
         SettingsChanged?.Invoke();

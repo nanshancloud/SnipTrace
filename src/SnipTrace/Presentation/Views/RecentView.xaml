@@ -1,10 +1,10 @@
-﻿<UserControl x:Class="SnipTrace.App.Presentation.Views.RecentView"
+<UserControl x:Class="SnipTrace.App.Presentation.Views.RecentView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MaxWidth="900" HorizontalAlignment="Left">
-            <TextBlock Text="最近" FontSize="26" FontWeight="SemiBold" />
-            <TextBlock Text="本机最近 24 条捕获记录，缩略图缓存在本地，点击可直接打开文件。"
+            <TextBlock Text="{DynamicResource 最近}" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="{DynamicResource 本机最近 24 条捕获记录，缩略图缓存在本地，点击可直接打开文件。}"
                        Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,18" TextWrapping="Wrap" />
 
             <ItemsControl x:Name="List">
@@ -28,16 +28,16 @@
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding TimeLabel}" Style="{StaticResource CaptionText}" VerticalAlignment="Center"
                                                Margin="0,0,12,0" />
-                                    <Button Content="打开" Style="{StaticResource GhostButton}" Click="Open_Click" />
-                                    <Button Content="定位" Style="{StaticResource GhostButton}" Click="Locate_Click" />
-                                    <Button Content="删除" Style="{StaticResource GhostButton}" Click="Delete_Click" />
+                                    <Button Content="{DynamicResource 打开}" Style="{StaticResource GhostButton}" Click="Open_Click" />
+                                    <Button Content="{DynamicResource 定位}" Style="{StaticResource GhostButton}" Click="Locate_Click" />
+                                    <Button Content="{DynamicResource 删除}" Style="{StaticResource GhostButton}" Click="Delete_Click" />
                                 </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBlock x:Name="EmptyText" Text="暂无记录。按 F1 截图，或用 Ctrl+Shift+G 录制 GIF。" Style="{StaticResource CaptionText}" />
+            <TextBlock x:Name="EmptyText" Text="{DynamicResource 暂无记录。按 F1 截图，或用 Ctrl+Shift+G 录制 GIF。}" Style="{StaticResource CaptionText}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

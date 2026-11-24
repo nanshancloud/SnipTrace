@@ -45,7 +45,7 @@ public partial class RecordingResultWindow : Window
         _path = path;
         _isVideo = kind != RecordingKind.Gif;
         _totalDuration = duration;
-        TitleText.Text = _isVideo ? "制作MP4" : "制作GIF";
+        TitleText.Text = _isVideo ? L.T("制作MP4") : L.T("制作GIF");
         ConvertButton.Visibility = _isVideo ? Visibility.Visible : Visibility.Collapsed;
 
         string sizeText = bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024.0:0.0} MB" : $"{bytes / 1024.0:0} KB";
@@ -242,7 +242,7 @@ public partial class RecordingResultWindow : Window
     {
         _loop = !_loop;
         LoopGlyph.Foreground = _loop ? LoopOnBrush : LoopOffBrush;
-        LoopButton.ToolTip = _loop ? "循环播放：开" : "循环播放：关";
+        LoopButton.ToolTip = _loop ? L.T("循环播放：开") : L.T("循环播放：关");
     }
 
     private void PlayerSlider_ValueChanged(object sender, System.Windows.RoutedPropertyChangedEventArgs<double> e)
@@ -318,7 +318,7 @@ public partial class RecordingResultWindow : Window
         }
         catch (Exception ex)
         {
-            AppServices.Current?.Toasts.Warn("无法打开文件", ex.Message);
+            AppServices.Current?.Toasts.Warn(L.T("无法打开文件"), ex.Message);
         }
     }
 
@@ -330,7 +330,7 @@ public partial class RecordingResultWindow : Window
         }
         catch (Exception ex)
         {
-            AppServices.Current?.Toasts.Warn("无法打开文件夹", ex.Message);
+            AppServices.Current?.Toasts.Warn(L.T("无法打开文件夹"), ex.Message);
         }
     }
 
@@ -345,19 +345,19 @@ public partial class RecordingResultWindow : Window
                 DefaultExt = extension,
                 InitialDirectory = Path.GetDirectoryName(_path),
                 Filter = extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
-                    ? "GIF 动图 (*.gif)|*.gif"
-                    : "MP4 视频 (*.mp4)|*.mp4"
+                    ? L.T("GIF 动图 (*.gif)|*.gif")
+                    : L.T("MP4 视频 (*.mp4)|*.mp4")
             };
 
             if (dialog.ShowDialog(this) != true) return;
             if (string.Equals(dialog.FileName, _path, StringComparison.OrdinalIgnoreCase)) return;
 
             File.Copy(_path, dialog.FileName, true);
-            AppServices.Current?.Toasts.Info("已另存为", Path.GetFileName(dialog.FileName));
+            AppServices.Current?.Toasts.Info(L.T("已另存为"), Path.GetFileName(dialog.FileName));
         }
         catch (Exception ex)
         {
-            AppServices.Current?.Toasts.Warn("另存为失败", ex.Message);
+            AppServices.Current?.Toasts.Warn(L.T("另存为失败"), ex.Message);
         }
     }
 
@@ -383,7 +383,7 @@ public partial class RecordingResultWindow : Window
             _isPlaying = false;
             SetPlayPauseGlyph("\uE768");
 
-            InfoText.Text = "正在转换为 GIF… 0%";
+            InfoText.Text = L.T("正在转换为 GIF… 0%");
             int lastProgress = 0;
             await Mp4ToGifConverter.ConvertAsync(
                 _path,
@@ -406,17 +406,17 @@ public partial class RecordingResultWindow : Window
             {
             }
 
-            InfoText.Text = "已转换为 GIF：" + Path.GetFileName(target);
-            services.Toasts.Info("已转换为 GIF", target);
+            InfoText.Text = L.T("已转换为 GIF：") + Path.GetFileName(target);
+            services.Toasts.Info(L.T("已转换为 GIF"), target);
         }
         catch (OperationCanceledException)
         {
-            InfoText.Text = "已取消转换";
+            InfoText.Text = L.T("已取消转换");
         }
         catch (Exception ex)
         {
-            InfoText.Text = "转换失败：" + ex.Message;
-            services.Toasts.Warn("MP4 转 GIF 失败", ex.Message);
+            InfoText.Text = L.T("转换失败：") + ex.Message;
+            services.Toasts.Warn(L.T("MP4 转 GIF 失败"), ex.Message);
         }
         finally
         {
@@ -444,11 +444,11 @@ public partial class RecordingResultWindow : Window
         {
             var files = new System.Collections.Specialized.StringCollection { _path };
             Clipboard.SetFileDropList(files);
-            AppServices.Current?.Toasts.Info("已复制文件", Path.GetFileName(_path));
+            AppServices.Current?.Toasts.Info(L.T("已复制文件"), Path.GetFileName(_path));
         }
         catch (Exception ex)
         {
-            AppServices.Current?.Toasts.Warn("无法复制文件", ex.Message);
+            AppServices.Current?.Toasts.Warn(L.T("无法复制文件"), ex.Message);
         }
     }
 

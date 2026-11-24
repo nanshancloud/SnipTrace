@@ -1,4 +1,4 @@
-﻿<Window x:Class="SnipTrace.App.Presentation.Views.PinWindow"
+<Window x:Class="SnipTrace.App.Presentation.Views.PinWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:editing="clr-namespace:SnipTrace.App.Presentation.Editing"
@@ -68,46 +68,46 @@
                     BorderThickness="1" CornerRadius="9" Padding="3" Visibility="Collapsed">
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="CopyButton" Style="{StaticResource ToolIconButton}" Click="Copy_Click"
-                            ToolTip="复制到剪贴板 (Ctrl+C)">
+                            ToolTip="{DynamicResource 复制到剪贴板 (Ctrl+C)}">
                         <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="13" />
                     </Button>
                     <Button x:Name="SaveButton" Style="{StaticResource ToolIconButton}" Click="Save_Click"
-                            ToolTip="另存为… (Ctrl+S)，默认定位到截图目录">
+                            ToolTip="{DynamicResource 另存为… (Ctrl+S)，默认定位到截图目录}">
                         <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="13" />
                     </Button>
                     <Button x:Name="SaveToDirButton" Style="{StaticResource ToolIconButton}" Click="SaveToDirectory_Click"
-                            ToolTip="存到截图目录（不弹对话框）">
+                            ToolTip="{DynamicResource 存到截图目录（不弹对话框）}">
                         <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="13" />
                     </Button>
                     <Button x:Name="RefineButton" Style="{StaticResource ToolIconButton}" Click="Refine_Click"
-                            ToolTip="精修：在标注编辑器中继续编辑">
+                            ToolTip="{DynamicResource 精修：在标注编辑器中继续编辑}">
                         <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="13" />
                     </Button>
                     <Border Width="1" Height="16" Margin="4,0" Background="{DynamicResource BorderBrush}" />
                     <Button x:Name="ZoomButton" Style="{StaticResource ToolIconButton}" Click="ZoomReset_Click"
-                            ToolTip="当前缩放，点击恢复原始大小（滚轮缩放）">
+                            ToolTip="{DynamicResource 当前缩放，点击恢复原始大小（滚轮缩放）}">
                         <TextBlock x:Name="ZoomText" Text="100%" FontSize="11" FontFamily="Segoe UI" />
                     </Button>
                     <Button x:Name="MoreButton" Style="{StaticResource ToolIconButton}" Click="More_Click"
-                            ToolTip="更多操作（透明度 / 关闭）">
+                            ToolTip="{DynamicResource 更多操作（透明度 / 关闭）}">
                         <TextBlock Text="&#xE712;" FontFamily="Segoe MDL2 Assets" FontSize="13" />
                         <Button.ContextMenu>
                             <ContextMenu Style="{StaticResource PinMenu}">
-                                <MenuItem Header="复制 (Ctrl+C)" Style="{StaticResource PinMenuItem}" Click="Copy_Click" />
-                                <MenuItem Header="另存为… (Ctrl+S)" Style="{StaticResource PinMenuItem}" Click="Save_Click" />
-                                <MenuItem Header="存到截图目录" Style="{StaticResource PinMenuItem}" Click="SaveToDirectory_Click" />
+                                <MenuItem Header="{DynamicResource 复制 (Ctrl+C)}" Style="{StaticResource PinMenuItem}" Click="Copy_Click" />
+                                <MenuItem Header="{DynamicResource 另存为… (Ctrl+S)}" Style="{StaticResource PinMenuItem}" Click="Save_Click" />
+                                <MenuItem Header="{DynamicResource 存到截图目录}" Style="{StaticResource PinMenuItem}" Click="SaveToDirectory_Click" />
                                 <Separator Style="{StaticResource PinMenuSeparator}" />
-                                <MenuItem x:Name="OpacityMenu" Header="半透明显示 (Alt+滚轮)" Style="{StaticResource PinMenuItem}"
+                                <MenuItem x:Name="OpacityMenu" Header="{DynamicResource 半透明显示 (Alt+滚轮)}" Style="{StaticResource PinMenuItem}"
                                           Click="ToggleOpacity_Click" />
-                                <MenuItem Header="恢复原始大小" Style="{StaticResource PinMenuItem}" Click="ZoomReset_Click" />
+                                <MenuItem Header="{DynamicResource 恢复原始大小}" Style="{StaticResource PinMenuItem}" Click="ZoomReset_Click" />
                                 <Separator Style="{StaticResource PinMenuSeparator}" />
-                                <MenuItem Header="关闭钉图 (Esc)" Style="{StaticResource PinMenuItem}" Click="Close_Click" />
+                                <MenuItem Header="{DynamicResource 关闭钉图 (Esc)}" Style="{StaticResource PinMenuItem}" Click="Close_Click" />
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
                     <Border Width="1" Height="16" Margin="4,0" Background="{DynamicResource BorderBrush}" />
                     <Button x:Name="CloseButton" Style="{StaticResource ToolIconButton}" Click="Close_Click"
-                            ToolTip="关闭钉图 (Esc)">
+                            ToolTip="{DynamicResource 关闭钉图 (Esc)}">
                         <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="13" />
                     </Button>
                 </StackPanel>

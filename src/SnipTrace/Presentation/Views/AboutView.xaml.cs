@@ -18,7 +18,7 @@ public partial class AboutView : UserControl
     public AboutView()
     {
         InitializeComponent();
-        VersionText.Text = "版本 " + UpdateService.CurrentVersionText;
+        VersionText.Text = L.T("版本") + " " + UpdateService.CurrentVersionText;
     }
 
     /// <summary>手动检查更新：启动时的自动检查可在设置里关闭，这里始终可用。</summary>
@@ -29,14 +29,14 @@ public partial class AboutView : UserControl
         _checking = true;
         CheckUpdateButton.IsEnabled = false;
         DownloadButton.Visibility = Visibility.Collapsed;
-        UpdateStatusText.Text = "正在检查…";
+        UpdateStatusText.Text = L.T("正在检查…");
 
         try
         {
             UpdateCheckResult result = await UpdateService.CheckAsync();
             if (!result.Succeeded)
             {
-                UpdateStatusText.Text = "检查失败：" + (result.Error ?? "网络不可用");
+                UpdateStatusText.Text = L.T("检查失败：") + (result.Error ?? L.T("网络不可用"));
                 return;
             }
 
@@ -53,7 +53,7 @@ public partial class AboutView : UserControl
         }
         catch (Exception ex)
         {
-            UpdateStatusText.Text = "检查失败：" + ex.Message;
+            UpdateStatusText.Text = L.T("检查失败：") + ex.Message;
         }
         finally
         {
@@ -74,7 +74,7 @@ public partial class AboutView : UserControl
         }
         catch (Exception ex)
         {
-            AppServices.Current?.Toasts.Warn("无法打开浏览器", ex.Message);
+            AppServices.Current?.Toasts.Warn(L.T("无法打开浏览器"), ex.Message);
         }
     }
 }

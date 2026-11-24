@@ -29,22 +29,22 @@ public static class Mp4ToGifConverter
         var failed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         player.MediaOpened += (_, _) => opened.TrySetResult(true);
-        player.MediaFailed += (_, e) => failed.TrySetResult(e.ErrorException?.Message ?? "未知错误");
+        player.MediaFailed += (_, e) => failed.TrySetResult(e.ErrorException?.Message ?? L.T("未知错误"));
         player.Open(new Uri(mp4Path));
 
         var winner = await Task.WhenAny(opened.Task, failed.Task, Task.Delay(15000, cancellation));
-        if (winner == failed.Task) throw new InvalidOperationException("无法读取 MP4：" + await failed.Task);
-        if (winner != opened.Task) throw new InvalidOperationException("读取 MP4 超时。");
+        if (winner == failed.Task) throw new InvalidOperationException(L.T("无法读取 MP4：") + await failed.Task);
+        if (winner != opened.Task) throw new InvalidOperationException(L.T("读取 MP4 超时。"));
         if (!player.NaturalDuration.HasTimeSpan || player.NaturalDuration.TimeSpan <= TimeSpan.Zero)
         {
-            throw new InvalidOperationException("无法确定 MP4 时长。");
+            throw new InvalidOperationException(L.T("无法确定 MP4 时长。"));
         }
 
         try
         {
             int sourceWidth = player.NaturalVideoWidth;
             int sourceHeight = player.NaturalVideoHeight;
-            if (sourceWidth <= 0 || sourceHeight <= 0) throw new InvalidOperationException("无法读取视频尺寸。");
+            if (sourceWidth <= 0 || sourceHeight <= 0) throw new InvalidOperationException(L.T("无法读取视频尺寸。"));
 
             // H.264 宽高可能为奇数，GIF 不受限制但缩放保持偶数更友好；这里仅按最大边长等比缩放。
             int targetWidth = sourceWidth;

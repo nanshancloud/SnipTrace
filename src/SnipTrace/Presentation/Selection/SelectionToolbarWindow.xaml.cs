@@ -147,12 +147,12 @@ public partial class SelectionToolbarWindow : Window
 
             case SelectionToolbarItems.Pen:
                 AddAnnotateToggle(OverlayAnnotateTool.Pen, SelectionToolbarIcons.For(id),
-                    "画笔标注：在选区内拖动手绘；再点一次退出标注模式");
+                    L.T("画笔标注：在选区内拖动手绘；再点一次退出标注模式"));
                 break;
 
             case SelectionToolbarItems.Text:
                 AddAnnotateToggle(OverlayAnnotateTool.Text, SelectionToolbarIcons.For(id),
-                    "文字标注：在选区内点击后输入，Enter 确认、Esc 取消；滚轮改字号");
+                    L.T("文字标注：在选区内点击后输入，Enter 确认、Esc 取消；滚轮改字号"));
                 break;
 
             case SelectionToolbarItems.Number:
@@ -161,7 +161,7 @@ public partial class SelectionToolbarWindow : Window
 
             case SelectionToolbarItems.Mosaic:
                 AddAnnotateToggle(OverlayAnnotateTool.Mosaic, SelectionToolbarIcons.For(id),
-                    "马赛克笔刷：在选区内按住拖动，沿轨迹打码；滚轮改块大小（8–48 px）");
+                    L.T("马赛克笔刷：在选区内按住拖动，沿轨迹打码；滚轮改块大小（8–48 px）"));
                 break;
 
             case SelectionToolbarItems.Color:
@@ -169,24 +169,24 @@ public partial class SelectionToolbarWindow : Window
                 break;
 
             case SelectionToolbarItems.Copy:
-                AddAction("\uE8C8", "复制到剪贴板（Ctrl+C）：连同标注直接复制，不进入编辑器",
-                    SelectionAction.Copy, label: "复制");
+                AddAction("\uE8C8", L.T("复制到剪贴板（Ctrl+C）：连同标注直接复制，不进入编辑器"),
+                    SelectionAction.Copy, label: L.T("复制"));
                 break;
 
             case SelectionToolbarItems.Save:
-                AddAction("\uE74E", "保存为 PNG（Ctrl+S）", SelectionAction.Save);
+                AddAction("\uE74E", L.T("保存为 PNG（Ctrl+S）"), SelectionAction.Save);
                 break;
 
             case SelectionToolbarItems.Pin:
-                AddAction("\uE840", "钉图置顶，截图贴在屏幕上", SelectionAction.Pin);
+                AddAction("\uE840", L.T("钉图置顶，截图贴在屏幕上"), SelectionAction.Pin);
                 break;
 
             case SelectionToolbarItems.Gif:
-                AddAction("\uE91B", "录制 GIF 动图（Ctrl+Shift+G）", SelectionAction.Gif);
+                AddAction("\uE91B", L.T("录制 GIF 动图（Ctrl+Shift+G）"), SelectionAction.Gif);
                 break;
 
             case SelectionToolbarItems.Video:
-                AddAction("\uE714", "录制 MP4 视频（Ctrl+Shift+R）", SelectionAction.Video);
+                AddAction("\uE714", L.T("录制 MP4 视频（Ctrl+Shift+R）"), SelectionAction.Video);
                 break;
 
             case SelectionToolbarItems.Undo:
@@ -198,12 +198,12 @@ public partial class SelectionToolbarWindow : Window
                 break;
 
             case SelectionToolbarItems.Cancel:
-                AddAction("\uE711", "取消本次截图（Esc / 右键）", SelectionAction.Cancel);
+                AddAction("\uE711", L.T("取消本次截图（Esc / 右键）"), SelectionAction.Cancel);
                 break;
 
             case SelectionToolbarItems.Refine:
-                AddAction("\uE70F", "精标：完成截图并进入标注编辑器继续调整（Enter）",
-                    SelectionAction.Edit, primary: true, label: "精标");
+                AddAction("\uE70F", L.T("精标：完成截图并进入标注编辑器继续调整（Enter）"),
+                    SelectionAction.Edit, primary: true, label: L.T("精标"));
                 break;
         }
     }
@@ -237,7 +237,7 @@ public partial class SelectionToolbarWindow : Window
                 _badgePopup.HidePopup();
             }
         };
-        AttachHint(button, "序号标记：点击选区放置自动递增的序号；弹出层可选形状（圆/三角/方/五边/六边/心形/圆角）与 填充/边框");
+        AttachHint(button, L.T("序号标记：点击选区放置自动递增的序号；弹出层可选形状（圆/三角/方/五边/六边/心形/圆角）与 填充/边框"));
         _annotateButtons.Add(button);
         ButtonRow.Children.Add(button);
     }
@@ -258,8 +258,8 @@ public partial class SelectionToolbarWindow : Window
             else _overlay?.RedoAnnotations();
         };
         AttachHint(button, undo
-            ? "回退：撤销上一步标注（Ctrl+Z）"
-            : "前进：恢复刚撤销的标注（Ctrl+Shift+Z / Ctrl+Y）");
+            ? L.T("回退：撤销上一步标注（Ctrl+Z）")
+            : L.T("前进：恢复刚撤销的标注（Ctrl+Shift+Z / Ctrl+Y）"));
 
         if (undo) _undoButton = button;
         else _redoButton = button;
@@ -316,8 +316,8 @@ public partial class SelectionToolbarWindow : Window
             _variantPopup.ShowAbove(GetButtonBounds(button), id, VariantOf(id));
         };
         AttachHint(button, id == SelectionToolbarItems.Shape
-            ? "图形标注：在选区内拖出矩形 / 椭圆 / 直线（弹出层切换，记住上次选择）；滚轮改线宽"
-            : "箭头标注：在选区内拖动绘制箭头 / 直线（弹出层切换，记住上次选择）；滚轮改线宽");
+            ? L.T("图形标注：在选区内拖出矩形 / 椭圆 / 直线（弹出层切换，记住上次选择）；滚轮改线宽")
+            : L.T("箭头标注：在选区内拖动绘制箭头 / 直线（弹出层切换，记住上次选择）；滚轮改线宽"));
         _variantButtons[id] = button;
         _annotateButtons.Add(button);
         ButtonRow.Children.Add(button);
@@ -403,7 +403,7 @@ public partial class SelectionToolbarWindow : Window
             _overlay?.CycleAnnotateColor();
             e.Handled = true;
         };
-        AttachHint(button, "标注 / 文本颜色：点击打开取色对话框任选颜色；滚轮切换预设色（珊瑚 / 黄 / 绿 / 蓝 / 白 / 深灰）");
+        AttachHint(button, L.T("标注 / 文本颜色：点击打开取色对话框任选颜色；滚轮切换预设色（珊瑚 / 黄 / 绿 / 蓝 / 白 / 深灰）"));
         ButtonRow.Children.Add(button);
     }
 
@@ -438,7 +438,7 @@ public partial class SelectionToolbarWindow : Window
             Focusable = false
         };
         _ratioButton.Click += (_, _) => ToggleRatioPopup();
-        AttachHint(_ratioButton, "锁定选区比例：自由 / 原始 / 16:9 / 16:10 / 4:3 / 3:2 / 1:1 / 9:16");
+        AttachHint(_ratioButton, L.T("锁定选区比例：自由 / 原始 / 16:9 / 16:10 / 4:3 / 3:2 / 1:1 / 9:16"));
         ButtonRow.Children.Add(_ratioButton);
     }
 

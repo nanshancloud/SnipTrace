@@ -14,7 +14,7 @@ public readonly record struct RecordSetupChoice(RecordingKind Kind, int BitRateM
 public partial class RecordSetupBar : Window
 {
     private readonly TaskCompletionSource<RecordSetupChoice?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private string _quality = "标准";
+    private string _quality = L.T("标准");
     private int _bitRateMbps;
 
     public RecordSetupBar(RecordingKind kind)
@@ -63,7 +63,7 @@ public partial class RecordSetupBar : Window
 
         bool gif = GifRadio.IsChecked == true;
         QualityButton.IsEnabled = !gif;
-        QualityButton.Content = gif ? "GIF 帧" : $"{_quality} ▾";
+        QualityButton.Content = gif ? L.T("GIF 帧") : $"{_quality} ▾";
     }
 
     private void Quality_Click(object sender, RoutedEventArgs e)

@@ -27,6 +27,18 @@ if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
     throw '未找到 WiX，请先执行：dotnet tool install --global wix --version 5.*'
 }
 
+# 安装向导（用户协议 + 安装目录选择）依赖 WixUI 扩展，版本与 WiX 主程序保持一致
+$wixVersion = (& wix --version).Split('+')[0].Trim()
+if (-not (& wix extension list -g | Select-String 'WixToolset\.UI\.wixext')) {
+    Write-Host "安装 WiX UI 扩展 $wixVersion …"
+    & wix extension add "WixToolset.UI.wixext/$wixVersion" -g
+    if ($LASTEXITCODE -ne 0) { throw "安装 WiX UI 扩展失败：WixToolset.UI.wixext/$wixVersion" }
+}
+$uiExtDll = Get-ChildItem (Join-Path $env:USERPROFILE '.wix\extensions\WixToolset.UI.wixext') `
+    -Recurse -Filter 'WixToolset.UI.wixext.dll' -ErrorAction SilentlyContinue |
+    Select-Object -First 1 -ExpandProperty FullName
+if (-not $uiExtDll) { throw '未找到 WixToolset.UI.wixext 扩展程序集' }
+
 Write-Host "版本 $version ｜ 运行时 $Runtime ｜ 架构 $Arch"
 
 $variants = @(
@@ -62,7 +74,9 @@ foreach ($variant in $variants) {
     # 安装包：WiX 直接把发布目录收集进 Program Files\SnipTrace
     $msiPath = Join-Path $OutputDir "$baseName-setup.msi"
     if (Test-Path $msiPath) { Remove-Item $msiPath -Force }
-    & wix build $wxsPath -arch $Arch -d "Version=$version" -bindpath "publish=$publishDir" -o $msiPath
+    & wix build $wxsPath -arch $Arch -d "Version=$version" `
+        -bindpath "publish=$publishDir" -bindpath "installer=$root\installer" `
+        -ext $uiExtDll -o $msiPath
     if ($LASTEXITCODE -ne 0) { throw "生成安装包失败：$($variant.Key)" }
 
     # WiX 会顺带产出调试库，发布目录里不需要

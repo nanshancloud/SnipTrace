@@ -87,6 +87,7 @@ public partial class SettingsView : UserControl
 
             if (settings.Theme == ThemeModes.Light) ThemeLightRadio.IsChecked = true;
             else ThemeDarkRadio.IsChecked = true;
+            LanguageCombo.SelectedValue = settings.Language;
 
             if (settings.TrayIconMode == TrayIconModes.Color) TrayColorRadio.IsChecked = true;
             else if (settings.TrayIconMode == TrayIconModes.Light) TrayLightRadio.IsChecked = true;
@@ -141,7 +142,7 @@ public partial class SettingsView : UserControl
                 Style = (Style)FindResource("ToolIconButton"),
                 Tag = item,
                 Opacity = item.Visible ? 1.0 : 0.35,
-                ToolTip = $"{name}（{(item.Visible ? "已显示" : "已隐藏")}）\n点击切换显示 / 隐藏 · 按住拖动调整顺序"
+                ToolTip = $"{name}（{(item.Visible ? L.T("已显示") : L.T("已隐藏"))}）\n点击切换显示 / 隐藏 · 按住拖动调整顺序"
             };
 
             if (SelectionToolbarIcons.IsAutoWidth(item.Id))
@@ -191,7 +192,7 @@ public partial class SettingsView : UserControl
 
         SettingsSaved?.Invoke();
         BuildToolbarPreview();
-        StatusText.Text = "选区工具条已更新";
+        StatusText.Text = L.T("选区工具条已更新");
     }
 
     private void ResetToolbar_Click(object sender, RoutedEventArgs e)
@@ -199,7 +200,7 @@ public partial class SettingsView : UserControl
         _settings.SelectionToolbar = SelectionToolbarItems.CreateDefault();
         SettingsSaved?.Invoke();
         BuildToolbarPreview();
-        StatusText.Text = "选区工具条已恢复默认";
+        StatusText.Text = L.T("选区工具条已恢复默认");
     }
 
     /// <summary>按下预览条上的按钮：记下起点，后续移动/抬手都交给预览条自己处理。</summary>
@@ -390,6 +391,7 @@ public partial class SettingsView : UserControl
         HotkeyUnifiedRadio.Checked += OnToggle;
         ThemeDarkRadio.Checked += OnToggle;
         ThemeLightRadio.Checked += OnToggle;
+        LanguageCombo.SelectionChanged += (_, _) => { if (!_loading) Queue(); };
         TrayAutoRadio.Checked += OnToggle;
         TrayColorRadio.Checked += OnToggle;
         TrayLightRadio.Checked += OnToggle;
@@ -415,11 +417,11 @@ public partial class SettingsView : UserControl
 
         var hotkeys = new (string Name, string Value)[]
         {
-            ("区域截图", CaptureHotkeyInput.Value),
-            ("GIF 录制", GifHotkeyInput.Value),
-            ("屏幕录制", VideoHotkeyInput.Value),
-            ("全屏截图", FullScreenHotkeyInput.Value),
-            ("所有显示器截图", AllScreensHotkeyInput.Value)
+            (L.T("区域截图"), CaptureHotkeyInput.Value),
+            (L.T("GIF 录制"), GifHotkeyInput.Value),
+            (L.T("屏幕录制"), VideoHotkeyInput.Value),
+            (L.T("全屏截图"), FullScreenHotkeyInput.Value),
+            (L.T("所有显示器截图"), AllScreensHotkeyInput.Value)
         };
 
         foreach (var (name, value) in hotkeys)
@@ -446,6 +448,7 @@ public partial class SettingsView : UserControl
             CheckUpdatesOnStartup = CheckUpdateCheck.IsChecked == true,
             HotkeyMode = HotkeyUnifiedRadio.IsChecked == true ? HotkeyModes.Unified : HotkeyModes.Individual,
             Theme = ThemeLightRadio.IsChecked == true ? ThemeModes.Light : ThemeModes.Dark,
+            Language = LanguageCombo.SelectedValue as string ?? LanguageModes.English,
             TrayIconMode = TrayColorRadio.IsChecked == true
                 ? TrayIconModes.Color
                 : TrayLightRadio.IsChecked == true ? TrayIconModes.Light : TrayIconModes.Auto,
@@ -474,7 +477,7 @@ public partial class SettingsView : UserControl
         string? conflict = updated.FindHotkeyConflict();
         if (conflict is not null)
         {
-            StatusText.Text = "快捷键冲突：" + conflict;
+            StatusText.Text = L.T("快捷键冲突：") + conflict;
             return;
         }
 
@@ -489,7 +492,7 @@ public partial class SettingsView : UserControl
         }
 
         SettingsSaved?.Invoke();
-        StatusText.Text = "已生效";
+        StatusText.Text = L.T("已生效");
     }
 
     private void RefreshHighlightSwatch()
@@ -528,7 +531,7 @@ public partial class SettingsView : UserControl
         AllScreensHotkeyInput.Value = AppSettings.DefaultAllScreensHotkey;
 
         Apply();
-        StatusText.Text = "快捷键已恢复默认";
+        StatusText.Text = L.T("快捷键已恢复默认");
     }
 
     /// <summary>打开系统字体对话框挑文本标注字体。</summary>
@@ -552,7 +555,7 @@ public partial class SettingsView : UserControl
         }
         catch (Exception ex)
         {
-            StatusText.Text = "打开字体对话框失败：" + ex.Message;
+            StatusText.Text = L.T("打开字体对话框失败：") + ex.Message;
         }
     }
 
@@ -563,7 +566,7 @@ public partial class SettingsView : UserControl
 
         HighlightColorBox.Text = $"#{(picked & 0xFFFFFF):X6}";
         RefreshHighlightSwatch();
-        StatusText.Text = "高亮颜色已更新";
+        StatusText.Text = L.T("高亮颜色已更新");
     }
 
     private static uint ParseArgb(string? text)
@@ -601,7 +604,7 @@ public partial class SettingsView : UserControl
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "选择输出目录",
+            Title = L.T("选择输出目录"),
             InitialDirectory = box.Text
         };
 
@@ -619,7 +622,7 @@ public partial class SettingsView : UserControl
         StartupService.Apply(_settings.RunAtStartup);
         SettingsSaved?.Invoke();
         LoadFrom(_settings);
-        StatusText.Text = "已恢复默认值";
+        StatusText.Text = L.T("已恢复默认值");
     }
 
     private static void CopySettings(AppSettings source, AppSettings target)
@@ -636,6 +639,7 @@ public partial class SettingsView : UserControl
         target.SuppressTrayHint = source.SuppressTrayHint;
         target.HotkeyMode = source.HotkeyMode;
         target.Theme = source.Theme;
+        target.Language = source.Language;
         target.TextFontFamily = source.TextFontFamily;
         target.Highlight = source.Highlight;
         target.CaptureHotkey = source.CaptureHotkey;

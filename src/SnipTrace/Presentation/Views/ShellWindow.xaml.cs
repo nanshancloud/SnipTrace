@@ -19,12 +19,12 @@ public partial class ShellWindow : Window
 {
     private static readonly (string Key, string Label, string Glyph)[] NavDefinitions =
     {
-        ("home", "截图", "▣"),
+        ("home", L.T("截图"), "▣"),
         ("gif", "GIF", "◉"),
-        ("video", "录屏", "▶"),
-        ("recent", "最近", "☰"),
-        ("settings", "设置", "⚙"),
-        ("about", "关于", "◎")
+        ("video", L.T("录屏"), "▶"),
+        ("recent", L.T("最近"), "☰"),
+        ("settings", L.T("设置"), "⚙"),
+        ("about", L.T("关于"), "◎")
     };
 
     private readonly List<(RadioButton Button, TextBlock Label)> _navButtons = new();
@@ -110,15 +110,15 @@ public partial class ShellWindow : Window
         ShortcutHintText.Text = settings.HotkeyMode == HotkeyModes.Unified
             ? $"{settings.CaptureHotkey} 唤起选区 · 选后在工具条选择 GIF / 录屏 / 完成"
             : $"{settings.CaptureHotkey} 截图 · {settings.GifHotkey} GIF · {settings.VideoHotkey} 录屏";
-        OutputDirectoryText.Text = "输出目录：" + settings.ScreenshotDirectory;
-        SetTrayState("托盘常驻");
+        OutputDirectoryText.Text = L.T("输出目录：") + settings.ScreenshotDirectory;
+        SetTrayState(L.T("托盘常驻"));
     }
 
     /// <summary>标题栏状态与底部状态栏的托盘状态保持同步。</summary>
     public void SetTrayState(string text)
     {
         TrayStateText.Text = text;
-        TrayHintText.Text = "托盘：" + text;
+        TrayHintText.Text = L.T("托盘：") + text;
     }
 
     private void BuildNavigation()
@@ -235,7 +235,7 @@ public partial class ShellWindow : Window
             }
             else
             {
-                Services.Toasts.Warn("参数不合法", error ?? "请检查录制参数。");
+                Services.Toasts.Warn(L.T("参数不合法"), error ?? L.T("请检查录制参数。"));
             }
         };
         return page;
@@ -286,7 +286,7 @@ public partial class ShellWindow : Window
         {
             if (!File.Exists(path))
             {
-                Services.Toasts.Warn("文件不存在", path);
+                Services.Toasts.Warn(L.T("文件不存在"), path);
                 Services.Recent.Prune();
                 RefreshRecent();
                 return;
@@ -296,7 +296,7 @@ public partial class ShellWindow : Window
         }
         catch (Exception ex)
         {
-            Services.Toasts.Warn("无法打开文件", ex.Message);
+            Services.Toasts.Warn(L.T("无法打开文件"), ex.Message);
         }
     }
 
@@ -309,7 +309,7 @@ public partial class ShellWindow : Window
         }
         catch (Exception ex)
         {
-            Services.Toasts.Warn("无法定位文件", ex.Message);
+            Services.Toasts.Warn(L.T("无法定位文件"), ex.Message);
         }
     }
 
@@ -478,7 +478,7 @@ public partial class ShellWindow : Window
             // 提示可以一键永久关闭（也可在设置里重新打开）。
             if (!Services.Settings.SuppressTrayHint)
             {
-                Services.Toasts.Info("已最小化到托盘", "双击托盘图标可重新打开主窗口。", "不再提示", () =>
+                Services.Toasts.Info(L.T("已最小化到托盘"), L.T("双击托盘图标可重新打开主窗口。"), L.T("不再提示"), () =>
                 {
                     Services.Settings.SuppressTrayHint = true;
                     Services.SaveSettings();

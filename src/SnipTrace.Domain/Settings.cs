@@ -252,6 +252,28 @@ public static class ThemeModes
         : Dark;
 }
 
+/// <summary>界面语言：简繁中文、英文、日语、韩语、法语、西班牙语、意大利语。</summary>
+public static class LanguageModes
+{
+    public const string English = "en-US";
+    public const string SimplifiedChinese = "zh-CN";
+    public const string TraditionalChinese = "zh-TW";
+    public const string Japanese = "ja-JP";
+    public const string Korean = "ko-KR";
+    public const string French = "fr-FR";
+    public const string Spanish = "es-ES";
+    public const string Italian = "it-IT";
+
+    public static readonly string[] All =
+    {
+        English, SimplifiedChinese, TraditionalChinese, Japanese,
+        Korean, French, Spanish, Italian
+    };
+
+    public static string Normalize(string? value) =>
+        value is not null && Array.IndexOf(All, value) >= 0 ? value : English;
+}
+
 /// <summary>托盘图标配色：自动跟随任务栏明暗，或固定品牌彩色 / 浅色。</summary>
 public static class TrayIconModes
 {
@@ -462,6 +484,9 @@ public sealed class AppSettings
     /// <summary>ThemeModes.Dark / Light；新装默认浅色（白色外观）。</summary>
     public string Theme { get; set; } = ThemeModes.Light;
 
+    /// <summary>LanguageModes 中的区域代码；新装默认英文。</summary>
+    public string Language { get; set; } = LanguageModes.English;
+
     /// <summary>文本标注（文本工具）使用的字体，空值回退默认。</summary>
     public string TextFontFamily { get; set; } = DefaultTextFontFamily;
 
@@ -515,6 +540,7 @@ public sealed class AppSettings
         Highlight ??= new HighlightOptions();
         Highlight.Normalize();
         Theme = ThemeModes.Normalize(Theme);
+        Language = LanguageModes.Normalize(Language);
         HotkeyMode = HotkeyModes.Normalize(HotkeyMode);
         TrayIconMode = TrayIconModes.Normalize(TrayIconMode);
         TextFontFamily = string.IsNullOrWhiteSpace(TextFontFamily) ? DefaultTextFontFamily : TextFontFamily.Trim();

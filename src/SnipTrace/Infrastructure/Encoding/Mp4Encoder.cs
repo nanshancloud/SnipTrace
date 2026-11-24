@@ -103,7 +103,7 @@ public sealed class Mp4Encoder : IDisposable
                 }
 
                 _available = File.Exists(temp);
-                _unavailableReason = _available.Value ? null : "无法生成 MP4 文件。";
+                _unavailableReason = _available.Value ? null : L.T("无法生成 MP4 文件。");
             }
             catch (Exception ex)
             {
@@ -338,8 +338,8 @@ public sealed class Mp4Encoder : IDisposable
 
     private static string DescribeHResult(int hr)
     {
-        if (hr == unchecked((int)0xC00D36B4)) return "未找到可用的 H.264 编码器，请安装 Media Feature Pack。";
-        if (hr == unchecked((int)0x80070002)) return "无法创建输出文件。";
+        if (hr == unchecked((int)0xC00D36B4)) return L.T("未找到可用的 H.264 编码器，请安装 Media Feature Pack。");
+        if (hr == unchecked((int)0x80070002)) return L.T("无法创建输出文件。");
         return $"Media Foundation 返回错误 0x{hr:X8}。";
     }
 

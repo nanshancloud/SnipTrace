@@ -3,8 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="关于" FontSize="26" FontWeight="SemiBold" />
-            <TextBlock Text="完全本地处理，不联网、不上传、不收集遥测。" Foreground="{DynamicResource TextSecondaryBrush}"
+            <TextBlock Text="{DynamicResource 关于}" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="{DynamicResource 完全本地处理，不联网、不上传、不收集遥测。}" Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,8,0,0" />
 
             <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
@@ -13,23 +13,23 @@
                     <StackPanel Orientation="Horizontal">
                         <Border Width="42" Height="42" CornerRadius="11" Background="{DynamicResource AccentBrush}" />
                         <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="屏迹 SnipTrace" FontSize="17" FontWeight="SemiBold" />
-                            <TextBlock x:Name="VersionText" Text="版本 1.0.0" Style="{StaticResource CaptionText}"
+                            <TextBlock Text="SnipTrace" FontSize="17" FontWeight="SemiBold" />
+                            <TextBlock x:Name="VersionText" Text="{DynamicResource 版本 1.0.0}" Style="{StaticResource CaptionText}"
                                        Margin="0,4,0,0" />
                         </StackPanel>
                     </StackPanel>
 
-                    <TextBlock Text="轻量截图、贴图与录屏工具：选区标注、钉图置顶、GIF / MP4 录制。完全本地处理，不联网、不上传、不收集遥测。"
+                    <TextBlock Text="{DynamicResource 轻量截图、贴图与录屏工具：选区标注、钉图置顶、GIF / MP4 录制。完全本地处理，不联网、不上传、不收集遥测。}"
                                Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,16,0,0" />
 
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                        <Button x:Name="CheckUpdateButton" Content="检查更新" Style="{StaticResource SecondaryButton}"
-                                Click="CheckUpdate_Click" ToolTip="读取 GitHub 上发布的最新版本号" />
-                        <Button x:Name="DownloadButton" Content="下载新版本" Style="{StaticResource SecondaryButton}"
+                        <Button x:Name="CheckUpdateButton" Content="{DynamicResource 检查更新}" Style="{StaticResource SecondaryButton}"
+                                Click="CheckUpdate_Click" ToolTip="{DynamicResource 读取 GitHub 上发布的最新版本号}" />
+                        <Button x:Name="DownloadButton" Content="{DynamicResource 下载新版本}" Style="{StaticResource SecondaryButton}"
                                 Margin="8,0,0,0" Visibility="Collapsed" Click="Download_Click"
-                                ToolTip="在浏览器中打开发布页" />
+                                ToolTip="{DynamicResource 在浏览器中打开发布页}" />
                         <TextBlock x:Name="UpdateStatusText" Style="{StaticResource CaptionText}" TextWrapping="Wrap"
-                                   VerticalAlignment="Center" Margin="12,0,0,0" Text="启动时自动检查，可在设置里关闭" />
+                                   VerticalAlignment="Center" Margin="12,0,0,0" Text="{DynamicResource 启动时自动检查，可在设置里关闭}" />
                     </StackPanel>
 
                     <Grid Margin="0,14,0,0">
@@ -37,10 +37,10 @@
                             <ColumnDefinition Width="80" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="项目地址" Style="{StaticResource CaptionText}" />
+                        <TextBlock Text="{DynamicResource 项目地址}" Style="{StaticResource CaptionText}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource CaptionText}" TextTrimming="CharacterEllipsis">
                             <Hyperlink Click="RepositoryLink_Click" Foreground="{DynamicResource AccentBrush}"
-                                       ToolTip="在浏览器中打开 GitHub 仓库">
+                                       ToolTip="{DynamicResource 在浏览器中打开 GitHub 仓库}">
                                 <Run Text="github.com/nanshancloud/SnipTrace" />
                             </Hyperlink>
                         </TextBlock>
@@ -51,7 +51,7 @@
                             <ColumnDefinition Width="80" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="作者" Style="{StaticResource CaptionText}" />
+                        <TextBlock Text="{DynamicResource 作者}" Style="{StaticResource CaptionText}" />
                         <TextBlock Grid.Column="1" Text="EricYeung" Style="{StaticResource CaptionText}" />
                     </Grid>
 
@@ -60,8 +60,8 @@
                             <ColumnDefinition Width="80" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="技术栈" Style="{StaticResource CaptionText}" />
-                        <TextBlock Grid.Column="1" Text=".NET · WPF · Win32 互操作" Style="{StaticResource CaptionText}" />
+                        <TextBlock Text="{DynamicResource 技术栈}" Style="{StaticResource CaptionText}" />
+                        <TextBlock Grid.Column="1" Text="{DynamicResource .NET · WPF · Win32 互操作}" Style="{StaticResource CaptionText}" />
                     </Grid>
 
                     <Grid Margin="0,8,0,0">
@@ -69,13 +69,13 @@
                             <ColumnDefinition Width="80" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="开源协议" Style="{StaticResource CaptionText}" />
+                        <TextBlock Text="{DynamicResource 开源协议}" Style="{StaticResource CaptionText}" />
                         <TextBlock Grid.Column="1" Text="MIT License" Style="{StaticResource CaptionText}" />
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="反馈与建议请通过上方仓库的 Issues 提交。" Style="{StaticResource CaptionText}"
+            <TextBlock Text="{DynamicResource 反馈与建议请通过上方仓库的 Issues 提交。}" Style="{StaticResource CaptionText}"
                        Margin="0,16,0,0" TextWrapping="Wrap" />
         </StackPanel>
     </ScrollViewer>

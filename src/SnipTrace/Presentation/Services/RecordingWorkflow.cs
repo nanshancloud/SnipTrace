@@ -31,7 +31,7 @@ public sealed class RecordingWorkflow
     {
         if (_engine is not null)
         {
-            _services.Toasts.Warn("已有录制进行中", "请先停止当前录制。");
+            _services.Toasts.Warn(L.T("已有录制进行中"), L.T("请先停止当前录制。"));
             return;
         }
 
@@ -44,7 +44,7 @@ public sealed class RecordingWorkflow
         }
         catch (Exception ex)
         {
-            _services.Toasts.Warn("无法打开录制设置", ex.Message);
+            _services.Toasts.Warn(L.T("无法打开录制设置"), ex.Message);
             return;
         }
 
@@ -54,7 +54,7 @@ public sealed class RecordingWorkflow
         int bitRateMbps = choice.Value.BitRateMbps;
 
         var countdown = new CountdownWindow();
-        string hint = kind == RecordingKind.Gif ? "3 秒后开始 GIF 录制 · Esc 取消" : "3 秒后开始屏幕录制 · Esc 取消";
+        string hint = kind == RecordingKind.Gif ? L.T("3 秒后开始 GIF 录制 · Esc 取消") : L.T("3 秒后开始屏幕录制 · Esc 取消");
         if (!await countdown.RunAsync(3, area, hint)) return;
 
         try
@@ -95,13 +95,13 @@ public sealed class RecordingWorkflow
             SystemEvents.DisplaySettingsChanged += SystemEvents_DisplaySettingsChanged;
 
             _services.Tray.SetRecordingState(true, $"正在录制 · {area.Width}×{area.Height}");
-            _services.Shell?.SetTrayState("正在录制");
+            _services.Shell?.SetTrayState(L.T("正在录制"));
             engine.Start();
         }
         catch (Exception ex)
         {
             ShutdownUi();
-            _services.Toasts.Warn("无法开始录制", ex.Message);
+            _services.Toasts.Warn(L.T("无法开始录制"), ex.Message);
         }
     }
 
@@ -131,7 +131,7 @@ public sealed class RecordingWorkflow
         Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
         {
             _bar?.SetStatus(message);
-            _services.Toasts.Warn("磁盘空间预警", message);
+            _services.Toasts.Warn(L.T("磁盘空间预警"), message);
         }));
     }
 
@@ -167,7 +167,7 @@ public sealed class RecordingWorkflow
         }
 
         new RecordingResultWindow(source, path, kind, duration, bytes).Show();
-        _services.Toasts.Info(kind == RecordingKind.Gif ? "GIF 已生成" : "录屏已保存", Path.GetFileName(path));
+        _services.Toasts.Info(kind == RecordingKind.Gif ? L.T("GIF 已生成") : L.T("录屏已保存"), Path.GetFileName(path));
     }
 
     private void HandleFailed(string message)
@@ -175,7 +175,7 @@ public sealed class RecordingWorkflow
         var engine = _engine;
         ShutdownUi();
         if (engine is not null) Task.Run(() => engine.Dispose());
-        _services.Toasts.Warn("录制失败", message + " 临时文件已清理。");
+        _services.Toasts.Warn(L.T("录制失败"), message + L.T(" 临时文件已清理。"));
     }
 
     private void TogglePause()
@@ -189,15 +189,15 @@ public sealed class RecordingWorkflow
 
         _bar?.SetPaused(!wasPaused);
         _frame?.SetPaused(!wasPaused);
-        _services.Tray.SetRecordingState(true, wasPaused ? "正在录制" : "已暂停");
-        _services.Shell?.SetTrayState(wasPaused ? "正在录制" : "已暂停");
+        _services.Tray.SetRecordingState(true, wasPaused ? L.T("正在录制") : L.T("已暂停"));
+        _services.Shell?.SetTrayState(wasPaused ? L.T("正在录制") : L.T("已暂停"));
     }
 
     private void StopRecording()
     {
         var engine = _engine;
         if (engine is null) return;
-        _bar?.SetStatus("正在完成封装，请稍候…");
+        _bar?.SetStatus(L.T("正在完成封装，请稍候…"));
         engine.RequestStop();
     }
 
@@ -208,7 +208,7 @@ public sealed class RecordingWorkflow
         engine.Cancel();
         ShutdownUi();
         Task.Run(() => engine.Dispose());
-        _services.Toasts.Info("已取消录制", "目标文件未生成，临时文件已清理。");
+        _services.Toasts.Info(L.T("已取消录制"), L.T("目标文件未生成，临时文件已清理。"));
     }
 
     private void SystemEvents_DisplaySettingsChanged(object? sender, EventArgs e)
@@ -216,8 +216,8 @@ public sealed class RecordingWorkflow
         Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
         {
             if (_engine is null) return;
-            _services.Toasts.Warn("显示设置已变化", "录制已自动停止并完成封装。");
-            _bar?.SetStatus("显示设置变化，正在封装…");
+            _services.Toasts.Warn(L.T("显示设置已变化"), L.T("录制已自动停止并完成封装。"));
+            _bar?.SetStatus(L.T("显示设置变化，正在封装…"));
             _engine.RequestStop();
         }));
     }
@@ -280,6 +280,6 @@ public sealed class RecordingWorkflow
         }
 
         _services.Tray.SetRecordingState(false);
-        _services.Shell?.SetTrayState("托盘常驻");
+        _services.Shell?.SetTrayState(L.T("托盘常驻"));
     }
 }

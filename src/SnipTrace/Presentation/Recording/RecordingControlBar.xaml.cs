@@ -45,7 +45,7 @@ public partial class RecordingControlBar : Window
         PauseGlyph.Text = paused ? "\uE769" : "\uE768";
         Dot.Fill = paused ? PausedBrush : RecordingBrush;
         TimeText.Foreground = paused ? PausedBrush : (Brush)FindResource("TextPrimaryBrush");
-        PauseButton.ToolTip = paused ? "继续录制" : "暂停录制";
+        PauseButton.ToolTip = paused ? L.T("继续录制") : L.T("暂停录制");
     }
 
     public void PlaceNear(PixelRect area, MonitorInfo monitor)

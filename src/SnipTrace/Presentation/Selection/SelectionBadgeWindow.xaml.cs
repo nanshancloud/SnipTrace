@@ -17,13 +17,13 @@ public partial class SelectionBadgeWindow : Window
 {
     private static readonly (BadgeShape Shape, string Label)[] Shapes =
     {
-        (BadgeShape.Circle, "圆形"),
-        (BadgeShape.Triangle, "三角"),
-        (BadgeShape.Square, "方形"),
-        (BadgeShape.Pentagon, "五边"),
-        (BadgeShape.Hexagon, "六边"),
-        (BadgeShape.Heart, "心形"),
-        (BadgeShape.RoundedRect, "圆角")
+        (BadgeShape.Circle, L.T("圆形")),
+        (BadgeShape.Triangle, L.T("三角")),
+        (BadgeShape.Square, L.T("方形")),
+        (BadgeShape.Pentagon, L.T("五边")),
+        (BadgeShape.Hexagon, L.T("六边")),
+        (BadgeShape.Heart, L.T("心形")),
+        (BadgeShape.RoundedRect, L.T("圆角"))
     };
 
     private readonly List<(ToggleButton Button, BadgeShape Shape)> _shapeChips = new();
@@ -60,7 +60,7 @@ public partial class SelectionBadgeWindow : Window
             ShapePanel.Children.Add(chip);
         }
 
-        foreach (var (mode, label) in new[] { (BadgeFillMode.Fill, "填充"), (BadgeFillMode.Outline, "边框") })
+        foreach (var (mode, label) in new[] { (BadgeFillMode.Fill, L.T("填充")), (BadgeFillMode.Outline, L.T("边框")) })
         {
             var chip = new ToggleButton
             {

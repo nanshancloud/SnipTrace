@@ -204,13 +204,13 @@ public partial class EditorWindow : Window
 
         var actions = new (Button Button, string Text, string Glyph)[]
         {
-            (UndoButton, "撤销", "\uE7A7"),
-            (RedoButton, "重做", "\uE7A6"),
-            (ClearAllButton, "清除全部", "\uE74D"),
-            (CopyButton, "复制", "\uE8C8"),
-            (SaveButton, "保存", "\uE74E"),
-            (PinButton, "钉图", "\uE840"),
-            (FullscreenButton, "全屏", "\uE740")
+            (UndoButton, L.T("撤销"), "\uE7A7"),
+            (RedoButton, L.T("重做"), "\uE7A6"),
+            (ClearAllButton, L.T("清除全部"), "\uE74D"),
+            (CopyButton, L.T("复制"), "\uE8C8"),
+            (SaveButton, L.T("保存"), "\uE74E"),
+            (PinButton, L.T("钉图"), "\uE840"),
+            (FullscreenButton, L.T("全屏"), "\uE740")
         };
 
         var textFont = (FontFamily)FindResource("AppFont");
@@ -270,7 +270,7 @@ public partial class EditorWindow : Window
                 BorderThickness = new Thickness(2),
                 BorderBrush = customColor ? (Brush)FindResource("AccentBrush") : Brushes.Transparent,
                 Cursor = Cursors.Hand,
-                ToolTip = "取色：打开系统取色对话框，任选标注 / 文本颜色",
+                ToolTip = L.T("取色：打开系统取色对话框，任选标注 / 文本颜色"),
                 Background = new LinearGradientBrush(
                     new GradientStopCollection
                     {
@@ -324,10 +324,10 @@ public partial class EditorWindow : Window
             ArrowModePanel.Children.Clear();
             foreach (var (head, elbow, label, hint) in new[]
             {
-                (ArrowHead.End, false, "单向", "末端一个箭头"),
-                (ArrowHead.Both, false, "双向", "两端都是箭头"),
-                (ArrowHead.None, false, "无头", "只画直线，不带箭头"),
-                (ArrowHead.End, true, "直角", "每段横平竖直的折线箭头")
+                (ArrowHead.End, false, L.T("单向"), L.T("末端一个箭头")),
+                (ArrowHead.Both, false, L.T("双向"), L.T("两端都是箭头")),
+                (ArrowHead.None, false, L.T("无头"), L.T("只画直线，不带箭头")),
+                (ArrowHead.End, true, L.T("直角"), L.T("每段横平竖直的折线箭头"))
             })
             {
                 var capturedHead = head;
@@ -343,9 +343,9 @@ public partial class EditorWindow : Window
             var badgeFill = selectedBadge?.FillMode ?? _badgeFill;
             foreach (var (shape, label) in new[]
             {
-                (BadgeShape.Circle, "圆形"), (BadgeShape.Triangle, "三角"), (BadgeShape.Square, "方形"),
-                (BadgeShape.Pentagon, "五边"), (BadgeShape.Hexagon, "六边"), (BadgeShape.Heart, "心形"),
-                (BadgeShape.RoundedRect, "圆角")
+                (BadgeShape.Circle, L.T("圆形")), (BadgeShape.Triangle, L.T("三角")), (BadgeShape.Square, L.T("方形")),
+                (BadgeShape.Pentagon, L.T("五边")), (BadgeShape.Hexagon, L.T("六边")), (BadgeShape.Heart, L.T("心形")),
+                (BadgeShape.RoundedRect, L.T("圆角"))
             })
             {
                 var capturedShape = shape;
@@ -353,16 +353,16 @@ public partial class EditorWindow : Window
             }
 
             BadgeFillPanel.Children.Clear();
-            BadgeFillPanel.Children.Add(Chip("填充", badgeFill == BadgeFillMode.Fill, () => SetBadgeFillMode(BadgeFillMode.Fill)));
-            BadgeFillPanel.Children.Add(Chip("边框", badgeFill == BadgeFillMode.Outline, () => SetBadgeFillMode(BadgeFillMode.Outline)));
+            BadgeFillPanel.Children.Add(Chip(L.T("填充"), badgeFill == BadgeFillMode.Fill, () => SetBadgeFillMode(BadgeFillMode.Fill)));
+            BadgeFillPanel.Children.Add(Chip(L.T("边框"), badgeFill == BadgeFillMode.Outline, () => SetBadgeFillMode(BadgeFillMode.Outline)));
 
             // 马赛克按源图取样，颜色 / 透明度对它无效；禁用以免改了却看不到效果还写入撤销栈。
             bool mosaicActive = Canvas.Tool == EditorTool.Mosaic
                                 || Canvas.Selection.FirstOrDefault() is ShapeAnnotation { Kind: AnnotationKind.Mosaic };
             ColorPanel.IsEnabled = !mosaicActive;
             OpacityPanel.IsEnabled = !mosaicActive;
-            ColorPanel.ToolTip = mosaicActive ? "马赛克按源图取样，颜色不适用" : null;
-            OpacityPanel.ToolTip = mosaicActive ? "马赛克按源图取样，透明度不适用" : null;
+            ColorPanel.ToolTip = mosaicActive ? L.T("马赛克按源图取样，颜色不适用") : null;
+            OpacityPanel.ToolTip = mosaicActive ? L.T("马赛克按源图取样，透明度不适用") : null;
 
             RefreshStyleBarStates();
         }
@@ -413,7 +413,7 @@ public partial class EditorWindow : Window
             };
             double nearest = Nearest(current, StyleBarFontSizes);
             foreach (var (size, label) in new (double Size, string Label)[]
-                     { (StyleBarFontSizes[0], "小"), (StyleBarFontSizes[1], "中"), (StyleBarFontSizes[2], "大") })
+                     { (StyleBarFontSizes[0], L.T("小")), (StyleBarFontSizes[1], L.T("中")), (StyleBarFontSizes[2], L.T("大")) })
             {
                 double captured = size;
                 var chip = Chip(label, Math.Abs(nearest - size) < 0.01, () => SetFontSize(captured));
@@ -430,7 +430,7 @@ public partial class EditorWindow : Window
             for (int i = 0; i < widths.Length; i++)
             {
                 double captured = widths[i];
-                string label = mosaic ? new[] { "小", "中", "大" }[i] : new[] { "细", "中", "粗" }[i];
+                string label = mosaic ? new[] { L.T("小"), L.T("中"), L.T("大") }[i] : new[] { L.T("细"), L.T("中"), L.T("粗") }[i];
                 var chip = Chip(label, Math.Abs(nearest - captured) < 0.01, () => SetWidth(captured));
                 chip.ToolTip = mosaic ? $"块大小 {ShapeAnnotation.MinMosaicBlock * captured / 4:0} px" : $"线宽 {captured:0}";
                 StyleChip(chip, captured);
@@ -458,7 +458,7 @@ public partial class EditorWindow : Window
                     ? new SolidColorBrush(AnnotationRenderer.ToColor(0xFFF2F6FC, 1))
                     : Brushes.Transparent,
                 Cursor = Cursors.Hand,
-                ToolTip = "应用到选中标注",
+                ToolTip = L.T("应用到选中标注"),
                 Tag = color
             };
             swatch.MouseLeftButtonUp += (_, _) => SetColor(captured);
@@ -879,11 +879,11 @@ public partial class EditorWindow : Window
         var flat = AnnotationRenderer.Render(_image, _document);
         if (ClipboardService.SetImage(flat))
         {
-            Services.Toasts.Info("已复制到剪贴板", $"{_document.ImageWidth} × {_document.ImageHeight}");
+            Services.Toasts.Info(L.T("已复制到剪贴板"), $"{_document.ImageWidth} × {_document.ImageHeight}");
         }
         else
         {
-            Services.Toasts.Warn("复制失败", "剪贴板被其他程序占用，请稍后重试。");
+            Services.Toasts.Warn(L.T("复制失败"), L.T("剪贴板被其他程序占用，请稍后重试。"));
         }
     }
 
@@ -894,11 +894,11 @@ public partial class EditorWindow : Window
             CommitText();
             var flat = AnnotationRenderer.Render(_image, _document);
             string path = Services.SaveScreenshot(flat, _baseName, out _);
-            Services.Toasts.Info("已保存", path);
+            Services.Toasts.Info(L.T("已保存"), path);
         }
         catch (Exception ex)
         {
-            Services.Toasts.Warn("保存失败", ex.Message);
+            Services.Toasts.Warn(L.T("保存失败"), ex.Message);
         }
     }
 
@@ -1051,9 +1051,9 @@ public partial class EditorWindow : Window
         UndoButton.IsEnabled = _document.CanUndo;
         RedoButton.IsEnabled = _document.CanRedo;
         ClearAllButton.IsEnabled = hasAnnotations;
-        UndoButton.ToolTip = _document.CanUndo ? "撤销（Ctrl+Z）" : "没有可撤销的操作";
-        RedoButton.ToolTip = _document.CanRedo ? "重做（Ctrl+Shift+Z / Ctrl+Y）" : "没有可重做的操作";
-        ClearAllButton.ToolTip = hasAnnotations ? "清除全部标记（可撤销）" : "没有可清除的标记";
+        UndoButton.ToolTip = _document.CanUndo ? L.T("撤销（Ctrl+Z）") : L.T("没有可撤销的操作");
+        RedoButton.ToolTip = _document.CanRedo ? L.T("重做（Ctrl+Shift+Z / Ctrl+Y）") : L.T("没有可重做的操作");
+        ClearAllButton.ToolTip = hasAnnotations ? L.T("清除全部标记（可撤销）") : L.T("没有可清除的标记");
         UpdateStatus();
     }
 
@@ -1066,23 +1066,23 @@ public partial class EditorWindow : Window
 
         _document.Clear();
         AfterHistoryChanged();
-        AppServices.Current?.Toasts.Info("已清除全部标记", "可撤销（Ctrl+Z）");
+        AppServices.Current?.Toasts.Info(L.T("已清除全部标记"), L.T("可撤销（Ctrl+Z）"));
     }
 
     private void UpdateStatus()
     {
         string toolName = Canvas.Tool switch
         {
-            EditorTool.Select => "选择",
-            EditorTool.Rectangle => "矩形",
-            EditorTool.Ellipse => "椭圆",
-            EditorTool.Arrow => _arrowElbow ? "箭头（直角）" : "箭头",
-            EditorTool.Pen => "画笔",
-            EditorTool.Highlight => "高亮",
-            EditorTool.Mosaic => "马赛克",
-            EditorTool.Text => "文本",
-            EditorTool.Eraser => "橡皮",
-            _ => "序号"
+            EditorTool.Select => L.T("选择"),
+            EditorTool.Rectangle => L.T("矩形"),
+            EditorTool.Ellipse => L.T("椭圆"),
+            EditorTool.Arrow => _arrowElbow ? L.T("箭头（直角）") : L.T("箭头"),
+            EditorTool.Pen => L.T("画笔"),
+            EditorTool.Highlight => L.T("高亮"),
+            EditorTool.Mosaic => L.T("马赛克"),
+            EditorTool.Text => L.T("文本"),
+            EditorTool.Eraser => L.T("橡皮"),
+            _ => L.T("序号")
         };
 
         string brush = Canvas.Tool switch

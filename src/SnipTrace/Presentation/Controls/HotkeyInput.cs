@@ -31,13 +31,13 @@ public sealed class HotkeyInput : Border
         Cursor = Cursors.Hand;
         SetResourceReference(BackgroundProperty, "SurfaceBrush");
         SetResourceReference(BorderBrushProperty, "BorderBrush");
-        ToolTip = "点击后直接按下组合键即可录入（Backspace 清除，Esc 退出录入）";
+        ToolTip = L.T("点击后直接按下组合键即可录入（Backspace 清除，Esc 退出录入）");
 
         _chips = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
         _placeholder = new TextBlock
         {
-            Text = "点击后按键录入",
+            Text = L.T("点击后按键录入"),
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(7, 0, 0, 0)

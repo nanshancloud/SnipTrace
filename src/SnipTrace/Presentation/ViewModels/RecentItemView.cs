@@ -28,9 +28,9 @@ public sealed class RecentItemView
 
     public string KindLabel => Item.Kind switch
     {
-        RecentItemKind.Screenshot => "截图",
+        RecentItemKind.Screenshot => L.T("截图"),
         RecentItemKind.Gif => "GIF",
-        _ => "录屏"
+        _ => L.T("录屏")
     };
 
     public string TimeLabel => Item.CreatedAt.ToString("MM-dd HH:mm");

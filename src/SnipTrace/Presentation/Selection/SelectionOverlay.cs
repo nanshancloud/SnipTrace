@@ -1027,7 +1027,7 @@ public sealed class SelectionOverlay : IDisposable
 
     private static string DescribeRatio(PixelRect rect, AspectRatio requested)
     {
-        if (rect.IsEmpty) return requested.IsFree ? "自由" : requested.Label;
+        if (rect.IsEmpty) return requested.IsFree ? L.T("自由") : requested.Label;
         if (!requested.IsFree && requested.Label != AspectRatio.Original.Label) return requested.Label;
 
         int gcd = Gcd(rect.Width, rect.Height);

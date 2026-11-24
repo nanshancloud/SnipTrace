@@ -7,6 +7,7 @@ using SnipTrace.App.Infrastructure.Encoding;
 using SnipTrace.App.Infrastructure.Platform;
 using SnipTrace.App.Presentation.Services;
 using SnipTrace.App.Presentation.Views;
+using SnipTrace.Domain;
 
 namespace SnipTrace.App;
 
@@ -20,8 +21,13 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // 自检 / 直开窗口等早退分支还没有设置对象，先用默认语言初始化字典。
+        LanguageManager.Apply(LanguageModes.English);
+
         if (e.Args.Any(arg => string.Equals(arg, "--selftest", StringComparison.OrdinalIgnoreCase)))
         {
+            // 自检断言按中文文案编写，固定语言后再跑。
+            LanguageManager.Apply(LanguageModes.SimplifiedChinese);
             int selfTestFailures = SelfTest.Run();
             Shutdown(selfTestFailures);
             return;
@@ -68,6 +74,7 @@ public partial class App : Application
 
         _services = new AppServices();
         ThemeManager.Apply(_services.Settings.Theme);
+        LanguageManager.Apply(_services.Settings.Language);
 
         // 直接打开标注编辑器（排查/验收用）：--edit <图片路径>
         string? editPath = ReadArgument(e.Args, "--edit");
@@ -109,12 +116,12 @@ public partial class App : Application
         var failures = _services.ApplyHotkeys();
         if (failures.Count > 0 && _services.Settings.WarnHotkeyFailure)
         {
-            _services.Toasts.Warn("快捷键注册失败", string.Join("；", failures) + "。可在设置中重新录入。");
+            _services.Toasts.Warn(L.T("快捷键注册失败"), string.Join("；", failures) + L.T("。可在设置中重新录入。"));
         }
 
         if (_services.SettingsStore.LastLoadWarning is not null)
         {
-            _services.Toasts.Warn("设置已恢复默认", _services.SettingsStore.LastLoadWarning);
+            _services.Toasts.Warn(L.T("设置已恢复默认"), _services.SettingsStore.LastLoadWarning);
         }
 
         Task.Run(ProbeMp4Encoder);
@@ -155,7 +162,7 @@ public partial class App : Application
         if (available) return;
 
         Dispatcher.BeginInvoke(new Action(() =>
-            _services?.Toasts.Warn("MP4 录制不可用", reason ?? "未找到可用的 H.264 编码器。")));
+            _services?.Toasts.Warn(L.T("MP4 录制不可用"), reason ?? L.T("未找到可用的 H.264 编码器。"))));
     }
 
     private void WireTray()
@@ -202,7 +209,7 @@ public partial class App : Application
         {
         }
 
-        _services?.Toasts.Warn("出现未处理的错误", e.Exception.Message);
+        _services?.Toasts.Warn(L.T("出现未处理的错误"), e.Exception.Message);
         e.Handled = true;
     }
 

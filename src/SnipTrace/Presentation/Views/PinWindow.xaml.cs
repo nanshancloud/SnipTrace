@@ -185,7 +185,7 @@ public partial class PinWindow : Window
         Opacity = Opacity < 1 ? 1 : 0.55;
         if (OpacityMenu is not null)
         {
-            OpacityMenu.Header = Opacity < 1 ? "恢复不透明 (Alt+滚轮)" : "半透明显示 (Alt+滚轮)";
+            OpacityMenu.Header = Opacity < 1 ? L.T("恢复不透明 (Alt+滚轮)") : L.T("半透明显示 (Alt+滚轮)");
         }
     }
 
@@ -294,7 +294,7 @@ public partial class PinWindow : Window
         }
         catch (Exception ex)
         {
-            Services.Toasts.Warn("无法打开精修", ex.Message);
+            Services.Toasts.Warn(L.T("无法打开精修"), ex.Message);
         }
     }
 
@@ -304,11 +304,11 @@ public partial class PinWindow : Window
     {
         if (SnipTrace.App.Infrastructure.Platform.ClipboardService.SetImage(FlatImage()))
         {
-            Services.Toasts.Info("已复制到剪贴板");
+            Services.Toasts.Info(L.T("已复制到剪贴板"));
         }
         else
         {
-            Services.Toasts.Warn("复制失败", "剪贴板可能被其他程序占用，请稍后重试。");
+            Services.Toasts.Warn(L.T("复制失败"), L.T("剪贴板可能被其他程序占用，请稍后重试。"));
         }
     }
 
@@ -319,10 +319,10 @@ public partial class PinWindow : Window
         {
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "保存钉图",
+                Title = L.T("保存钉图"),
                 FileName = _baseName,
                 DefaultExt = ".png",
-                Filter = "PNG 图片 (*.png)|*.png",
+                Filter = L.T("PNG 图片 (*.png)|*.png"),
                 InitialDirectory = Services.ScreenshotDirectory
             };
 
@@ -330,11 +330,11 @@ public partial class PinWindow : Window
             var flat = FlatImage();
             ImageUtil.SavePng(flat, dialog.FileName);
             AddRecent(dialog.FileName, flat);
-            Services.Toasts.Info("已保存", dialog.FileName);
+            Services.Toasts.Info(L.T("已保存"), dialog.FileName);
         }
         catch (Exception ex)
         {
-            Services.Toasts.Warn("保存失败", ex.Message);
+            Services.Toasts.Warn(L.T("保存失败"), ex.Message);
         }
     }
 
@@ -344,11 +344,11 @@ public partial class PinWindow : Window
         try
         {
             string path = Services.SaveScreenshot(FlatImage(), _baseName, out _);
-            Services.Toasts.Info("已保存", path);
+            Services.Toasts.Info(L.T("已保存"), path);
         }
         catch (Exception ex)
         {
-            Services.Toasts.Warn("保存失败", ex.Message);
+            Services.Toasts.Warn(L.T("保存失败"), ex.Message);
         }
     }
 
